@@ -2,7 +2,7 @@
 1. 주요 브랜치
     main (또는 master): 최종 제품으로 배포될 안정적인 코드가 들어있는 브랜치입니다. 배포 가능한 상태의 코드만 main에 머지됩니다.
     develop: 개발 진행 중인 코드가 모이는 브랜치입니다. 새로운 기능이나 버그 수정이 끝나면 이 브랜치로 머지합니다. 개발 단계에서 안정화된 버전이 main으로 병합됩니다.
-    
+
 2. 기능별 브랜치 (Feature Branch)
     새로운 기능을 개발할 때 사용하는 브랜치입니다. develop 브랜치에서 분기해서 기능을 구현한 후, 완료되면 다시 develop 브랜치에 병합합니다.
     이름 규칙: feature/기능이름
@@ -52,3 +52,9 @@
     fix: 헤더 UI 수정
     refactor: 중복된 코드 리팩토링
     이런 규칙들은 Git 워크플로우를 더 체계적으로 만들고, 협업의 효율성을 높이는 데 큰 도움이 됩니다.
+
+###frontend###
+
+    코드 정렬: npm run format
+    실행: npm run dev
+    git fetch, pull 후 npm install (frontend 폴더 내에서)
