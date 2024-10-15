@@ -53,7 +53,7 @@
     refactor: 중복된 코드 리팩토링
     이런 규칙들은 Git 워크플로우를 더 체계적으로 만들고, 협업의 효율성을 높이는 데 큰 도움이 됩니다.
 
-###frontend###
+###frontend
 
     코드 정렬: npm run format
     실행: npm run dev
