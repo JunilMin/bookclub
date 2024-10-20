@@ -91,5 +91,12 @@
    chore: 빌드 업무 수정, 패키지 매니저 수정 등
    (첫 글자는 항상 소문자로 시작하고, 마침표를 사용하지 않습니다.)
 
+7. Swagger 주소: http://localhost:8080/swagger-ui/index.html
+CRUD 테스트 진행
+
+9. Frontend 생성 전, 로컬(8080) 접속 시,
+-아이디: user
+-비밀번호: 백엔드 실행 후, 백엔드 로그의 password
+
 ### backend
 
