@@ -8,6 +8,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
+//@CrossOrigin(origins = "http://localhost:8081") 필요 시, 프론트 구현 후 주석 해제
 public class UserController {
 
   @Autowired
