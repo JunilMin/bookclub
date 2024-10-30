@@ -1,3 +1,5 @@
+// ./auth/AuthRequest.java
+
 package com.bookclub.backend.auth;
 
 import lombok.Getter;

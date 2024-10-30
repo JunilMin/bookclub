@@ -1,3 +1,4 @@
+// User.java
 package com.bookclub.backend.user;
 import com.bookclub.backend.post.Post;
 import lombok.Getter;
@@ -12,7 +13,6 @@ import java.util.List;
 @Setter // 게터 생성
 @NoArgsConstructor  // 기본 생성자 생성
 public class User {
-
   @Id
   private String id;
   private String username;

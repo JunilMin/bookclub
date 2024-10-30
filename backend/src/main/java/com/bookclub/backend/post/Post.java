@@ -1,3 +1,4 @@
+// ./post/Post.java
 package com.bookclub.backend.post;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

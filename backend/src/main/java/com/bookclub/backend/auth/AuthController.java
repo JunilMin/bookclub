@@ -1,3 +1,5 @@
+// AuthController.java
+
 package com.bookclub.backend.auth;
 
 import org.springframework.beans.factory.annotation.Autowired;

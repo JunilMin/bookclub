@@ -1,3 +1,5 @@
+// ./config/WebConfig.java
+
 package com.bookclub.backend.config;
 
 import org.springframework.context.annotation.Bean;

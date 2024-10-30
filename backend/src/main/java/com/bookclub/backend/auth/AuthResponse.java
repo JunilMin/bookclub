@@ -1,3 +1,5 @@
+// ./auth/AuthResponse.java
+
 package com.bookclub.backend.auth;
 
 import lombok.AllArgsConstructor;

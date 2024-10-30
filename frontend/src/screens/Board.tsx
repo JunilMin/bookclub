@@ -7,7 +7,7 @@ interface PostForm {
   book: string;
 }
 import './styles/Board.css'
-
+//React.FC는 Functional Component의 약자, react + typescript 조합으로 개발할때 사용하는 type
 const Board: React.FC = () => {
   const [postForm, setPostForm] = useState<PostForm>({
     due: '',
