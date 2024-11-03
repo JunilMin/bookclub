@@ -10,7 +10,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/posts")
-//@CrossOrigin(origins = "http://localhost:8081") 필요 시, 프론트 구현 후 주석 해제
+@CrossOrigin(origins = "http://localhost:5173") //필요 시, 프론트 구현 후 주석 해제
 public class PostController {
 
   @Autowired

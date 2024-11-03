@@ -1,21 +1,21 @@
 // src/api/posts.ts
 import axiosInstance from './axiosInstance';
 
-interface Post {
-  id?: string;
-  creater: string;
-  date?: string;
-  due: string;
-  capacity: number;
-  member: string[];
-  level: 'low' | 'moderate' | 'high';
-  book: string;
-}
+export interface Post {
+    id: string; // 수정: `string | undefined`에서 `string`으로 변경
+    creater: string;
+    date: Date;
+    due: Date;
+    capacity: number;
+    member: string[];
+    level: 'low' | 'moderate' | 'high';
+    book: string;
+  }
 
 // 모든 포스트 조회
 export const getAllPosts = async (): Promise<Post[]> => {
-  const response = await axiosInstance.get('/posts');
-  return response.data;
+    const response = await axiosInstance.get('/posts');
+    return response.data;
 };
 
 // 특정 포스트 조회

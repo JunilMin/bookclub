@@ -1,4 +1,4 @@
-function Home() {
+const Home: React.FC = () => {
     return (
         <div>
             <h1>Welcome to the Home Page</h1>

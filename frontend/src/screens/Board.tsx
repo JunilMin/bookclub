@@ -1,101 +1,44 @@
-import React, { useState } from 'react';
+// src/components/Board.tsx
+import React, { useEffect, useState } from 'react';
+import { getAllPosts, Post } from '../api/posts';
+import './styles/Board.css';
 
-interface PostForm {
-  due: string;
-  capacity: number;
-  level: 'low' | 'moderate' | 'high';
-  book: string;
-}
-import './styles/Board.css'
-//React.FC는 Functional Component의 약자, react + typescript 조합으로 개발할때 사용하는 type
-const Board: React.FC = () => {
-  const [postForm, setPostForm] = useState<PostForm>({
-    due: '',
-    capacity: 1,
-    level: 'moderate',
-    book: '',
-  });
+function Board() {
+  const [posts, setPosts] = useState<Post[]>([]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setPostForm({
-      ...postForm,
-      [name]: name === 'capacity' ? parseInt(value) : value,
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const newPost = {
-      ...postForm,
-      date: new Date().toISOString(),  // 현재 날짜를 생성 날짜로 설정
-    };
-
+  const fetchPosts = async () => {
     try {
-      const response = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPost),
-      });
-
-      if (response.ok) {
-        alert('포스트가 성공적으로 생성되었습니다!');
-        setPostForm({ due: '', capacity: 1, level: 'moderate', book: '' });
-      } else {
-        alert('포스트 생성에 실패했습니다.');
-      }
+      const data = await getAllPosts();
+      setPosts(data);
     } catch (error) {
       console.error('Error:', error);
-      alert('서버 오류가 발생했습니다.');
     }
   };
 
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
   return (
-    <form onSubmit={handleSubmit}>
-      <label>
-        약속 시간 (due):
-        <input
-          type="datetime-local"
-          name="due"
-          value={postForm.due}
-          onChange={handleInputChange}
-          required
-        />
-      </label>
-      <label>
-        인원 수 (capacity):
-        <input
-          type="number"
-          name="capacity"
-          value={postForm.capacity}
-          min={1}
-          max={10}
-          onChange={handleInputChange}
-          required
-        />
-      </label>
-      <label>
-        지식 레벨 (level):
-        <select name="level" value={postForm.level} onChange={handleInputChange} required>
-          <option value="low">초보</option>
-          <option value="moderate">중간</option>
-          <option value="high">고급</option>
-        </select>
-      </label>
-      <label>
-        책 이름 (book):
-        <input
-          type="text"
-          name="book"
-          value={postForm.book}
-          onChange={handleInputChange}
-          required
-        />
-      </label>
-      <button type="submit">포스트 생성</button>
-    </form>
+    <div className="board">
+      <h2>게시판</h2>
+      {posts.length > 0 ? (
+        <ul className="post-board">
+          {posts.map((post) => (
+            <li key={post.id} className="post-item">
+              <p>{new Date(post.date).toLocaleString()}</p>
+              <p>{new Date(post.due).toLocaleString()}</p>
+              <p>{post.capacity}</p>
+              <p>{post.level}</p>
+              <p>{post.book}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>게시물이 없습니다.</p>
+      )}
+    </div>
   );
 };
 
-export default Board
+export default Board;

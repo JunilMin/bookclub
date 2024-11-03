@@ -1,0 +1,36 @@
+h1 {
+    font-size: 84px;
+    outline: 1px solid red;
+  }
+  
+  #horizontal-wrapper {
+    overflow: hidden;
+    background: green;
+    height: 300vh;
+    border: 1px dotted blue;
+    position: relative;
+  }
+  
+  .carousel-content {
+    display: flex;
+    width: 500vw;
+    height: 100vh;
+  }
+  
+  #horizontal-wrapper.sticky .carousel-content {
+    position: fixed;
+    top: 0;
+    bottom: auto;
+  }
+  
+  #horizontal-wrapper.post-sticky .carousel-content {
+    position: absolute;
+    top: auto;
+    bottom: 0;
+  }
+  
+  .carousel-item {
+    flex: 0 0 20%;
+    text-align: center;
+  }
+  
