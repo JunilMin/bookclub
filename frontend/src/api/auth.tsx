@@ -22,7 +22,7 @@ export const login = async (authRequest: AuthRequest): Promise<AuthResponse> => 
 
 // Google 로그인 요청
 export const googleLogin = async () => {
-    window.location.href = 'http://localhost:8081/oauth2/authorization/google';
+    window.location.href = 'http://localhost:8080/oauth2/authorization/google';
   };
   
 // 로그아웃

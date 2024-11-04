@@ -1,0 +1,14 @@
+.nav-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 80px;
+    background-color:aliceblue;
+    position: relative;
+}
+
+.left-nav-wrap {
+    display: flex;
+    gap:20px;
+    font-size: 18px;
+}

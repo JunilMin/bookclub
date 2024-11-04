@@ -1,4 +1,4 @@
-// AuthController.java
+// ./auth/AuthController.java
 
 package com.bookclub.backend.auth;
 

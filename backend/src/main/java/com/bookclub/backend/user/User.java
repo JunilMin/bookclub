@@ -1,4 +1,4 @@
-// User.java
+// ./user/User.java
 package com.bookclub.backend.user;
 import com.bookclub.backend.post.Post;
 import lombok.Getter;
