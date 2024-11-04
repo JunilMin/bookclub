@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { getAllPosts, Post } from '../api/posts';
 import './styles/Board.css';
 
-function Board() {
+const Board: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
 
   const fetchPosts = async () => {
