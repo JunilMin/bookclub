@@ -1,4 +1,3 @@
-// ./user/UserController.java
 package com.bookclub.backend.user;
 
 import org.bson.types.ObjectId;
@@ -28,8 +27,14 @@ public class UserController {
    * ID로 사용자 조회
    */
   @GetMapping("/{id}")
-  public Optional<User> getUserById(@PathVariable ObjectId id) {
-    return userService.getUserById(id);
+  public ResponseEntity<User> getUserById(@PathVariable String id) {
+    try {
+      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+      Optional<User> user = userService.getUserById(objectId);
+      return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+    }
   }
 
   /**
@@ -60,15 +65,31 @@ public class UserController {
    * 사용자 정보 업데이트
    */
   @PutMapping("/{id}")
-  public User updateUser(@PathVariable ObjectId id, @RequestBody User updatedUser) {
-    return userService.updateUser(id, updatedUser);
+  public ResponseEntity<User> updateUser(@PathVariable String id, @RequestBody User updatedUser) {
+    try {
+      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+      User user = userService.updateUser(objectId, updatedUser);
+      if (user != null) {
+        return ResponseEntity.ok(user);
+      } else {
+        return ResponseEntity.notFound().build();
+      }
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+    }
   }
 
   /**
    * 사용자 삭제
    */
   @DeleteMapping("/{id}")
-  public void deleteUser(@PathVariable ObjectId id) {
-    userService.deleteUser(id);
+  public ResponseEntity<Void> deleteUser(@PathVariable String id) {
+    try {
+      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+      userService.deleteUser(objectId);
+      return ResponseEntity.noContent().build();
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+    }
   }
 }
