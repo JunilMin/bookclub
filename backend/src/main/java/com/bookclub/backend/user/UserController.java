@@ -1,6 +1,7 @@
 // ./user/UserController.java
 package com.bookclub.backend.user;
 
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +28,7 @@ public class UserController {
    * ID로 사용자 조회
    */
   @GetMapping("/{id}")
-  public Optional<User> getUserById(@PathVariable String id) {
+  public Optional<User> getUserById(@PathVariable ObjectId id) {
     return userService.getUserById(id);
   }
 
@@ -59,7 +60,7 @@ public class UserController {
    * 사용자 정보 업데이트
    */
   @PutMapping("/{id}")
-  public User updateUser(@PathVariable String id, @RequestBody User updatedUser) {
+  public User updateUser(@PathVariable ObjectId id, @RequestBody User updatedUser) {
     return userService.updateUser(id, updatedUser);
   }
 
@@ -67,7 +68,7 @@ public class UserController {
    * 사용자 삭제
    */
   @DeleteMapping("/{id}")
-  public void deleteUser(@PathVariable String id) {
+  public void deleteUser(@PathVariable ObjectId id) {
     userService.deleteUser(id);
   }
 }

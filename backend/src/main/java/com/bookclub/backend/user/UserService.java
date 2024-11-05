@@ -2,6 +2,8 @@
 package com.bookclub.backend.user;
 
 import com.bookclub.backend.auth.EncryptUtils;
+
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -23,7 +25,7 @@ public class UserService {
   /**
    * ID로 사용자 조회
    */
-  public Optional<User> getUserById(String id) {
+  public Optional<User> getUserById(ObjectId id) {
     return userRepository.findById(id);
   }
 
@@ -58,7 +60,7 @@ public class UserService {
   /**
    * 사용자 정보 업데이트
    */
-  public User updateUser(String id, User updatedUser) {
+  public User updateUser(ObjectId id, User updatedUser) {
     Optional<User> existingUser = userRepository.findById(id);
     if (existingUser.isPresent()) {
       User user = existingUser.get();
@@ -78,7 +80,7 @@ public class UserService {
   /**
    * 사용자 삭제
    */
-  public void deleteUser(String id) {
+  public void deleteUser(ObjectId id) {
     userRepository.deleteById(id);
   }
 }
