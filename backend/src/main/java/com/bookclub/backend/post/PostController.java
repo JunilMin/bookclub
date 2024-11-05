@@ -29,10 +29,10 @@ public class PostController {
             .orElse(ResponseEntity.notFound().build());
   }
 
-  @GetMapping("/creater/{createrId}")
-  public List<Post> getPostsByCreater(@PathVariable ObjectId createrId) {
-    return postService.getPostsByCreater(createrId);
-  }
+  // @GetMapping("/creater/{createrId}")
+  // public List<Post> getPostsByCreater(@PathVariable ObjectId createrId) {
+  //   return postService.getPostsByCreater(createrId);
+  // }
 
   @PostMapping
   public ResponseEntity<Post> createPost(@RequestBody Post post) {

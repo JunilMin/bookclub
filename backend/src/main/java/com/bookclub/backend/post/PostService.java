@@ -5,6 +5,10 @@ package com.bookclub.backend.post;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.bookclub.backend.user.User;
+import com.bookclub.backend.user.UserService;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -14,6 +18,9 @@ public class PostService {
   @Autowired
   private PostRepository postRepository;
 
+  @Autowired
+  private UserService userService;
+
   public List<Post> getAllPosts() {
     return postRepository.findAll();
   }
@@ -22,11 +29,13 @@ public class PostService {
     return postRepository.findById(id);
   }
 
-  public List<Post> getPostsByCreater(ObjectId creater) {
+  public List<Post> getPostsByCreater(String creater) {
     return postRepository.findByCreater(creater);
   }
 
   public Post createPost(Post post) {
+    Optional<User> user = userService.getUserById(new ObjectId(post.getCreater())); // user ID로 조회
+    user.ifPresent(u -> post.setCreater(u.getUsername())); // username 값을 creater에 설정
     return postRepository.save(post);
   }
 
