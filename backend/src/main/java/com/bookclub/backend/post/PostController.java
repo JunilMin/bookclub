@@ -51,7 +51,8 @@ public class PostController {
   }
 
   @DeleteMapping("/{id}")
-  public void deletePost(@PathVariable ObjectId id) {
-    postService.deletePost(id);
+  public void deletePost(@PathVariable String id) {
+    ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+    postService.deletePost(objectId);
   }
 }
