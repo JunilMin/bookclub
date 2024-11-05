@@ -1,4 +1,7 @@
+// Posting.tsx
 import React, { useState } from 'react';
+import { createPost, Post, ObjectId } from '../../api/posts';
+import '../styles/Posting.css';
 
 interface PostForm {
   due: string;
@@ -6,8 +9,7 @@ interface PostForm {
   level: 'low' | 'moderate' | 'high';
   book: string;
 }
-import '../styles/Posting.css'
-//React.FC는 Functional Component의 약자, react + typescript 조합으로 개발할때 사용하는 type
+
 const Posting: React.FC = () => {
   const [postForm, setPostForm] = useState<PostForm>({
     due: '',
@@ -27,27 +29,24 @@ const Posting: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newPost = {
-      ...postForm,
-      date: new Date().toISOString(),  // 현재 날짜를 생성 날짜로 설정
+    // 서버에서 요구하는 데이터 구조에 맞게 newPost 객체 생성
+    const newPost: Partial<Post> = {
+      creater: 'user123', // 실제 사용자 ID가 ObjectId가 아닌 문자열로 전송됨
+      date: new Date().toISOString().slice(0, -5), // ISO 형식으로 변환
+      due: new Date(postForm.due).toISOString().slice(0, -5), // ISO 형식으로 변환
+      capacity: postForm.capacity,
+      member: [], // 빈 멤버 리스트로 초기화
+      level: postForm.level,
+      book: postForm.book,
     };
-
+    console.log(newPost);
     try {
-      const response = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPost),
-      });
-
-      if (response.ok) {
-        alert('포스트가 성공적으로 생성되었습니다!');
-        setPostForm({ due: '', capacity: 1, level: 'moderate', book: '' });
-      } else {
-        alert('포스트 생성에 실패했습니다.');
-      }
+      const createdPost = await createPost(newPost);
+      alert('포스트가 성공적으로 생성되었습니다!');
+      setPostForm({ due: '', capacity: 1, level: 'moderate', book: '' });
     } catch (error) {
       console.error('Error:', error);
-      alert('서버 오류가 발생했습니다.');
+      alert('포스트 생성에 실패했습니다.');
     }
   };
 
@@ -98,4 +97,4 @@ const Posting: React.FC = () => {
   );
 };
 
-export default Posting
+export default Posting;

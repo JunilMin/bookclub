@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { getAllPosts, Post } from '../api/posts';
 import './styles/Board.css';
-
+import Posting from '../components/board/posting.tsx';
 const Board: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
 
@@ -14,7 +14,7 @@ const Board: React.FC = () => {
       console.error('Error:', error);
     }
   };
-
+  console.log(posts);
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -22,10 +22,12 @@ const Board: React.FC = () => {
   return (
     <div className="board">
       <h2>게시판</h2>
+      <button onClick={fetchPosts}>새로고침</button>
+      <Posting />
       {posts.length > 0 ? (
         <ul className="post-board">
           {posts.map((post) => (
-            <li key={post.id} className="post-item">
+            <li key={post._id} className="post-item">
               <p>{new Date(post.date).toLocaleString()}</p>
               <p>{new Date(post.due).toLocaleString()}</p>
               <p>{post.capacity}</p>

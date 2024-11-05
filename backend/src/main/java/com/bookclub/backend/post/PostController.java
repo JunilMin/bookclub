@@ -3,6 +3,7 @@ package com.bookclub.backend.post;
 
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,8 +23,10 @@ public class PostController {
   }
 
   @GetMapping("/{id}")
-  public Optional<Post> getPostById(@PathVariable ObjectId id) {
-    return postService.getPostById(id);
+  public ResponseEntity<Post> getPostById(@PathVariable ObjectId id) {
+    return postService.getPostById(id)
+            .map(post -> ResponseEntity.ok(post))
+            .orElse(ResponseEntity.notFound().build());
   }
 
   @GetMapping("/creater/{createrId}")
@@ -32,13 +35,16 @@ public class PostController {
   }
 
   @PostMapping
-  public Post createPost(@RequestBody Post post) {
-    return postService.createPost(post);
+  public ResponseEntity<Post> createPost(@RequestBody Post post) {
+    Post createdPost = postService.createPost(post);
+    return ResponseEntity.ok(createdPost);
   }
 
   @PutMapping("/{id}")
-  public Post updatePost(@PathVariable ObjectId id, @RequestBody Post updatedPost) {
-    return postService.updatePost(id, updatedPost);
+  public ResponseEntity<Post> updatePost(@PathVariable ObjectId id, @RequestBody Post updatedPost) {
+    return postService.updatePost(id, updatedPost)
+            .map(post -> ResponseEntity.ok(post))
+            .orElse(ResponseEntity.notFound().build());
   }
 
   @DeleteMapping("/{id}")

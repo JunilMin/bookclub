@@ -1,10 +1,10 @@
 // ./post/PostService.java
-
 package com.bookclub.backend.post;
 
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -27,13 +27,12 @@ public class PostService {
   }
 
   public Post createPost(Post post) {
+    post.setId(new ObjectId());  // 생성 시 새 ObjectId 할당
     return postRepository.save(post);
   }
 
-  public Post updatePost(ObjectId id, Post updatedPost) {
-    Optional<Post> existingPost = postRepository.findById(id);
-    if (existingPost.isPresent()) {
-      Post post = existingPost.get();
+  public Optional<Post> updatePost(ObjectId id, Post updatedPost) {
+    return postRepository.findById(id).map(post -> {
       post.setCreater(updatedPost.getCreater());
       post.setDate(updatedPost.getDate());
       post.setDue(updatedPost.getDue());
@@ -42,12 +41,15 @@ public class PostService {
       post.setLevel(updatedPost.getLevel());
       post.setBook(updatedPost.getBook());
       return postRepository.save(post);
-    } else {
-      return null;  // or throw an exception as discussed earlier
-    }
+    });
   }
 
-  public void deletePost(ObjectId id) {
-    postRepository.deleteById(id);
+  public boolean deletePost(ObjectId id) {
+    if (postRepository.existsById(id)) {
+      postRepository.deleteById(id);
+      return true;
+    } else {
+      return false;
+    }
   }
 }
