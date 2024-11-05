@@ -42,9 +42,12 @@ public class PostController {
 
   @PutMapping("/{id}")
   public ResponseEntity<Post> updatePost(@PathVariable ObjectId id, @RequestBody Post updatedPost) {
-    return postService.updatePost(id, updatedPost)
-            .map(post -> ResponseEntity.ok(post))
-            .orElse(ResponseEntity.notFound().build());
+    Post updated = postService.updatePost(id, updatedPost);
+    if (updated != null) {
+      return ResponseEntity.ok(updated);
+    } else {
+      return ResponseEntity.notFound().build();
+    }
   }
 
   @DeleteMapping("/{id}")
