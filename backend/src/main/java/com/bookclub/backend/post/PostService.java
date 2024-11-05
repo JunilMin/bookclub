@@ -34,7 +34,7 @@ public class PostService {
   }
 
   public Post createPost(Post post) {
-    Optional<User> user = userService.getUserById(new ObjectId(post.getCreater())); // user ID로 조회
+    Optional<User> user = userService.getUserByUsername(post.getCreater()); // username으로 User 조회
     user.ifPresent(u -> post.setCreater(u.getUsername())); // username 값을 creater에 설정
     return postRepository.save(post);
   }

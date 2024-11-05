@@ -31,7 +31,7 @@ const Posting: React.FC = () => {
 
     // 서버에서 요구하는 데이터 구조에 맞게 newPost 객체 생성
     const newPost: Partial<Post> = {
-      creater: '0000000015c0b51ec609701d', // 실제 사용자 ID가 ObjectId가 아닌 문자열로 전송됨
+      creater: 'wnsdy98', // 실제 사용자 ID가 ObjectId가 아닌 문자열로 전송됨
       date: new Date().toISOString().slice(0, -5), // ISO 형식으로 변환
       due: new Date(postForm.due).toISOString().slice(0, -5), // ISO 형식으로 변환
       capacity: postForm.capacity,
