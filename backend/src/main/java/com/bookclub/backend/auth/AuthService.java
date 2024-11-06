@@ -87,5 +87,8 @@ public class AuthService {
     String username = (user.getUsername() != null && !user.getUsername().isEmpty()) ? user.getUsername() : user.getEmail();
     return jwtUtils.generateJwtToken(username);
 }
-
+  
+  public boolean deleteGoogleUser(String email) {
+    return userService.deleteGoogleUser(email);
+  }
 }

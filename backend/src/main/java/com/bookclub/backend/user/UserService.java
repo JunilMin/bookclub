@@ -6,6 +6,8 @@ import com.bookclub.backend.auth.EncryptUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -86,18 +88,54 @@ public class UserService {
   }
 
   /**
-   * Google 사용자가 존재하지 않으면 새로 생성
+   * 이메일로 사용자를 검색합니다. 사용자가 존재하지 않으면 새 Google 사용자를 생성하여 저장합니다.
+   *
+   * @param email Google 계정 이메일
+   * @param name  Google 계정 이름
+   * @return 검색된 또는 새로 생성된 사용자 객체
+   */
+   /**
+   * 이메일로 사용자를 검색합니다. 사용자가 존재하지 않으면 새 Google 사용자를 생성하여 저장합니다.
+   *
+   * @param email Google 계정 이메일
+   * @param name Google 계정 이름
+   * @return 검색된 또는 새로 생성된 사용자 객체
    */
   public User findOrCreateGoogleUser(String email, String name) {
-    Optional<User> userOptional = userRepository.findByEmail(email);
-    if (userOptional.isPresent()) {
-      return userOptional.get();
+    Optional<User> existingUser = userRepository.findByEmail(email);
+
+    if (existingUser.isPresent()) {
+      return existingUser.get();
     } else {
       User newUser = new User();
       newUser.setEmail(email);
       newUser.setUsername(name);
-      newUser.setPassword(""); // Google 로그인은 비밀번호가 필요 없음
-      return userRepository.save(newUser);
+      
+      // 기본값 설정
+      newUser.setPassword(""); // Google 계정에서는 비밀번호가 필요하지 않으므로 빈 문자열로 설정
+      newUser.setPosts(new ArrayList<>()); // 빈 리스트로 초기화
+      newUser.setFriends(new ArrayList<>()); // 빈 리스트로 초기화
+      newUser.setRating(0); // 기본값 설정
+      newUser.setAbsent(0); // 기본값 설정
+      newUser.setLate(0); // 기본값 설정
+      
+      userRepository.save(newUser);
+      return newUser;
     }
+  }
+  
+  /**
+   * 이메일을 기반으로 Google 사용자 계정을 삭제합니다.
+   *
+   * @param email 삭제할 Google 계정의 이메일
+   * @return 성공적으로 삭제된 경우 true, 사용자를 찾지 못한 경우 false
+   */
+  public boolean deleteGoogleUser(String email) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
+    if (userOptional.isPresent()) {
+      userRepository.delete(userOptional.get());
+      return true;
+    }
+    return false;
   }
 }
