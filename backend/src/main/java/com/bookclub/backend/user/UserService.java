@@ -88,25 +88,23 @@ public class UserService {
   }
 
   /**
-   * 이메일로 사용자를 검색합니다. 사용자가 존재하지 않으면 새 Google 사용자를 생성하여 저장합니다.
-   *
-   * @param email Google 계정 이메일
-   * @param name  Google 계정 이름
-   * @return 검색된 또는 새로 생성된 사용자 객체
-   */
-   /**
-   * 이메일로 사용자를 검색합니다. 사용자가 존재하지 않으면 새 Google 사용자를 생성하여 저장합니다.
+     * 이메일로 사용자를 검색합니다.
+     *
+     * @param email Google 계정 이메일
+     * @return 검색된 사용자 객체, 없으면 Optional.empty()
+     */
+    public Optional<User> findGoogleUser(String email) {
+      return userRepository.findByEmail(email);
+  }
+
+  /**
+   * 새로운 Google 사용자를 생성하여 저장합니다.
    *
    * @param email Google 계정 이메일
    * @param name Google 계정 이름
-   * @return 검색된 또는 새로 생성된 사용자 객체
+   * @return 새로 생성된 사용자 객체
    */
-  public User findOrCreateGoogleUser(String email, String name) {
-    Optional<User> existingUser = userRepository.findByEmail(email);
-
-    if (existingUser.isPresent()) {
-      return existingUser.get();
-    } else {
+  public User createGoogleUser(String email, String name) {
       User newUser = new User();
       newUser.setEmail(email);
       newUser.setUsername(name);
@@ -119,9 +117,7 @@ public class UserService {
       newUser.setAbsent(0); // 기본값 설정
       newUser.setLate(0); // 기본값 설정
       
-      userRepository.save(newUser);
-      return newUser;
-    }
+      return userRepository.save(newUser);
   }
   
   /**
