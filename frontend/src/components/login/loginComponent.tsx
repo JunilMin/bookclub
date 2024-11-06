@@ -1,7 +1,7 @@
 // src/components/LoginComponent.tsx
 import React, { useState } from 'react';
-import { login, googleLogin } from '../../api/auth';
-
+import { login } from '../../api/auth';
+import GoogleLoginHandler from '../../components/login/GoogleLoginHandler.tsx';
 const LoginComponent: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -30,8 +30,8 @@ const LoginComponent: React.FC = () => {
         placeholder="Password"
       />
       <button onClick={handleLogin}>Login</button>
-      
-      <button onClick={googleLogin}>Google 로그인</button> {/* Google 로그인 버튼 */}
+      <GoogleLoginHandler/>
+      {/* <button onClick={googleLogin}>Google 로그인</button> Google 로그인 버튼 */}
     </div>
   );
 };

@@ -36,4 +36,14 @@ public class AuthController {
       return ResponseEntity.status(401).body("Invalid username or password");
     }
   }
+
+  /**
+   * Google 로그인 처리 - 사용자 정보를 받아 DB에 사용자가 존재하지 않으면 새로 생성하고,
+   * JWT 토큰을 반환합니다.
+   */
+  @PostMapping("/google-login")
+  public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest googleAuthRequest) {
+    String token = authService.authenticateOrCreateGoogleUser(googleAuthRequest.getEmail(), googleAuthRequest.getName());
+    return ResponseEntity.ok(new AuthResponse(token));
+  }
 }

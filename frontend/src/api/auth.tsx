@@ -1,4 +1,3 @@
-// src/api/auth.ts
 import axiosInstance from './axiosInstance';
 
 interface AuthRequest {
@@ -21,11 +20,16 @@ export const login = async (authRequest: AuthRequest): Promise<AuthResponse> => 
 };
 
 // Google 로그인 요청
-export const googleLogin = async () => {
-    window.location.href = 'http://localhost:8080/oauth2/authorization/google';
-  };
-  
+export const googleLogin = async (userInfo: { email: string; name: string }) => {
+  const response = await axiosInstance.post('/auth/google-login', userInfo);
+  const { token } = response.data;
+  if (token) {
+    localStorage.setItem('token', token);
+  }
+  return response.data;
+};
+
 // 로그아웃
 export const logout = () => {
-    localStorage.removeItem('token'); // 토큰 삭제
+  localStorage.removeItem('token'); // 토큰 삭제
 };

@@ -83,4 +83,20 @@ public class UserService {
   public void deleteUser(ObjectId id) {
     userRepository.deleteById(id);
   }
+
+  /**
+   * Google 사용자가 존재하지 않으면 새로 생성
+   */
+  public User findOrCreateGoogleUser(String email, String name) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
+    if (userOptional.isPresent()) {
+      return userOptional.get();
+    } else {
+      User newUser = new User();
+      newUser.setEmail(email);
+      newUser.setUsername(name);
+      newUser.setPassword(""); // Google 로그인은 비밀번호가 필요 없음
+      return userRepository.save(newUser);
+    }
+  }
 }
