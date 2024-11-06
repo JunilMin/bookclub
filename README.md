@@ -55,33 +55,24 @@
     fix: 헤더 UI 수정
     refactor: 중복된 코드 리팩토링
     이런 규칙들은 Git 워크플로우를 더 체계적으로 만들고, 협업의 효율성을 높이는 데 큰 도움이 됩니다.
+   
+9. Java 버전: Java 17 이상을 사용합니다.
 
-### frontend
+10. 패키지 구조: 기능 기반으로 구성하며, 각각의 계층별 역할을 명확히 합니다.
 
-    코드 정렬: npm run format
-    실행: npm run dev
-    git fetch, pull 후 npm install (frontend 폴더 내에서)
+11. 코드 주석: 필요한 경우 Javadoc 스타일로 주석을 작성하며, 중요한 메서드나 클래스에는 반드시 주석을 작성합니다.
 
-
-### Dev Rule
-    
-1. Java 버전: Java 17 이상을 사용합니다.
-
-2. 패키지 구조: 기능 기반으로 구성하며, 각각의 계층별 역할을 명확히 합니다.
-
-3. 코드 주석: 필요한 경우 Javadoc 스타일로 주석을 작성하며, 중요한 메서드나 클래스에는 반드시 주석을 작성합니다.
-
-4. 네이밍 컨벤션:
+12. 네이밍 컨벤션:
    클래스: PascalCase (UserController, OrderService)
    메서드: camelCase (getUser(), createOrder())
    상수: 대문자 스네이크 케이스 (MAX_SIZE, DEFAULT_TIMEOUT)
    변수 및 파라미터: camelCase (userName, orderId)
 
-5. Spring MVC 규칙:
+13. Spring MVC 규칙:
    컨트롤러 메서드는 @GetMapping, @PostMapping 등의 애노테이션을 사용하여 명확히 구분합니다.
    서비스 계층에서는 비즈니스 로직을 처리하고, 데이터베이스 상호작용은 레포지토리 계층에서 담당합니다.
 
-6. 형식: 커밋 메시지는 태그: 메시지 형식으로 작성합니다. 태그는 다음과 같이 정의합니다:
+14. 형식: 커밋 메시지는 태그: 메시지 형식으로 작성합니다. 태그는 다음과 같이 정의합니다:
     -   feat        : 기능 (새로운 기능)
     -   fix         : 버그 (버그 수정)
     -   refactor    : 리팩토링
@@ -96,12 +87,21 @@
     -   remove      : 파일을 삭제하는 작업만 수행한 경우
    (첫 글자는 항상 소문자로 시작하고, 마침표를 사용하지 않습니다.)
 
-7. Swagger 주소: http://localhost:8080/swagger-ui/index.html
-CRUD 테스트 진행
+15. 모든 기능은 CRUD 테스트 진행 후, push
 
-8. Frontend 생성 전, 로컬(8080) 접속 시,
+16. Frontend 생성 전, 로컬(8080) 접속 시,
 -아이디: user
 -비밀번호: 백엔드 실행 후, 백엔드 로그의 password
 
-### backend
+### frontend
 
+    코드 정렬: npm run format
+    실행: npm run dev
+    git fetch, pull 후 npm install (frontend 폴더 내에서)
+    
+
+
+### backend
+CRUD 테스트 진행
+- Swagger 주소: http://localhost:8080/swagger-ui/index.html
+- TDD 기반 테스트 코드 작성
