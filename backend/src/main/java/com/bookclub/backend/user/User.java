@@ -17,6 +17,7 @@ import java.util.List;
 public class User {
   @Id
   private ObjectId id;
+  private String email;
   private String username;
   private String password;
   private List<Post> posts;

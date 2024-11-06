@@ -4,6 +4,8 @@ package com.bookclub.backend.auth;
 
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
+import com.bookclub.backend.user.UserService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +21,8 @@ public class AuthService {
 
   @Autowired
   private UserRepository userRepository;
-
+  @Autowired
+  private UserService userService;
   @Autowired
   private JwtUtils jwtUtils;
 
@@ -77,4 +80,12 @@ public class AuthService {
       throw new RuntimeException("Error encrypting password: " + e.getMessage());
     }
   }
+
+  public String authenticateOrCreateGoogleUser(String email, String name) {
+    User user = userService.findOrCreateGoogleUser(email, name);
+    // user.getUsername()이 null인 경우 email을 대신 사용하여 토큰 생성
+    String username = (user.getUsername() != null && !user.getUsername().isEmpty()) ? user.getUsername() : user.getEmail();
+    return jwtUtils.generateJwtToken(username);
+}
+
 }
