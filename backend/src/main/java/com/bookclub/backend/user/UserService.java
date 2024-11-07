@@ -52,6 +52,7 @@ public class UserService {
     }
 
     try {
+      user.setUserType("regular"); // 일반 사용자로 설정
       user.setPassword(EncryptUtils.encrypt(user.getPassword())); // 비밀번호 암호화
       return userRepository.save(user);
     } catch (Exception e) {
@@ -74,6 +75,7 @@ public class UserService {
       user.setAbsent(updatedUser.getAbsent());
       user.setFriends(updatedUser.getFriends());
       user.setLate(updatedUser.getLate());
+      user.setUserType(updatedUser.getUserType());
       return userRepository.save(user);
     } else {
       return null;
@@ -116,7 +118,7 @@ public class UserService {
       newUser.setRating(0); // 기본값 설정
       newUser.setAbsent(0); // 기본값 설정
       newUser.setLate(0); // 기본값 설정
-      
+      newUser.setUserType("google"); // Google 사용자로 설정
       return userRepository.save(newUser);
   }
   
