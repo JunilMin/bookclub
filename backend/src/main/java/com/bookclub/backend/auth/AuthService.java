@@ -27,12 +27,11 @@ public class AuthService {
   private JwtUtils jwtUtils;
 
   /**
-   * 저장된 비밀번호를 복호화하여 제공된 비밀번호와 비교함으로써 사용자를 인증합니다.
-   * 자격 증명이 유효하면 JWT 토큰을 생성합니다.
+   * 일반 사용자 인증 처리, 자격 증명이 유효하면 JWT 토큰을 생성합니다.
    *
-   * @param username 로그인하려는 사용자의 사용자 이름
+   * @param username 로그인하려는 사용자 이름
    * @param password 로그인 시 제공된 평문 비밀번호
-   * @return 인증이 성공하면 JWT 토큰을 반환하고, 실패하면 null을 반환
+   * @return JWT 토큰 또는 인증 실패 시 null 반환
    */
   public String authenticateUser(String username, String password) {
     Optional<User> userOptional = userRepository.findByUsername(username);
@@ -42,27 +41,20 @@ public class AuthService {
       try {
         String decryptedPassword = EncryptUtils.decrypt(user.getPassword());
         if (password.equals(decryptedPassword)) {
-          System.out.println("Password matches! Generating token...");
           return jwtUtils.generateJwtToken(username);
-        } else {
-          System.out.println("Password does not match.");
         }
       } catch (Exception e) {
         System.out.println("Error decrypting password: " + e.getMessage());
       }
-    } else {
-      System.out.println("User not found.");
     }
     return null;
   }
 
   /**
-   * 제공된 비밀번호를 암호화하고, 사용자 정보를 저장하여 새로운 사용자를 등록합니다.
-   * 사용자 이름이 이미 존재하는 경우 예외를 발생시킵니다.
+   * 새 일반 사용자를 등록합니다. 이름이 이미 존재하면 예외를 발생시킵니다.
    *
-   * @param authRequest 사용자 이름과 평문 비밀번호를 포함하는 회원 가입 요청
+   * @param authRequest 사용자 이름과 비밀번호를 포함하는 회원 가입 요청
    * @return 새로 등록된 User 객체
-   * @throws RuntimeException 사용자 이름이 이미 존재하거나 암호화가 실패한 경우
    */
   public User registerUser(AuthRequest authRequest) {
     if (userRepository.findByUsername(authRequest.getUsername()).isPresent()) {
@@ -81,13 +73,25 @@ public class AuthService {
     }
   }
 
+  /**
+   * Google 로그인 시 사용자 찾기 또는 생성하여 JWT 토큰을 반환합니다.
+   *
+   * @param email Google 계정 이메일
+   * @param name  Google 계정 이름
+   * @return JWT 토큰
+   */
   public String authenticateOrCreateGoogleUser(String email, String name) {
-    User user = userService.findOrCreateGoogleUser(email, name);
-    // user.getUsername()이 null인 경우 email을 대신 사용하여 토큰 생성
-    String username = (user.getUsername() != null && !user.getUsername().isEmpty()) ? user.getUsername() : user.getEmail();
-    return jwtUtils.generateJwtToken(username);
-}
-  
+    User user = userService.findGoogleUser(email)
+        .orElseGet(() -> userService.createGoogleUser(email, name));
+    return jwtUtils.generateJwtToken(user.getEmail());
+  }
+
+  /**
+   * Google 사용자 삭제
+   *
+   * @param email 삭제할 사용자의 이메일
+   * @return 성공 시 true, 실패 시 false 반환
+   */
   public boolean deleteGoogleUser(String email) {
     return userService.deleteGoogleUser(email);
   }
