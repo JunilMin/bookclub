@@ -5,32 +5,33 @@ package com.bookclub.backend.auth;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
 import com.bookclub.backend.user.UserService;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 /**
- * 이 서비스는 인증과 회원 가입 기능을 제공합니다.
- * 자격 증명을 검증하고 JWT 토큰을 생성하여 사용자 로그인을 처리하며,
- * 자격 증명을 암호화하여 저장함으로써 사용자 등록을 처리합니다.
+ * 인증 및 회원 가입 기능을 제공하는 서비스 클래스.
+ * 일반 사용자와 Google 사용자에 대한 인증 및 회원 관리를 처리합니다.
  */
 @Service
 public class AuthService {
 
   @Autowired
   private UserRepository userRepository;
+
   @Autowired
   private UserService userService;
+
   @Autowired
   private JwtUtils jwtUtils;
 
   /**
-   * 일반 사용자 인증 처리, 자격 증명이 유효하면 JWT 토큰을 생성합니다.
+   * 일반 사용자 인증을 처리합니다.
+   * 자격 증명이 유효하면 JWT 토큰을 생성하여 반환합니다.
    *
-   * @param username 로그인하려는 사용자 이름
-   * @param password 로그인 시 제공된 평문 비밀번호
+   * @param username 사용자 이름
+   * @param password 비밀번호
    * @return JWT 토큰 또는 인증 실패 시 null 반환
    */
   public String authenticateUser(String username, String password) {
@@ -51,7 +52,7 @@ public class AuthService {
   }
 
   /**
-   * 새 일반 사용자를 등록합니다. 이름이 이미 존재하면 예외를 발생시킵니다.
+   * 새 일반 사용자를 등록합니다.
    *
    * @param authRequest 사용자 이름과 비밀번호를 포함하는 회원 가입 요청
    * @return 새로 등록된 User 객체
@@ -66,6 +67,7 @@ public class AuthService {
       User newUser = new User();
       newUser.setUsername(authRequest.getUsername());
       newUser.setPassword(encryptedPassword);
+      newUser.setUserType("regular");
 
       return userRepository.save(newUser);
     } catch (Exception e) {
@@ -74,7 +76,8 @@ public class AuthService {
   }
 
   /**
-   * Google 로그인 시 사용자 찾기 또는 생성하여 JWT 토큰을 반환합니다.
+   * Google 사용자 인증 또는 등록을 처리합니다.
+   * 사용자 정보가 없으면 새로 생성하고, JWT 토큰을 반환합니다.
    *
    * @param email Google 계정 이메일
    * @param name  Google 계정 이름
@@ -84,15 +87,5 @@ public class AuthService {
     User user = userService.findGoogleUser(email)
         .orElseGet(() -> userService.createGoogleUser(email, name));
     return jwtUtils.generateJwtToken(user.getEmail());
-  }
-
-  /**
-   * Google 사용자 삭제
-   *
-   * @param email 삭제할 사용자의 이메일
-   * @return 성공 시 true, 실패 시 false 반환
-   */
-  public boolean deleteGoogleUser(String email) {
-    return userService.deleteGoogleUser(email);
   }
 }

@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 사용자 관리에 대한 CRUD 기능을 제공하는 컨트롤러.
+ */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -29,11 +32,11 @@ public class UserController {
   @GetMapping("/{id}")
   public ResponseEntity<User> getUserById(@PathVariable String id) {
     try {
-      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+      ObjectId objectId = new ObjectId(id);
       Optional<User> user = userService.getUserById(objectId);
       return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+      return ResponseEntity.badRequest().build();
     }
   }
 
@@ -47,6 +50,7 @@ public class UserController {
 
   /**
    * 회원가입 요청을 처리하고 새로운 사용자를 생성합니다.
+   * 사용자 유형(userType)을 확인하여 일반 사용자 또는 Google 사용자로 처리합니다.
    *
    * @param user 회원가입 요청에서 제공된 사용자 정보
    * @return 성공 메시지 또는 오류 메시지를 포함한 ResponseEntity 반환
@@ -54,7 +58,12 @@ public class UserController {
   @PostMapping("/register")
   public ResponseEntity<?> registerUser(@RequestBody User user) {
     try {
-      User registeredUser = userService.registerUser(user);
+      User registeredUser;
+      if ("google".equals(user.getUserType())) {
+        registeredUser = userService.createGoogleUser(user.getEmail(), user.getUsername());
+      } else {
+        registeredUser = userService.registerUser(user);
+      }
       return ResponseEntity.ok("User registered successfully: " + registeredUser.getUsername());
     } catch (RuntimeException e) {
       return ResponseEntity.badRequest().body(e.getMessage());
@@ -67,7 +76,7 @@ public class UserController {
   @PutMapping("/{id}")
   public ResponseEntity<User> updateUser(@PathVariable String id, @RequestBody User updatedUser) {
     try {
-      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+      ObjectId objectId = new ObjectId(id);
       User user = userService.updateUser(objectId, updatedUser);
       if (user != null) {
         return ResponseEntity.ok(user);
@@ -75,7 +84,7 @@ public class UserController {
         return ResponseEntity.notFound().build();
       }
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+      return ResponseEntity.badRequest().build();
     }
   }
 
@@ -85,11 +94,11 @@ public class UserController {
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> deleteUser(@PathVariable String id) {
     try {
-      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
+      ObjectId objectId = new ObjectId(id);
       userService.deleteUser(objectId);
       return ResponseEntity.noContent().build();
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+      return ResponseEntity.badRequest().build();
     }
   }
 }

@@ -20,6 +20,7 @@ public class User {
   private String email;
   private String username;
   private String password;
+  private String userType; // "regular", "google" , 등 필요한 내용 입력
   private List<Post> posts;
   private int rating;
   private int absent;
