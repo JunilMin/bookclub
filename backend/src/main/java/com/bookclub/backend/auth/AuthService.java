@@ -95,4 +95,16 @@ public class AuthService {
   public boolean deleteGoogleUser(String email) {
     return userService.deleteGoogleUser(email);
   }
+
+  public boolean verifyEmail(String token) {
+    Optional<User> userOptional = userRepository.findByVerificationToken(token);
+    if (userOptional.isPresent()) {
+      User user = userOptional.get();
+      user.setEmailVerified(true);
+      user.setVerificationToken(null); // 토큰 제거
+      userRepository.save(user);
+      return true;
+    }
+    return false;
+  }
 }

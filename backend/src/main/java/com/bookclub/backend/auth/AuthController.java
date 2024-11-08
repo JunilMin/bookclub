@@ -64,4 +64,15 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.NOT_FOUND).body("사용자를 찾을 수 없습니다.");
     }
   }
+
+  @GetMapping("/verify-email")
+  public ResponseEntity<String> verifyEmail(@RequestParam("token") String token) {
+    boolean isVerified = authService.verifyEmail(token);
+    if (isVerified) {
+      return ResponseEntity.ok("이메일 인증이 완료되었습니다.");
+    } else {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("유효하지 않은 토큰입니다.");
+    }
+  }
+
 }
