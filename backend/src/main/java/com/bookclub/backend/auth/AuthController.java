@@ -74,33 +74,4 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("유효하지 않은 토큰입니다.");
     }
   }
-  /**
-     * 인증 이메일 발송 엔드포인트
-     * @param emailRequest 이메일 발송 요청 객체
-     * @return 이메일 발송 결과 메시지
-     */
-    @PostMapping("/send-verification-email")
-    public ResponseEntity<String> sendVerificationEmail(@RequestBody EmailRequest emailRequest) {
-      try {
-        if (emailRequest.getTo() == null || emailRequest.getTo().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email address is required.");
-        }
-
-        String verificationToken = authService.generateVerificationToken(emailRequest.getTo());
-        emailService.sendVerificationEmail(emailRequest.getTo(), verificationToken);
-
-        return ResponseEntity.ok("Verification email sent successfully.");
-    } catch (Exception e) {
-        e.printStackTrace();  // Add this line to log the stack trace
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to send email.");
-    }
-    }
-
-    // DTO for the email request
-    public static class EmailRequest {
-        private String to;
-
-        public String getTo() { return to; }
-        public void setTo(String to) { this.to = to; }
-    }
 }

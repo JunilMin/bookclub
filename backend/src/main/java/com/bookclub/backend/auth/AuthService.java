@@ -107,24 +107,4 @@ public class AuthService {
     }
     return false;
   }
-
-  /**
-     * Generates a verification token for the given email.
-     *
-     * @param email The email address to generate a verification token for.
-     * @return The generated JWT token as the verification token.
-     */
-    public String generateVerificationToken(String email) {
-        return jwtUtils.generateJwtToken(email);
-    }
-
-    /**
-     * Verifies the token by extracting the email and checking token validity.
-     *
-     * @param token The JWT token to verify.
-     * @return True if the token is valid, otherwise false.
-     */
-    public boolean verifyToken(String token) {
-        return jwtUtils.validateJwtToken(token);
-    }
 }
