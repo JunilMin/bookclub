@@ -190,6 +190,26 @@ public class UserService {
     return false;
   }
 
+  // /**
+  //  * 사용자 이메일로 사용자의 인증 토큰을 찾습니다.
+  //  *
+  //  * @param email 사용자 이메일
+  //  * @return String 인증 토큰
+  //  */
+  // public String getVerificationToken(String email) {
+  //   Optional<User> userOptional = userRepository.findByEmail(email);
+  //   if (userOptional.isPresent()) {
+  //     return userOptional.get().getVerificationToken();
+  //   }
+  //   return null;
+  // }
+
+  /**
+   * 사용자 이메일로 사용자의 인증 상태를 확인합니다.
+   *
+   * @param email 사용자 이메일
+   * @return 이메일 인증 상태
+   */
   public boolean checkVerificationStatus(String email) {
     Optional<User> userOptional = userRepository.findByEmail(email);
     if (userOptional.isPresent()) {

@@ -14,7 +14,7 @@ const Board: React.FC = () => {
       console.error('Error:', error);
     }
   };
-  console.log(posts);
+  console.log(posts[1]);
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -27,7 +27,7 @@ const Board: React.FC = () => {
       {posts.length > 0 ? (
         <ul className="post-board">
           {posts.map((post) => (
-            <li key={post._id} className="post-item">
+            <li key="{post.id}" className="post-item">
               <p>{new Date(post.date).toLocaleString()}</p>
               <p>{new Date(post.due).toLocaleString()}</p>
               <p>{post.capacity}</p>

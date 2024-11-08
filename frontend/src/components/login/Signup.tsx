@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-// import {  } from '../../api/auth';
-import { registerUser, resendVerificationEmail, verificationStatus } from '../../api/user';
+import { verifyEmail } from '../../api/auth';
+import { registerUser, resendVerificationEmail, verificationStatus, getVerificationToken } from '../../api/user';
 
 interface SignupFormData {
   username: string;
@@ -20,6 +20,11 @@ const Signup: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
+  const [token, setToken] = useState<string>('');
+
+  const handleTokenInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setToken(e.target.value);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -63,6 +68,27 @@ const Signup: React.FC = () => {
       setError(errorMessage);
     }
   };
+  const handleCheckVerificationToken = async () => {
+    try {
+      const token = await getVerificationToken(formData.email);
+      console.log(token);
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || "Failed to get verification token.";
+      setError(errorMessage);
+    }
+  }
+  const handleVerifyToken = async () => {
+    try {
+      const response = await verifyEmail(token, formData.email);
+      setMessage(response || "Email verified successfully!");
+      setError(null);
+      setIsEmailVerified(true);
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || "Failed to verify email.";
+      setError(errorMessage);
+    }
+  }
+  
 
   const handleEmailVerification = async () => {
     try {
@@ -81,66 +107,77 @@ const Signup: React.FC = () => {
   };
 
   return (
+    
     <div>
-      <h2>Sign Up</h2>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>Username:</label>
-          <input
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div>
-          <label>Email:</label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div>
-          <label>Password:</label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        <div>
-          <label>Confirm Password:</label>
-          <input
-            type="password"
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            required
-          />
-        </div>
-        
-        {isRegistered ? 
-          <button onClick={handleEmailVerification}>Verify Email</button> 
-          : 
-          <button type='submit' onClick={handleSubmit}>register</button> 
-        }
-        
-      </form>
+      {!isRegistered ? (
+  <>
+    <h2>Sign Up</h2>
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>Username:</label>
+        <input
+          type="text"
+          name="username"
+          value={formData.username}
+          onChange={handleChange}
+          required
+        />
+      </div>
+      <div>
+        <label>Email:</label>
+        <input
+          type="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          required
+        />
+      </div>
+      <div>
+        <label>Password:</label>
+        <input
+          type="password"
+          name="password"
+          value={formData.password}
+          onChange={handleChange}
+          required
+        />
+      </div>
+      <div>
+        <label>Confirm Password:</label>
+        <input
+          type="password"
+          name="confirmPassword"
+          value={formData.confirmPassword}
+          onChange={handleChange}
+          required
+        />
+      </div>
+      <button type="submit">Register</button>
+    </form>
+  </>
+  ) : null}
+      
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       {/* Show this option only if registered but not verified */}
-      {isRegistered && !isEmailVerified && (
+      {isRegistered && (
         <div>
-          <p>Didn’t receive the verification email?</p>
           <button onClick={handleResendEmail}>Resend Verification Email</button>
+            <div>
+            <p>Enter verification token:</p>
+            <input
+              type="text"
+              value={token}
+              onChange={handleTokenInput}
+              placeholder="Verification Token"
+              required
+            />
+            <button onClick={handleVerifyToken}>Verify Token</button>
+          </div>
+          {/* <button onClick={handleEmailVerification}>Verify Email</button>  */}
         </div>
       )}
     </div>

@@ -5,11 +5,35 @@ import Signup from '../components/login/Signup.tsx';
 // import { Route, Routes } from 'react-router-dom';
 
 const Login: React.FC = () => {
+  const [isSigningup, setIsSigningup] = React.useState<boolean>(false);
+  const handleSignup = () => {
+    setIsSigningup(true);
+  }
+  const handleRetrieveButton = () => {
+    setIsSigningup(false);
+  }
   return (
     <div>
-      <h1>로그인</h1>
-      <LoginComponent />
-      <Signup />
+
+      {!isSigningup ? (
+        <>
+          <h1>Log in</h1>
+          <LoginComponent />
+          <p onClick={handleSignup}> 
+            Doesn't have an account yet? Click to Signup 
+          </p>
+        </>
+      ) 
+      : (
+        <div>
+          <button onClick={handleRetrieveButton}>Back to login</button>
+          <Signup />
+        </div>
+        
+      
+      )}
+      
+      
       {/* Google OAuth 리다이렉션을 처리하는 라우트 */}
     </div>
   );

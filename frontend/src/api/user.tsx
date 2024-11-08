@@ -46,3 +46,13 @@ export const verificationStatus = async (email: string): Promise<boolean> => {
     throw new Error("인증 상태 확인에 실패했습니다."); // Custom error message
   }
 };
+
+export const getVerificationToken = async (email: string): Promise<string> => {
+  try {
+    const response = await axiosInstance.get(`/users/verification-token/${email}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error getting verification token:", error);
+    throw new Error("인증 토큰을 가져오는데 실패했습니다."); // Custom error message
+  }
+}
