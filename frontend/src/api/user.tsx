@@ -3,12 +3,15 @@ import axiosInstance from './axiosInstance.tsx';
 
 interface User {
   id?: string;
+  email: string;
   username: string;
   password: string;
   rating?: number;
   absent?: number;
   friends?: string[];
   late?: number;
+  isEmailVerified?: boolean; // 이메일 인증 여부
+  verificationToken?: string; // 이메일 인증 토큰
 }
 
 // 회원가입 요청
@@ -21,4 +24,25 @@ export const registerUser = async (user: User): Promise<User> => {
 export const getUserById = async (id: string): Promise<User> => {
   const response = await axiosInstance.get(`/users/${id}`);
   return response.data;
+};
+
+export const resendVerificationEmail = async (email: string): Promise<string> => {
+  try {
+    console.log(email);
+    const response = await axiosInstance.post(`/users/resend-verification/${email}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error resending verification email:", error);
+    throw new Error("이메일 재전송에 실패했습니다."); // Custom error message
+  }
+};
+
+export const verificationStatus = async (email: string): Promise<boolean> => { 
+  try {
+    const response = await axiosInstance.get(`/users/verify-email-check/${email}`);
+    return response.data; // response.data should be a boolean
+  } catch (error) {
+    console.error("Error checking verification status:", error);
+    throw new Error("인증 상태 확인에 실패했습니다."); // Custom error message
+  }
 };

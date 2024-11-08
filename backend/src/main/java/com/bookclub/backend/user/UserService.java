@@ -1,8 +1,8 @@
 // ./user/UserService.java
 package com.bookclub.backend.user;
 
+import com.bookclub.backend.auth.EmailService;
 import com.bookclub.backend.auth.EncryptUtils;
-
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,12 +10,16 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class UserService {
 
   @Autowired
   private UserRepository userRepository;
+
+  @Autowired
+  EmailService emailService;
 
   /**
    * 모든 사용자 조회
@@ -46,16 +50,67 @@ public class UserService {
    * @return 등록된 User 객체
    * @throws RuntimeException 사용자 이름이 이미 존재하는 경우
    */
+  // public User registerUser(User user) {
+  //   if (userRepository.findByUsername(user.getUsername()).isPresent()) {
+  //     throw new RuntimeException("이미 존재하는 사용자입니다.");
+  //   }
+
+  //   try {
+  //     user.setPassword(EncryptUtils.encrypt(user.getPassword())); // 비밀번호 암호화
+  //     return userRepository.save(user);
+  //   } catch (Exception e) {
+  //     throw new RuntimeException("Error encrypting password: " + e.getMessage());
+  //   }
   public User registerUser(User user) {
     if (userRepository.findByUsername(user.getUsername()).isPresent()) {
       throw new RuntimeException("이미 존재하는 사용자입니다.");
     }
-
+    if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+      throw new RuntimeException("이미 존재하는 이메일입니다.");
+    }
     try {
-      user.setPassword(EncryptUtils.encrypt(user.getPassword())); // 비밀번호 암호화
-      return userRepository.save(user);
+      user.setPassword(EncryptUtils.encrypt(user.getPassword()));
+      user.setVerificationToken(generateVerificationToken()); // 인증 토큰 생성
+      user.setEmailVerified(false); // 이메일 인증 미완료 상태로 설정
+      user = userRepository.save(user);
+
+      // 회원가입 대상자에게 이메일 인증 발송
+      emailService.sendVerificationEmail(user.getEmail(), user.getVerificationToken());
+
+      return user;
     } catch (Exception e) {
-      throw new RuntimeException("Error encrypting password: " + e.getMessage());
+      throw new RuntimeException("회원가입 중 오류 발생: " + e.getMessage());
+    }
+  }
+
+  private String generateVerificationToken() {
+    return UUID.randomUUID().toString();
+  }
+
+  /**
+   * 이메일 인증 토큰을 재전송합니다.
+   * 이메일이 이미 인증된 경우 예외를 발생시키며,
+   * 인증되지 않은 경우 새로운 인증 토큰을 생성하고 이메일로 전송합니다.
+   *
+   * @param email 인증 토큰을 재전송할 사용자의 이메일 주소
+   * @throws RuntimeException 이메일이 이미 인증되었거나 사용자를 찾을 수 없는 경우
+   */
+  public void resendVerificationToken(String email) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
+    if (userOptional.isPresent()) {
+      User user = userOptional.get();
+
+      if (user.isEmailVerified()) {
+        throw new RuntimeException("이메일이 이미 인증되었습니다.");
+      }
+
+      String newToken = generateVerificationToken();
+      user.setVerificationToken(newToken);
+      userRepository.save(user);
+
+      emailService.sendVerificationEmail(user.getEmail(), newToken);
+    } else {
+      throw new RuntimeException("사용자를 찾을 수 없습니다.");
     }
   }
 
@@ -134,4 +189,16 @@ public class UserService {
     }
     return false;
   }
+
+  public boolean checkVerificationStatus(String email) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
+    if (userOptional.isPresent()) {
+      return userOptional.get().isEmailVerified();
+    }
+    return false;
+  }
 }
+
+
+  
+

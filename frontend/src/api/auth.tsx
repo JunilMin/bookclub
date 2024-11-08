@@ -1,4 +1,5 @@
 import axiosInstance from './axiosInstance';
+import axios from 'axios';
 
 interface AuthRequest {
   username: string;
@@ -33,3 +34,18 @@ export const googleLogin = async (userInfo: { email: string; name: string }) => 
 export const logout = () => {
   localStorage.removeItem('token'); // 토큰 삭제
 };
+
+// export const verifyEmail = async (token: string): Promise<string> => {
+//   try {
+//     const response = await axiosInstance.get('/verify-email', { params: { token } });
+//     return response.data; // "이메일 인증이 완료되었습니다." if successful
+//   } catch (error) {
+//     if (axios.isAxiosError(error)) {
+//       // Axios-specific error with a response
+//       if (error.response) {
+//         return error.response.data as string; // "유효하지 않은 토큰입니다." if token is invalid
+//       }
+//     }
+//     throw new Error("An error occurred while verifying the email.");
+//   }
+// };
