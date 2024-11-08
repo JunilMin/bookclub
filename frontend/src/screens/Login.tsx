@@ -11,9 +11,6 @@ const Login: React.FC = () => {
       <LoginComponent />
       <Signup />
       {/* Google OAuth 리다이렉션을 처리하는 라우트 */}
-      <Routes>
-        <Route path="/google-login-handler" element={<GoogleLoginHandler />} />
-      </Routes>
     </div>
   );
 };
