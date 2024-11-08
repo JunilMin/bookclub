@@ -28,10 +28,10 @@ public class PostController {
    * ID로 게시물 조회
    */
   @GetMapping("/{id}")
-  public ResponseEntity<Post> getPostById(@PathVariable String id) {
+  public ResponseEntity<Post> getPostById(@PathVariable String _id) {
     try {
-      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
-      Optional<Post> post = postService.getPostById(objectId);
+      String id = new String(_id); // 문자열로 받은 id를 Deep Copy
+      Optional<Post> post = postService.getPostById(id);
       return post.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     } catch (IllegalArgumentException e) {
       return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
