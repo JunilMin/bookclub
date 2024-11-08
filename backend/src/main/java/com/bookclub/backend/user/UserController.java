@@ -119,4 +119,15 @@ public class UserController {
       return ResponseEntity.badRequest().body(false);
     }
   }
+
+  // // Email verification endpoint
+  // @GetMapping("/verification-token/{email}")
+  // public ResponseEntity<String> getVerificationToken(@PathVariable("email") String email) {
+  //   String token = userService.getVerificationToken(email);
+  //   if (token != null) {
+  //     return ResponseEntity.ok(token);
+  //   } else {
+  //     return ResponseEntity.status(400).body("Verification token not found");
+  //   }
+  // }
 }

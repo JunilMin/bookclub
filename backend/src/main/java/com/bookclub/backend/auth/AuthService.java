@@ -96,15 +96,30 @@ public class AuthService {
     return userService.deleteGoogleUser(email);
   }
 
-  public boolean verifyEmail(String token) {
-    Optional<User> userOptional = userRepository.findByVerificationToken(token);
+  // public boolean verifyEmail(String token, String email) {
+  //   Optional<User> userOptional = userRepository.findByEmail(email);
+  //   if (userOptional.isPresent()) {
+  //     User user = userOptional.get();
+  //     if (user.getVerificationToken().equals(token)) {
+  //       user.setEmailVerified(true);
+  //       user.setVerificationToken(null); // 토큰 제거
+  //       userRepository.save(user);
+  //       return true;
+  //     }
+  //   }
+  //   return false;
+  // }
+  public boolean verifyEmail(String token, String email) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
     if (userOptional.isPresent()) {
-      User user = userOptional.get();
-      user.setEmailVerified(true);
-      user.setVerificationToken(null); // 토큰 제거
-      userRepository.save(user);
-      return true;
+        User user = userOptional.get();
+        if (user.getVerificationToken() != null && user.getVerificationToken().equals(token)) {
+            user.setEmailVerified(true);
+            user.setVerificationToken(null); // 토큰 제거
+            userRepository.save(user);
+            return true;
+        }
     }
     return false;
-  }
+}
 }

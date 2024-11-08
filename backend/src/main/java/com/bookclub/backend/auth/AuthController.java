@@ -17,8 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
   @Autowired
   private AuthService authService;
-  @Autowired
-  private EmailService emailService;
+
   /**
    * 일반 사용자 로그인을 처리합니다. 자격 증명이 유효한 경우 JWT 토큰을 반환합니다.
    *
@@ -66,12 +65,14 @@ public class AuthController {
   }
 
   @GetMapping("/verify-email")
-  public ResponseEntity<String> verifyEmail(@RequestParam("token") String token) {
-    boolean isVerified = authService.verifyEmail(token);
+  public ResponseEntity<String> verifyEmail(@RequestParam("token") String token, @RequestParam("email") String email) {
+    boolean isVerified = authService.verifyEmail(token, email);
     if (isVerified) {
       return ResponseEntity.ok("이메일 인증이 완료되었습니다.");
     } else {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("유효하지 않은 토큰입니다.");
     }
   }
+
+  
 }

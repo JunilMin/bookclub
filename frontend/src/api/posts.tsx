@@ -7,7 +7,7 @@ export interface ObjectId {
 }
 
 export interface Post {
-  _id?: ObjectId; // 서버에서 자동 생성되는 ID
+  _id: ObjectId; // 서버에서 자동 생성되는 ID
   creater: ObjectId | string; // 생성시 string, 가져올 때 ObjectId 형태
   date: string; // ISO 형식의 날짜 문자열
   due: string; // ISO 형식의 날짜 문자열
