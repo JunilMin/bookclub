@@ -22,10 +22,9 @@ public class EmailService {
 
     // 인증 이메일 발송 메서드
     public void sendVerificationEmail(String to, String verificationToken) {
-        String subject = "이메일 인증을 완료해주세요";
+        String subject = "Please verify your email address";
         String verificationUrl = "http://localhost:8080/api/auth/verify-email?token=" + verificationToken;
-        String text = "이메일 인증을 위해 아래 링크를 클릭하세요:\n" + verificationUrl;
-
+        String text = "Please click the link below to verify your email address:\n" + verificationUrl;
         sendEmail(to, subject, text);
     }
 }

@@ -3,12 +3,15 @@ import axiosInstance from './axiosInstance.tsx';
 
 interface User {
   id?: string;
+  email: string;
   username: string;
   password: string;
   rating?: number;
   absent?: number;
   friends?: string[];
   late?: number;
+  isEmailVerified?: boolean; // 이메일 인증 여부
+  verificationToken?: string; // 이메일 인증 토큰
 }
 
 // 회원가입 요청
