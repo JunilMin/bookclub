@@ -65,9 +65,9 @@ public class UserService {
     if (userRepository.findByUsername(user.getUsername()).isPresent()) {
       throw new RuntimeException("이미 존재하는 사용자입니다.");
     }
-    // if (userRepository.findByEmail(user.getEmail()).isPresent()) {
-    //   throw new RuntimeException("이미 존재하는 이메일입니다.");
-    // }
+    if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+      throw new RuntimeException("이미 존재하는 이메일입니다.");
+    }
     try {
       user.setPassword(EncryptUtils.encrypt(user.getPassword()));
       user.setVerificationToken(generateVerificationToken()); // 인증 토큰 생성
