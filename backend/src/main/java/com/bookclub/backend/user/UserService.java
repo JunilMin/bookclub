@@ -3,9 +3,6 @@ package com.bookclub.backend.user;
 
 import com.bookclub.backend.auth.EmailService;
 import com.bookclub.backend.auth.EncryptUtils;
-
-import jakarta.validation.constraints.Email;
-
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -64,31 +61,29 @@ public class UserService {
   //   } catch (Exception e) {
   //     throw new RuntimeException("Error encrypting password: " + e.getMessage());
   //   }
-
-    public User registerUser(User user) {
-      if (userRepository.findByUsername(user.getUsername()).isPresent()) {
-        throw new RuntimeException("이미 존재하는 사용자입니다.");
-      }
-
-      try {
-        user.setPassword(EncryptUtils.encrypt(user.getPassword()));
-        user.setVerificationToken(generateVerificationToken()); // 인증 토큰 생성
-        user = userRepository.save(user);
-
-        // 이메일 전송
-        String subject = "이메일 인증을 완료해주세요";
-        String verificationLink = "http://localhost:8080/api/auth/verify-email?token=" + user.getVerificationToken();
-        emailService.sendEmail(user.getEmail(), subject, "링크를 클릭하여 이메일 인증을 완료해주세요: " + verificationLink);
-
-        return user;
-          } catch (Exception e) {
-          throw new RuntimeException("Error during registration: " + e.getMessage());
-      }
+  public User registerUser(User user) {
+    if (userRepository.findByUsername(user.getUsername()).isPresent()) {
+      throw new RuntimeException("이미 존재하는 사용자입니다.");
     }
 
-private String generateVerificationToken() {
-  return UUID.randomUUID().toString();
-}
+    try {
+      user.setPassword(EncryptUtils.encrypt(user.getPassword()));
+      user.setVerificationToken(generateVerificationToken()); // 인증 토큰 생성
+      user.setEmailVerified(false); // 이메일 인증 미완료 상태로 설정
+      user = userRepository.save(user);
+
+      // 회원가입 대상자에게 이메일 인증 발송
+      emailService.sendVerificationEmail(user.getEmail(), user.getVerificationToken());
+
+      return user;
+    } catch (Exception e) {
+      throw new RuntimeException("회원가입 중 오류 발생: " + e.getMessage());
+    }
+  }
+
+  private String generateVerificationToken() {
+    return UUID.randomUUID().toString();
+  }
 
 
   /**
