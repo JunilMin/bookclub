@@ -85,6 +85,32 @@ public class UserService {
     return UUID.randomUUID().toString();
   }
 
+  /**
+   * 이메일 인증 토큰을 재전송합니다.
+   * 이메일이 이미 인증된 경우 예외를 발생시키며,
+   * 인증되지 않은 경우 새로운 인증 토큰을 생성하고 이메일로 전송합니다.
+   *
+   * @param email 인증 토큰을 재전송할 사용자의 이메일 주소
+   * @throws RuntimeException 이메일이 이미 인증되었거나 사용자를 찾을 수 없는 경우
+   */
+  public void resendVerificationToken(String email) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
+    if (userOptional.isPresent()) {
+      User user = userOptional.get();
+
+      if (user.isEmailVerified()) {
+        throw new RuntimeException("이메일이 이미 인증되었습니다.");
+      }
+
+      String newToken = generateVerificationToken();
+      user.setVerificationToken(newToken);
+      userRepository.save(user);
+
+      emailService.sendVerificationEmail(user.getEmail(), newToken);
+    } else {
+      throw new RuntimeException("사용자를 찾을 수 없습니다.");
+    }
+  }
 
   /**
    * 사용자 정보 업데이트
