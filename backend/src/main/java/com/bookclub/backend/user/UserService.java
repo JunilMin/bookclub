@@ -187,6 +187,14 @@ public class UserService {
     }
     return false;
   }
+
+  public boolean checkVerificationStatus(String email) {
+    Optional<User> userOptional = userRepository.findByEmail(email);
+    if (userOptional.isPresent()) {
+      return userOptional.get().isEmailVerified();
+    }
+    return false;
+  }
 }
 
 

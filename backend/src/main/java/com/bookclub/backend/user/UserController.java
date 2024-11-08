@@ -108,4 +108,15 @@ public class UserController {
       return ResponseEntity.badRequest().body(e.getMessage());
     }
   }
+
+  // Verification status check endpoint
+  @GetMapping("/verify-email-check")
+  public ResponseEntity<Boolean> verificationStatus(@RequestParam String email) {
+    if (email != null) {
+      boolean isVerified = userService.checkVerificationStatus(email);
+      return ResponseEntity.ok(isVerified);
+    } else {
+      return ResponseEntity.badRequest().body(false);
+    }
+  }
 }

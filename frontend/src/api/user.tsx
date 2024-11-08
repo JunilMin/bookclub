@@ -32,3 +32,10 @@ export const resendVerificationEmail = async (email: string): Promise<string> =>
   });
   return response.data;
 };
+
+export const verificationStatus = async (email: string): Promise<boolean> => { 
+  const response = await axiosInstance.get('/users/verify-email-check', {
+    params: { email },
+  });
+  return response.data; // response.data should be a boolean
+};

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { verifyEmail } from '../../api/auth';
-import { registerUser, resendVerificationEmail } from '../../api/user';
+// import {  } from '../../api/auth';
+import { registerUser, resendVerificationEmail, verificationStatus } from '../../api/user';
 
 interface SignupFormData {
   username: string;
@@ -19,7 +19,6 @@ const Signup: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,38 +38,44 @@ const Signup: React.FC = () => {
     }
 
     try {
-      // Send verification email
-      const response = await resendVerificationEmail(formData.email);
-      setMessage(response || "Verification email sent! Please check your inbox.");
+      // Register the user
+      const user = await registerUser({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+      });
+      setMessage("Registration successful! Please check your email to verify your account.");
       setError(null);
-      setVerificationToken("dummy-token"); // Assuming a token is returned by the backend
-      setIsRegistered(true); // Set isRegistered to true after registration
+      setIsRegistered(true); // Mark as registered to control UI state
     } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || "Failed to send verification email.";
+      const errorMessage = err?.response?.data?.message || "Registration failed.";
+      setError(errorMessage);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    try {
+      // Resend verification email if not received
+      const response = await resendVerificationEmail(formData.email);
+      setMessage(response || "Verification email resent! Please check your inbox.");
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || "Failed to resend verification email.";
       setError(errorMessage);
     }
   };
 
   const handleEmailVerification = async () => {
-    if (!verificationToken) return;
-
     try {
-      // Verify the email
-      const verificationMessage = await verifyEmail(verificationToken);
-      setMessage(verificationMessage);
+      const status = await verificationStatus(formData.email);
+      console.log(status);
+      if (!status) {
+        setError("Email is not verified yet.");
+        return;
+      }
       setError(null);
       setIsEmailVerified(true);
-
-      // Register the user after successful email verification
-      await registerUser({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-      });
-
-      setMessage("Registration successful! You can now log in.");
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "Failed to verify email.";
+      const errorMessage = err?.response?.data?.message || "Failed to verify email.";
       setError(errorMessage);
     }
   };
@@ -127,9 +132,17 @@ const Signup: React.FC = () => {
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {!isEmailVerified && verificationToken && (
+      {/* Show this option only if registered but not verified */}
+      {isRegistered && !isEmailVerified && (
         <div>
-          <p>Haven't received the verification email?</p>
+          <p>Didn’t receive the verification email?</p>
+          <button onClick={handleResendEmail}>Resend Verification Email</button>
+        </div>
+      )}
+
+      {/* Option to verify email if registered but not yet verified */}
+      {isRegistered && (
+        <div>
           <button onClick={handleEmailVerification}>Verify Email</button>
         </div>
       )}
