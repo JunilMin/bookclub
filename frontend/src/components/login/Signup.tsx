@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { verifyEmail, sendVerificationEmail } from '../../api/auth';
-import { registerUser } from '../../api/user';
+import { verifyEmail } from '../../api/auth';
+import { registerUser, resendVerificationEmail } from '../../api/user';
 
 interface SignupFormData {
   username: string;
@@ -20,6 +20,7 @@ const Signup: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [isRegistered, setIsRegistered] = useState<boolean>(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,22 +33,21 @@ const Signup: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Client-side validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
     try {
-      // Send verification email first
-      const response = await sendVerificationEmail(formData.email);
-      setMessage(response.data || "Verification email sent! Please check your inbox.");
+      // Send verification email
+      const response = await resendVerificationEmail(formData.email);
+      setMessage(response || "Verification email sent! Please check your inbox.");
       setError(null);
-      setVerificationToken("dummy-token"); // Assuming the token is generated and returned by the backend
-
-    } catch (err) {
-      // Check if the error has a response and message, otherwise use a generic error message
-
+      setVerificationToken("dummy-token"); // Assuming a token is returned by the backend
+      setIsRegistered(true); // Set isRegistered to true after registration
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.message || "Failed to send verification email.";
+      setError(errorMessage);
     }
   };
 
@@ -61,7 +61,7 @@ const Signup: React.FC = () => {
       setError(null);
       setIsEmailVerified(true);
 
-      // After successful email verification, register the user
+      // Register the user after successful email verification
       await registerUser({
         username: formData.username,
         email: formData.email,
@@ -69,9 +69,9 @@ const Signup: React.FC = () => {
       });
 
       setMessage("Registration successful! You can now log in.");
-      
-    } catch (err) {
-
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to verify email.";
+      setError(errorMessage);
     }
   };
 
@@ -119,7 +119,9 @@ const Signup: React.FC = () => {
             required
           />
         </div>
-        <button type="submit">Send Verification Email</button>
+        <button type="submit">
+          {isRegistered ? "Verify Email" : "Register"}
+        </button>
       </form>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}

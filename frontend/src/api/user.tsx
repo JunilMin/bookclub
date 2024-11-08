@@ -25,3 +25,10 @@ export const getUserById = async (id: string): Promise<User> => {
   const response = await axiosInstance.get(`/users/${id}`);
   return response.data;
 };
+
+export const resendVerificationEmail = async (email: string): Promise<string> => {
+  const response = await axiosInstance.post('/users/resend-verification', null, {
+    params: { email },
+  });
+  return response.data;
+};
