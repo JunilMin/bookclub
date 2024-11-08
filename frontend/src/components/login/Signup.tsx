@@ -124,9 +124,13 @@ const Signup: React.FC = () => {
             required
           />
         </div>
-        <button type="submit">
-          {isRegistered ? "Verify Email" : "Register"}
-        </button>
+        
+        {isRegistered ? 
+          <button onClick={handleEmailVerification}>Verify Email</button> 
+          : 
+          <button type='submit' onClick={handleSubmit}>register</button> 
+        }
+        
       </form>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
@@ -137,13 +141,6 @@ const Signup: React.FC = () => {
         <div>
           <p>Didn’t receive the verification email?</p>
           <button onClick={handleResendEmail}>Resend Verification Email</button>
-        </div>
-      )}
-
-      {/* Option to verify email if registered but not yet verified */}
-      {isRegistered && (
-        <div>
-          <button onClick={handleEmailVerification}>Verify Email</button>
         </div>
       )}
     </div>

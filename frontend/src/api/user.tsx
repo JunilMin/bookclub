@@ -27,15 +27,22 @@ export const getUserById = async (id: string): Promise<User> => {
 };
 
 export const resendVerificationEmail = async (email: string): Promise<string> => {
-  const response = await axiosInstance.post('/users/resend-verification', null, {
-    params: { email },
-  });
-  return response.data;
+  try {
+    console.log(email);
+    const response = await axiosInstance.post(`/users/resend-verification/${email}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error resending verification email:", error);
+    throw new Error("이메일 재전송에 실패했습니다."); // Custom error message
+  }
 };
 
 export const verificationStatus = async (email: string): Promise<boolean> => { 
-  const response = await axiosInstance.get('/users/verify-email-check', {
-    params: { email },
-  });
-  return response.data; // response.data should be a boolean
+  try {
+    const response = await axiosInstance.get(`/users/verify-email-check/${email}`);
+    return response.data; // response.data should be a boolean
+  } catch (error) {
+    console.error("Error checking verification status:", error);
+    throw new Error("인증 상태 확인에 실패했습니다."); // Custom error message
+  }
 };

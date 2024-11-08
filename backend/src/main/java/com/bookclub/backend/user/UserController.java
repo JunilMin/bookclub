@@ -99,8 +99,8 @@ public class UserController {
    * @param email 인증 토큰을 재전송할 이메일 주소
    * @return 성공 또는 오류 메시지를 포함한 응답
    */
-  @PostMapping("/resend-verification")
-  public ResponseEntity<?> resendVerificationToken(@RequestParam String email) {
+  @PostMapping("/resend-verification/{email}")
+  public ResponseEntity<?> resendVerificationToken(@PathVariable("email") String email) {
     try {
       userService.resendVerificationToken(email);
       return ResponseEntity.ok("새로운 인증 이메일이 발송되었습니다.");
@@ -110,8 +110,8 @@ public class UserController {
   }
 
   // Verification status check endpoint
-  @GetMapping("/verify-email-check")
-  public ResponseEntity<Boolean> verificationStatus(@RequestParam String email) {
+  @GetMapping("/verify-email-check/{email}")
+  public ResponseEntity<Boolean> verificationStatus(@PathVariable("email") String email) {
     if (email != null) {
       boolean isVerified = userService.checkVerificationStatus(email);
       return ResponseEntity.ok(isVerified);
