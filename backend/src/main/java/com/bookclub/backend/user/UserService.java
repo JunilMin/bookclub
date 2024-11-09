@@ -69,6 +69,8 @@ public class UserService {
       throw new RuntimeException("이미 존재하는 이메일입니다.");
     }
     try {
+      user.setFriends(new ArrayList<>()); 
+      user.setPosts(new ArrayList<>());
       user.setPassword(EncryptUtils.encrypt(user.getPassword()));
       user.setVerificationToken(generateVerificationToken()); // 인증 토큰 생성
       user.setEmailVerified(false); // 이메일 인증 미완료 상태로 설정
