@@ -50,17 +50,7 @@ public class UserService {
    * @return 등록된 User 객체
    * @throws RuntimeException 사용자 이름이 이미 존재하는 경우
    */
-  // public User registerUser(User user) {
-  //   if (userRepository.findByUsername(user.getUsername()).isPresent()) {
-  //     throw new RuntimeException("이미 존재하는 사용자입니다.");
-  //   }
-
-  //   try {
-  //     user.setPassword(EncryptUtils.encrypt(user.getPassword())); // 비밀번호 암호화
-  //     return userRepository.save(user);
-  //   } catch (Exception e) {
-  //     throw new RuntimeException("Error encrypting password: " + e.getMessage());
-  //   }
+  
   public User registerUser(User user) {
     if (userRepository.findByUsername(user.getUsername()).isPresent()) {
       throw new RuntimeException("이미 존재하는 사용자입니다.");
