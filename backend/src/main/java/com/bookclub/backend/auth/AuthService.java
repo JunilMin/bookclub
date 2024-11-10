@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 
 
 /**
@@ -147,5 +148,19 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
         }
     }
     return false;
+  }
+  /**
+   * 로그아웃을 처리하여 리프레시 토큰을 삭제합니다.
+   *
+   * @param request HTTP 요청 객체로 쿠키를 삭제하기 위해 사용
+   * @param response HTTP 응답 객체로 리프레시 토큰 쿠키를 삭제하기 위해 사용
+   */
+  public void logout(HttpServletRequest request, HttpServletResponse response) {
+    Cookie refreshTokenCookie = new Cookie("refreshToken", null);
+    refreshTokenCookie.setHttpOnly(true);
+    refreshTokenCookie.setSecure(true);
+    refreshTokenCookie.setPath("/api/auth/refresh-token");
+    refreshTokenCookie.setMaxAge(0); // 쿠키를 삭제하도록 설정
+    response.addCookie(refreshTokenCookie);
   }
 }
