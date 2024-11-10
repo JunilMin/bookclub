@@ -36,9 +36,7 @@ public class JwtUtils {
     if (username == null) {
       throw new IllegalArgumentException("Username cannot be null");
     }
-    if (type == "normal") {
-      expiration = jwtExpirationMs;
-    } else if(type == "access") {
+    if(type == "access") {
       expiration = accessTokenExpirationMs;
     } else if (type == "refresh") {
       expiration = refreshTokenExpirationMs;
