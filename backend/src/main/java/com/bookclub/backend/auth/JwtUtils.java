@@ -3,6 +3,7 @@
 package com.bookclub.backend.auth;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -21,6 +22,8 @@ public class JwtUtils {
 
   private final SecretKey jwtSecret = Keys.secretKeyFor(SignatureAlgorithm.HS512);
   private final long jwtExpirationMs = 86400000; // 1일(밀리초)
+  private final long accessTokenExpirationMs = 20 * 60 * 1000; // 20분
+  private final long refreshTokenExpirationMs = 30 * 60 * 1000; // 30분
 
   /**
    * 주어진 사용자 이름을 사용하여 JWT 토큰을 생성합니다.
@@ -28,11 +31,22 @@ public class JwtUtils {
    * @param username JWT 토큰에 포함할 사용자 이름
    * @return 생성된 JWT 토큰
    */
-  public String generateJwtToken(String username) {
+  public String generateJwtToken(String username, String type) {
+    long expiration = 0;
+    if (username == null) {
+      throw new IllegalArgumentException("Username cannot be null");
+    }
+    if (type == "normal") {
+      expiration = jwtExpirationMs;
+    } else if(type == "access") {
+      expiration = accessTokenExpirationMs;
+    } else if (type == "refresh") {
+      expiration = refreshTokenExpirationMs;
+    }
     return Jwts.builder()
         .setSubject(username)
         .setIssuedAt(new Date())
-        .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+        .setExpiration(new Date((new Date()).getTime() + expiration))
         .signWith(jwtSecret, SignatureAlgorithm.HS512)
         .compact();
   }
@@ -62,9 +76,22 @@ public class JwtUtils {
     try {
       Jwts.parserBuilder().setSigningKey(jwtSecret).build().parseClaimsJws(token);
       return true;
+    } catch (ExpiredJwtException e) {
+      System.out.println("Expired JWT token: " + e.getMessage());
     } catch (Exception e) {
       System.out.println("Invalid JWT token: " + e.getMessage());
-      return false;
     }
+    return false;
+  }
+
+  public boolean isTokenExpiringSoon(String token) {
+    Date expiration = Jwts.parserBuilder()
+        .setSigningKey(jwtSecret)
+        .build()
+        .parseClaimsJws(token)
+        .getBody()
+        .getExpiration();
+    long timeRemaining = expiration.getTime() - (new Date()).getTime();
+    return timeRemaining < (5 * 60 * 1000); // 5분 이하로 남았으면 true 반환
   }
 }

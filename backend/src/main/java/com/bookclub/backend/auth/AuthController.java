@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 이 컨트롤러는 인증 관련 요청을 처리합니다.
@@ -25,16 +27,29 @@ public class AuthController {
    * @return JWT 토큰을 포함한 응답 또는 오류 메시지
    */
   @PostMapping("/login")
-  public ResponseEntity<?> authenticateUser(@RequestBody AuthRequest authRequest) {
-    String token = authService.authenticateUser(authRequest.getUsername(), authRequest.getPassword());
+  public ResponseEntity<?> authenticateUser(@RequestBody AuthRequest authRequest, HttpServletResponse response) {
+    String accessToken = authService.authenticateUser(authRequest.getUsername(), authRequest.getPassword(), response);
 
-    if (token != null) {
-      return ResponseEntity.ok(new AuthResponse(token));
+    if (accessToken != null) {
+      return ResponseEntity.ok(new AuthResponse(accessToken));
     } else {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
     }
   }
+  @PostMapping("/refresh-token")
+  public ResponseEntity<?> refreshAccessToken(@CookieValue(value = "refreshToken", required = false) String refreshToken, HttpServletResponse response) {
+    if (refreshToken == null) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token is missing");
+    }
 
+    AuthResponse newAccessToken = authService.refreshAccessToken(refreshToken, response);
+
+    if (newAccessToken != null) {
+      return ResponseEntity.ok(newAccessToken);
+    } else {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid or expired refresh token");
+    }
+  }
   /**
    * Google 로그인을 처리합니다. 사용자가 없으면 새로 생성하고, JWT 토큰을 반환합니다.
    *

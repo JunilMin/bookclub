@@ -1,7 +1,8 @@
 // src/components/LoginComponent.tsx
 import React, { useState } from 'react';
-import { login } from '../../api/auth';
-import GoogleLoginHandler from '../../components/login/GoogleLoginHandler.tsx';
+import { login } from '../../api/auth.tsx';
+import GoogleLoginHandler from './GoogleLoginHandler.tsx';
+
 const LoginComponent: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
