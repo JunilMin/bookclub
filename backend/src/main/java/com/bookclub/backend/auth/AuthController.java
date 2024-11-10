@@ -28,10 +28,10 @@ public class AuthController {
    */
   @PostMapping("/login")
   public ResponseEntity<?> authenticateUser(@RequestBody AuthRequest authRequest, HttpServletResponse response) {
-    String accessToken = authService.authenticateUser(authRequest.getUsername(), authRequest.getPassword(), response);
+    AuthResponse accessToken = authService.authenticateUser(authRequest.getUsername(), authRequest.getPassword(), response);
 
     if (accessToken != null) {
-      return ResponseEntity.ok(new AuthResponse(accessToken));
+      return ResponseEntity.ok(accessToken);
     } else {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
     }
@@ -50,18 +50,24 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid or expired refresh token");
     }
   }
+  
   /**
-   * Google 로그인을 처리합니다. 사용자가 없으면 새로 생성하고, JWT 토큰을 반환합니다.
-   *
-   * @param googleAuthRequest Google 로그인 요청으로 전달된 이메일 및 이름 정보
-   * @return JWT 토큰을 포함한 인증 응답
-   */
-  @PostMapping("/google-login")
-  public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest googleAuthRequest) {
-    String token = authService.authenticateOrCreateGoogleUser(googleAuthRequest.getEmail(),
-        googleAuthRequest.getName());
-    return ResponseEntity.ok(new AuthResponse(token));
-  }
+ * Google 로그인을 처리합니다. 사용자가 없으면 새로 생성하고, JWT 토큰을 반환합니다.
+ * 이 메서드는 Google 사용자 인증 정보를 받고, 액세스 및 리프레시 토큰을 생성하여 반환합니다.
+ *
+ * @param googleAuthRequest Google 로그인 요청으로 전달된 이메일 및 이름 정보
+ * @param response HTTP 응답 객체로 리프레시 토큰을 쿠키로 설정하기 위해 사용
+ * @return JWT 액세스 토큰을 포함한 인증 응답
+ */
+@PostMapping("/google-login")
+public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest googleAuthRequest, HttpServletResponse response) {
+    AuthResponse authResponse = authService.authenticateOrCreateGoogleUser(
+        googleAuthRequest.getEmail(),
+        googleAuthRequest.getName(),
+        response
+    );
+    return ResponseEntity.ok(authResponse);
+}
 
   /**
    * Google 계정을 통한 회원 탈퇴 요청을 처리합니다.
