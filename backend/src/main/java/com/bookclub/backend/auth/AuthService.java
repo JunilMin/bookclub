@@ -6,10 +6,14 @@ import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
 import com.bookclub.backend.user.UserService;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import jakarta.servlet.http.Cookie;
+
 
 /**
  * 이 서비스는 인증과 회원 가입 기능을 제공합니다.
@@ -33,7 +37,7 @@ public class AuthService {
    * @param password 로그인 시 제공된 평문 비밀번호
    * @return JWT 토큰 또는 인증 실패 시 null 반환
    */
-  public String authenticateUser(String username, String password) {
+   public AuthResponse authenticateUser(String username, String password, HttpServletResponse response) {
     Optional<User> userOptional = userRepository.findByUsername(username);
 
     if (userOptional.isPresent()) {
@@ -41,7 +45,17 @@ public class AuthService {
       try {
         String decryptedPassword = EncryptUtils.decrypt(user.getPassword());
         if (password.equals(decryptedPassword)) {
-          return jwtUtils.generateJwtToken(username);
+          String accessToken = jwtUtils.generateJwtToken(username, "access");
+          String refreshToken = jwtUtils.generateJwtToken(username, "refresh");
+
+          // 리프레시 토큰을 HttpOnly 쿠키로 설정
+          Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+          refreshTokenCookie.setHttpOnly(true);
+          refreshTokenCookie.setSecure(true);
+          refreshTokenCookie.setPath("/api/auth/refresh-token");
+          response.addCookie(refreshTokenCookie);
+
+          return new AuthResponse(accessToken);
         }
       } catch (Exception e) {
         System.out.println("Error decrypting password: " + e.getMessage());
@@ -49,7 +63,25 @@ public class AuthService {
     }
     return null;
   }
+  public AuthResponse refreshAccessToken(String refreshToken, HttpServletResponse response) {
+    if (jwtUtils.validateJwtToken(refreshToken)) {
+      String username = jwtUtils.getUsernameFromJwtToken(refreshToken);
+      String newAccessToken = jwtUtils.generateJwtToken(username, "access");
 
+      // Refresh Token의 만료가 임박한 경우 새로 발급
+      if (jwtUtils.isTokenExpiringSoon(refreshToken)) {
+        String newRefreshToken = jwtUtils.generateJwtToken(username, "refresh");
+        Cookie refreshTokenCookie = new Cookie("refreshToken", newRefreshToken);
+        refreshTokenCookie.setHttpOnly(true);
+        refreshTokenCookie.setSecure(true);
+        refreshTokenCookie.setPath("/api/auth/refresh-token");
+        response.addCookie(refreshTokenCookie);
+      }
+
+      return new AuthResponse(newAccessToken);
+    }
+    return null;
+  }
   /**
    * 새 일반 사용자를 등록합니다. 이름이 이미 존재하면 예외를 발생시킵니다.
    *
@@ -74,17 +106,34 @@ public class AuthService {
   }
 
   /**
-   * Google 로그인 시 사용자 찾기 또는 생성하여 JWT 토큰을 반환합니다.
-   *
-   * @param email Google 계정 이메일
-   * @param name  Google 계정 이름
-   * @return JWT 토큰
-   */
-  public String authenticateOrCreateGoogleUser(String email, String name) {
-    User user = userService.findGoogleUser(email)
-        .orElseGet(() -> userService.createGoogleUser(email, name));
-    return jwtUtils.generateJwtToken(user.getEmail());
-  }
+ * Google 사용자 인증 처리. 기존 사용자를 찾거나 없으면 새로 생성하고,
+ * 액세스 및 리프레시 토큰을 생성하여 반환합니다. 리프레시 토큰은
+ * HttpOnly 쿠키로 설정하여 클라이언트에 전달되며, 액세스 토큰은
+ * AuthResponse 객체로 반환됩니다.
+ *
+ * @param email Google 계정 이메일
+ * @param name  Google 계정 이름
+ * @param response HTTP 응답 객체로 리프레시 토큰을 쿠키로 설정하기 위해 사용
+ * @return 액세스 토큰을 포함한 AuthResponse 객체
+ */
+public AuthResponse authenticateOrCreateGoogleUser(String email, String name, HttpServletResponse response) {
+  User user = userService.findGoogleUser(email)
+      .orElseGet(() -> userService.createGoogleUser(email, name));
+  
+  // 액세스 토큰만 AuthResponse에 포함하여 반환
+  String accessToken = jwtUtils.generateJwtToken(user.getEmail(), "access");
+
+  // 리프레시 토큰을 생성하고 HttpOnly 쿠키로 설정
+  String refreshToken = jwtUtils.generateJwtToken(user.getEmail(), "refresh");
+  Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+  refreshTokenCookie.setHttpOnly(true);
+  refreshTokenCookie.setSecure(true);
+  refreshTokenCookie.setPath("/api/auth/refresh-token");
+  response.addCookie(refreshTokenCookie);
+
+  // 액세스 토큰만 포함한 AuthResponse 반환
+  return new AuthResponse(accessToken);
+}
 
   public boolean verifyEmail(String token, String email) {
     Optional<User> userOptional = userRepository.findByEmail(email);
