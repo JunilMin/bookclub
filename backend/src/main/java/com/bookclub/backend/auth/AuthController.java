@@ -68,23 +68,6 @@ public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest g
     );
     return ResponseEntity.ok(authResponse);
 }
-
-  /**
-   * Google 계정을 통한 회원 탈퇴 요청을 처리합니다.
-   *
-   * @param googleAuthRequest 삭제할 사용자의 이메일을 포함한 요청
-   * @return 성공 시 HTTP 200 응답, 사용자가 없을 시 HTTP 404 응답
-   */
-  @DeleteMapping("/google-delete")
-  public ResponseEntity<?> deleteGoogleUser(@RequestBody GoogleAuthRequest googleAuthRequest) {
-    boolean isDeleted = authService.deleteGoogleUser(googleAuthRequest.getEmail());
-    if (isDeleted) {
-      return ResponseEntity.ok("Google 사용자 계정이 성공적으로 삭제되었습니다.");
-    } else {
-      return ResponseEntity.status(HttpStatus.NOT_FOUND).body("사용자를 찾을 수 없습니다.");
-    }
-  }
-
   
   @GetMapping("/verify-email")
   public ResponseEntity<String> verifyEmail(@RequestParam("token") String token, @RequestParam("email") String email) {

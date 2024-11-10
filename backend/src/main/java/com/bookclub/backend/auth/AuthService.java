@@ -135,29 +135,6 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
   return new AuthResponse(accessToken);
 }
 
-  /**
-   * Google 사용자 삭제
-   *
-   * @param email 삭제할 사용자의 이메일
-   * @return 성공 시 true, 실패 시 false 반환
-   */
-  public boolean deleteGoogleUser(String email) {
-    return userService.deleteGoogleUser(email);
-  }
-
-  // public boolean verifyEmail(String token, String email) {
-  //   Optional<User> userOptional = userRepository.findByEmail(email);
-  //   if (userOptional.isPresent()) {
-  //     User user = userOptional.get();
-  //     if (user.getVerificationToken().equals(token)) {
-  //       user.setEmailVerified(true);
-  //       user.setVerificationToken(null); // 토큰 제거
-  //       userRepository.save(user);
-  //       return true;
-  //     }
-  //   }
-  //   return false;
-  // }
   public boolean verifyEmail(String token, String email) {
     Optional<User> userOptional = userRepository.findByEmail(email);
     if (userOptional.isPresent()) {
@@ -170,5 +147,5 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
         }
     }
     return false;
-}
+  }
 }
