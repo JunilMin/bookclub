@@ -36,6 +36,13 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
     }
   }
+
+  /**
+   * 리프레시 토큰을 사용하여 새로운 액세스 토큰을 발급합니다.
+   *
+   * @param refreshToken 리프레시 토큰
+   * @return 새 액세스 토큰 또는 오류 메시지
+   */
   @PostMapping("/refresh-token")
   public ResponseEntity<?> refreshAccessToken(@CookieValue(value = "refreshToken", required = false) String refreshToken, HttpServletResponse response) {
     if (refreshToken == null) {
@@ -78,6 +85,17 @@ public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest g
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("유효하지 않은 토큰입니다.");
     }
   }
-
+  
+  /**
+   * 로그아웃을 처리하여 리프레시 토큰을 무효화하고 쿠키에서 제거합니다.
+   *
+   * @param response 로그아웃 시 리프레시 토큰을 제거하기 위한 HTTP 응답 객체
+   * @return 성공 메시지를 포함한 응답
+   */
+  @PostMapping("/logout")
+  public ResponseEntity<String> logout(HttpServletResponse response) {
+    authService.logout(response);
+    return ResponseEntity.ok("Successfully logged out.");
+  }
   
 }

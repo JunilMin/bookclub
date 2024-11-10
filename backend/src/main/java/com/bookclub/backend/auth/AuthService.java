@@ -148,4 +148,18 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
     }
     return false;
   }
+
+  /**
+   * 로그아웃 시 리프레시 토큰 쿠키를 제거합니다.
+   *
+   * @param response 로그아웃 응답을 위한 HTTP 응답 객체
+   */
+  public void logout(HttpServletResponse response) {
+    Cookie refreshTokenCookie = new Cookie("refreshToken", null);
+    refreshTokenCookie.setHttpOnly(true);
+    refreshTokenCookie.setSecure(true);
+    refreshTokenCookie.setPath("/api/auth/refresh-token");
+    refreshTokenCookie.setMaxAge(0); // 쿠키 만료 설정
+    response.addCookie(refreshTokenCookie);
+  }
 }
