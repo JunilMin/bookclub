@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
@@ -78,6 +79,16 @@ public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest g
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("유효하지 않은 토큰입니다.");
     }
   }
-
-  
+  /**
+   * 로그아웃 기능을 처리하여 사용자 세션을 종료하고, 리프레시 토큰을 삭제합니다.
+   *
+   * @param request HTTP 요청 객체로 쿠키를 삭제하기 위해 사용
+   * @param response HTTP 응답 객체로 리프레시 토큰 쿠키를 삭제하기 위해 사용
+   * @return 로그아웃 성공 메시지 응답
+   */
+  @PostMapping("/logout")
+  public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+    authService.logout(request, response);
+    return ResponseEntity.ok("로그아웃이 완료되었습니다.");
+  }
 }
