@@ -53,15 +53,14 @@ public class PostController {
   @PutMapping("/{id}")
   public ResponseEntity<Post> updatePost(@PathVariable String id, @RequestBody Post updatedPost) {
     try {
-      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
-      Post updated = postService.updatePost(objectId, updatedPost);
+      Post updated = postService.updatePost(id, updatedPost); // id를 그대로 String 타입으로 사용
       if (updated != null) {
         return ResponseEntity.ok(updated);
       } else {
         return ResponseEntity.notFound().build();
       }
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+      return ResponseEntity.badRequest().build(); // 유효하지 않은 형식에 대한 예외 처리
     }
   }
 
@@ -71,11 +70,10 @@ public class PostController {
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> deletePost(@PathVariable String id) {
     try {
-      ObjectId objectId = new ObjectId(id); // 문자열로 받은 id를 ObjectId로 변환
-      postService.deletePost(objectId);
+      postService.deletePost(id); // id를 그대로 String 타입으로 사용
       return ResponseEntity.noContent().build();
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+      return ResponseEntity.badRequest().build(); // 유효하지 않은 형식에 대한 예외 처리
     }
   }
 }

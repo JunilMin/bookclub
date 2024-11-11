@@ -39,7 +39,7 @@ public class PostService {
     return postRepository.save(post);
   }
 
-  public Post updatePost(ObjectId id, Post updatedPost) {
+  public Post updatePost(String id, Post updatedPost) {
     Optional<Post> existingPost = postRepository.findById(id);
     if (existingPost.isPresent()) {
       Post post = existingPost.get();
@@ -56,7 +56,7 @@ public class PostService {
     }
   }
 
-  public void deletePost(ObjectId id) {
+  public void deletePost(String id) {
     postRepository.deleteById(id);
   }
 }
