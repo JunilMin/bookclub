@@ -120,6 +120,27 @@ public class UserController {
     }
   }
 
+  /**
+   * 친구 추가 요청을 처리합니다.
+   * 
+   * @param userId   친구를 추가할 사용자의 ID
+   * @param friendId 추가할 친구의 ID
+   * @return 성공적으로 추가된 사용자 정보
+   */
+  @PostMapping("/{userId}/add-friend/{friendId}")
+  public ResponseEntity<User> addFriend(@PathVariable String userId, @PathVariable String friendId) {
+    try {
+      ObjectId userObjectId = new ObjectId(userId);
+      ObjectId friendObjectId = new ObjectId(friendId);
+      User user = userService.addFriend(userObjectId, friendObjectId);
+      return ResponseEntity.ok(user);
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+    } catch (RuntimeException e) {
+      return ResponseEntity.badRequest().body(null); // 이미 친구이거나 다른 오류 시 예외 처리
+    }
+  }
+
   // // Email verification endpoint
   // @GetMapping("/verification-token/{email}")
   // public ResponseEntity<String> getVerificationToken(@PathVariable("email") String email) {

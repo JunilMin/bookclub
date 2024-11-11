@@ -209,6 +209,28 @@ public class UserService {
     }
     return false;
   }
+
+  /**
+   * 친구 추가 메서드
+   * 
+   * @param userId   친구를 추가할 사용자의 ID
+   * @param friendId 추가할 친구의 ID
+   * @return 친구가 성공적으로 추가된 사용자 객체
+   */
+  public User addFriend(ObjectId userId, ObjectId friendId) {
+    User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+    User friend = userRepository.findById(friendId).orElseThrow(() -> new RuntimeException("친구 사용자를 찾을 수 없습니다."));
+
+    // 이미 친구 목록에 있는지 확인
+    if (user.getFriends().contains(friend.getId().toHexString())) {
+      throw new RuntimeException("이미 친구 목록에 있는 사용자입니다.");
+    }
+
+    user.getFriends().add(friend.getId().toHexString());
+    userRepository.save(user);
+
+    return user;
+  }
 }
 
 
