@@ -29,10 +29,10 @@ public class AuthController {
    */
   @PostMapping("/login")
   public ResponseEntity<?> authenticateUser(@RequestBody AuthRequest authRequest, HttpServletResponse response) {
-    AuthResponse accessToken = authService.authenticateUser(authRequest.getUsername(), authRequest.getPassword(), response);
+    String responseString = authService.authenticateUser(authRequest.getUsername(), authRequest.getPassword(), response);
 
-    if (accessToken != null) {
-      return ResponseEntity.ok(accessToken);
+    if (responseString != null) {
+      return ResponseEntity.ok(responseString);
     } else {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
     }
@@ -43,10 +43,10 @@ public class AuthController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token is missing");
     }
 
-    AuthResponse newAccessToken = authService.refreshAccessToken(refreshToken, response);
+    String responseString = authService.refreshAccessToken(refreshToken, response);
 
-    if (newAccessToken != null) {
-      return ResponseEntity.ok(newAccessToken);
+    if (responseString != null) {
+      return ResponseEntity.ok(responseString);
     } else {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid or expired refresh token");
     }
@@ -61,13 +61,13 @@ public class AuthController {
  * @return JWT 액세스 토큰을 포함한 인증 응답
  */
 @PostMapping("/google-login")
-public ResponseEntity<?> googleAuthenticateUser(@RequestBody GoogleAuthRequest googleAuthRequest, HttpServletResponse response) {
-    AuthResponse authResponse = authService.authenticateOrCreateGoogleUser(
+public String googleAuthenticateUser(@RequestBody GoogleAuthRequest googleAuthRequest, HttpServletResponse response) {
+    String authResponse = authService.authenticateOrCreateGoogleUser(
         googleAuthRequest.getEmail(),
         googleAuthRequest.getName(),
         response
     );
-    return ResponseEntity.ok(authResponse);
+    return authResponse;
 }
   
   @GetMapping("/verify-email")

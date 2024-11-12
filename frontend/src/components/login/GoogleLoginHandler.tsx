@@ -28,7 +28,7 @@ const GoogleLoginHandler: React.FC = () => {
         .then(async (data: UserInfo) => {
           try {
             const response = await googleLogin({ email: data.email, name: data.name });
-            console.log("Google 로그인 성공:", response.token);
+            console.log("Google 로그인 성공:", response);
             navigate('/board');
           } catch (error) {
             console.error("Google 로그인 실패:", error);

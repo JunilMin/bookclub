@@ -21,9 +21,8 @@ import java.util.Date;
 public class JwtUtils {
 
   private final SecretKey jwtSecret = Keys.secretKeyFor(SignatureAlgorithm.HS512);
-  private final long jwtExpirationMs = 86400000; // 1일(밀리초)
-  private final long accessTokenExpirationMs = 20 * 60 * 1000; // 20분
-  private final long refreshTokenExpirationMs = 30 * 60 * 1000; // 30분
+  private final long accessTokenExpirationMs = 10 * 60 * 1000; // 10분
+  private final long refreshTokenExpirationMs = 10 * 60 * 1000; // 10분
 
   /**
    * 주어진 사용자 이름을 사용하여 JWT 토큰을 생성합니다.

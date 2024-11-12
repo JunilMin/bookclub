@@ -38,7 +38,7 @@ public class AuthService {
    * @param password 로그인 시 제공된 평문 비밀번호
    * @return JWT 토큰 또는 인증 실패 시 null 반환
    */
-   public AuthResponse authenticateUser(String username, String password, HttpServletResponse response) {
+   public String authenticateUser(String username, String password, HttpServletResponse response) {
     Optional<User> userOptional = userRepository.findByUsername(username);
 
     if (userOptional.isPresent()) {
@@ -49,14 +49,22 @@ public class AuthService {
           String accessToken = jwtUtils.generateJwtToken(username, "access");
           String refreshToken = jwtUtils.generateJwtToken(username, "refresh");
 
+          Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
+          accessTokenCookie.setHttpOnly(true);
+          accessTokenCookie.setSecure(true);
+          accessTokenCookie.setPath("/"); // 전체 도메인에서 사용 가능
+          accessTokenCookie.setMaxAge(10 * 60); // 10분
+          response.addCookie(accessTokenCookie);
+
           // 리프레시 토큰을 HttpOnly 쿠키로 설정
           Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
           refreshTokenCookie.setHttpOnly(true);
           refreshTokenCookie.setSecure(true);
           refreshTokenCookie.setPath("/api/auth/refresh-token");
+          refreshTokenCookie.setMaxAge(10 * 60); // 10분
           response.addCookie(refreshTokenCookie);
 
-          return new AuthResponse(accessToken);
+          return "Login successful";
         }
       } catch (Exception e) {
         System.out.println("Error decrypting password: " + e.getMessage());
@@ -64,10 +72,18 @@ public class AuthService {
     }
     return null;
   }
-  public AuthResponse refreshAccessToken(String refreshToken, HttpServletResponse response) {
+  public String refreshAccessToken(String refreshToken, HttpServletResponse response) {
     if (jwtUtils.validateJwtToken(refreshToken)) {
       String username = jwtUtils.getUsernameFromJwtToken(refreshToken);
       String newAccessToken = jwtUtils.generateJwtToken(username, "access");
+
+      // Access Token을 새로 설정하여 HttpOnly 쿠키로 저장
+      Cookie accessTokenCookie = new Cookie("accessToken", newAccessToken);
+      accessTokenCookie.setHttpOnly(true);
+      accessTokenCookie.setSecure(true);
+      accessTokenCookie.setPath("/");
+      accessTokenCookie.setMaxAge(10 * 60); // 10분
+      response.addCookie(accessTokenCookie);
 
       // Refresh Token의 만료가 임박한 경우 새로 발급
       if (jwtUtils.isTokenExpiringSoon(refreshToken)) {
@@ -76,10 +92,11 @@ public class AuthService {
         refreshTokenCookie.setHttpOnly(true);
         refreshTokenCookie.setSecure(true);
         refreshTokenCookie.setPath("/api/auth/refresh-token");
+        refreshTokenCookie.setMaxAge(10 * 60); // 10분
         response.addCookie(refreshTokenCookie);
       }
 
-      return new AuthResponse(newAccessToken);
+      return "Token refreshed successfully";
     }
     return null;
   }
@@ -106,35 +123,43 @@ public class AuthService {
     }
   }
 
-  /**
- * Google 사용자 인증 처리. 기존 사용자를 찾거나 없으면 새로 생성하고,
- * 액세스 및 리프레시 토큰을 생성하여 반환합니다. 리프레시 토큰은
- * HttpOnly 쿠키로 설정하여 클라이언트에 전달되며, 액세스 토큰은
- * AuthResponse 객체로 반환됩니다.
- *
- * @param email Google 계정 이메일
- * @param name  Google 계정 이름
- * @param response HTTP 응답 객체로 리프레시 토큰을 쿠키로 설정하기 위해 사용
- * @return 액세스 토큰을 포함한 AuthResponse 객체
- */
-public AuthResponse authenticateOrCreateGoogleUser(String email, String name, HttpServletResponse response) {
-  User user = userService.findGoogleUser(email)
-      .orElseGet(() -> userService.createGoogleUser(email, name));
-  
-  // 액세스 토큰만 AuthResponse에 포함하여 반환
-  String accessToken = jwtUtils.generateJwtToken(user.getEmail(), "access");
+    /**
+   * Google 사용자 인증 처리. 기존 사용자를 찾거나 없으면 새로 생성하고,
+   * 액세스 및 리프레시 토큰을 생성하여 반환합니다. 리프레시 토큰은
+   * HttpOnly 쿠키로 설정하여 클라이언트에 전달되며, 액세스 토큰은
+   * AuthResponse 객체로 반환됩니다.
+   *
+   * @param email Google 계정 이메일
+   * @param name  Google 계정 이름
+   * @param response HTTP 응답 객체로 리프레시 토큰을 쿠키로 설정하기 위해 사용
+   * @return 액세스 토큰을 포함한 AuthResponse 객체
+   */
+  public String authenticateOrCreateGoogleUser(String email, String name, HttpServletResponse response) {
+    User user = userService.findGoogleUser(email)
+        .orElseGet(() -> userService.createGoogleUser(email, name));
+    
+    // 액세스 토큰만 AuthResponse에 포함하여 반환
+    String accessToken = jwtUtils.generateJwtToken(user.getEmail(), "access");
+    // Access Token을 HttpOnly, Secure 쿠키로 설정
+    Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
+    accessTokenCookie.setHttpOnly(true);
+    accessTokenCookie.setSecure(true);
+    accessTokenCookie.setPath("/");
+    accessTokenCookie.setMaxAge(10 * 60); // 10분 만료
+    response.addCookie(accessTokenCookie);
 
-  // 리프레시 토큰을 생성하고 HttpOnly 쿠키로 설정
-  String refreshToken = jwtUtils.generateJwtToken(user.getEmail(), "refresh");
-  Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-  refreshTokenCookie.setHttpOnly(true);
-  refreshTokenCookie.setSecure(true);
-  refreshTokenCookie.setPath("/api/auth/refresh-token");
-  response.addCookie(refreshTokenCookie);
+    // 리프레시 토큰을 생성하고 HttpOnly 쿠키로 설정
+    String refreshToken = jwtUtils.generateJwtToken(user.getEmail(), "refresh");
+    Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+    refreshTokenCookie.setHttpOnly(true);
+    refreshTokenCookie.setSecure(true);
+    refreshTokenCookie.setPath("/api/auth/refresh-token");
+    refreshTokenCookie.setMaxAge(10 * 60); // 10분 만료
+    response.addCookie(refreshTokenCookie);
 
-  // 액세스 토큰만 포함한 AuthResponse 반환
-  return new AuthResponse(accessToken);
-}
+    // 액세스 토큰만 포함한 AuthResponse 반환
+    return "Google Login Successful";
+  }
 
   public boolean verifyEmail(String token, String email) {
     Optional<User> userOptional = userRepository.findByEmail(email);
@@ -156,6 +181,13 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
    * @param response HTTP 응답 객체로 리프레시 토큰 쿠키를 삭제하기 위해 사용
    */
   public void logout(HttpServletRequest request, HttpServletResponse response) {
+    Cookie accessTokenCookie = new Cookie("accessToken", null);
+    accessTokenCookie.setHttpOnly(true);
+    accessTokenCookie.setSecure(true);
+    accessTokenCookie.setPath("/");
+    accessTokenCookie.setMaxAge(0);
+    response.addCookie(accessTokenCookie);
+
     Cookie refreshTokenCookie = new Cookie("refreshToken", null);
     refreshTokenCookie.setHttpOnly(true);
     refreshTokenCookie.setSecure(true);
