@@ -1,6 +1,8 @@
 package com.bookclub.backend.booksearch;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -19,8 +21,10 @@ public class BookSearchService {
         this.mapper = new ObjectMapper();
     }
 
-    public List<Book> searchBooks(String query) throws Exception {
-        String url = BASE_URL + "?q=" + query;
+    public List<Book> searchBooks(String input) throws Exception {
+        // 검색어 인코딩 (공백을 +로 처리)
+        String encodedQuery = URLEncoder.encode(input, StandardCharsets.UTF_8);
+        String url = BASE_URL + "?q=" + encodedQuery;
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))

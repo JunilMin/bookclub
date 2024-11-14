@@ -11,12 +11,16 @@ public class BookSearchController {
     private final BookSearchService bookSearchService = new BookSearchService();
 
     @GetMapping("/api/booksearch")
-    public List<Book> searchBooks(@RequestParam String bynameorauthor) {
+    public Object searchBooks(@RequestParam String query) {
         try {
-            return bookSearchService.searchBooks(bynameorauthor);
+            List<Book> books = bookSearchService.searchBooks(query);
+            if (books.isEmpty()) {
+                return "검색 결과가 없습니다.";
+            }
+            return books; // 결과가 있을 때는 리스트 반환
         } catch (Exception e) {
             e.printStackTrace();
-            return List.of();
+            return "오류 발생: " + e.getMessage();
         }
     }
 }
