@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import LoginComponent from '../components/login/loginComponent.tsx';
 // import GoogleLoginHandler from '../components/login/GoogleLoginHandler.tsx';
 import Signup from '../components/login/Signup.tsx';
 // import { Route, Routes } from 'react-router-dom';
 
 const Login: React.FC = () => {
-  const [isSigningup, setIsSigningup] = React.useState<boolean>(false);
+  const [isSigningup, setIsSigningup] = useState<boolean>(false);
   const handleSignup = () => {
     setIsSigningup(true);
   }

@@ -13,26 +13,23 @@ interface AuthResponse {
 // 로그인 요청
 export const login = async (authRequest: AuthRequest): Promise<AuthResponse> => {
   const response = await axiosInstance.post('/auth/login', authRequest);
-  const { token } = response.data;
-  if (token) {
-    localStorage.setItem('token', token); // JWT 토큰 저장
-  }
   return response.data;
 };
 
 // Google 로그인 요청
 export const googleLogin = async (userInfo: { email: string; name: string }) => {
   const response = await axiosInstance.post('/auth/google-login', userInfo);
-  const { token } = response.data;
-  if (token) {
-    localStorage.setItem('token', token);
-  }
   return response.data;
 };
 
 // 로그아웃
-export const logout = () => {
-  localStorage.removeItem('token'); // 토큰 삭제
+export const logout = async () => {
+  try {
+    await axiosInstance.post('/auth/logout'); // 서버에서 Refresh Token 삭제
+    window.location.href = '/login'; // 로그인 페이지로 리디렉션
+  } catch (error) {
+    console.error("로그아웃 요청 실패:", error);
+  }
 };
 
 // export const verifyEmail = async (token: string, email: string): Promise<string> => {

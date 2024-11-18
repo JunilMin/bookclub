@@ -1,18 +1,30 @@
 // src/components/LoginComponent.tsx
 import React, { useState } from 'react';
-import { login } from '../../api/auth.tsx';
 import GoogleLoginHandler from './GoogleLoginHandler.tsx';
+import useAuthStore from '../../stores/useAuthStore';
 
 const LoginComponent: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  
+  const { isLoggedIn, login, logout } = useAuthStore();
+
 
   const handleLogin = async () => {
     try {
-      const response = await login({ username, password });
-      console.log('로그인 성공:', response.token);
+      await login(username, password);
+      console.log('로그인 성공');
     } catch (error) {
       console.error('로그인 실패:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      console.log('로그아웃 성공');
+    } catch (error) {
+      console.error('로그아웃 실패:', error);
     }
   };
 

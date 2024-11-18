@@ -5,22 +5,25 @@ import Board from './screens/Board';
 import About from './screens/About';
 import NavBar from './components/NavBar';
 import Login from './screens/Login';
+import AuthProvider from './stores/useAuthStore';
 import './App.css';
 
 const App: React.FC = () => {
   return (
     <>
-      <Router>
-        <NavBar />
-        <div className="app-container">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/board" element={<Board />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/login" element={<Login />} />
-          </Routes>
-        </div>
-      </Router>
+      {/* <AuthProvider> */}
+        <Router>
+          <NavBar />
+          <div className="app-container">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/board" element={<Board />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/login" element={<Login />} />
+            </Routes>
+          </div>
+        </Router>
+      {/* </AuthProvider> */}
     </>
   );
 };

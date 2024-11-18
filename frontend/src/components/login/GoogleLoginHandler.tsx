@@ -4,8 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FcGoogle } from "react-icons/fc";
 import { useGoogleLogin, TokenResponse } from "@react-oauth/google";
-import { googleLogin } from '../../api/auth';
-
+import useAuthStore from '../../stores/useAuthStore';
 interface UserInfo {
   id: string;
   email: string;
@@ -13,30 +12,26 @@ interface UserInfo {
 }
 
 const GoogleLoginHandler: React.FC = () => {
+  const googleLogin = useAuthStore((state) => state.googleLogin);
   const [user, setUser] = useState<TokenResponse | null>(null);
   const navigate = useNavigate();
 
   const login = useGoogleLogin({
-    onSuccess: (codeResponse) => setUser(codeResponse),
-    onError: (error) => console.log("Login Failed:", error),
+    onSuccess: async (tokenResponse) => {
+      try {
+        const { access_token } = tokenResponse;
+        const userInfoResponse = await fetch(
+          `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${access_token}`
+        );
+        const userInfo = await userInfoResponse.json();
+        await googleLogin(userInfo.email, userInfo.name);
+        navigate('/board'); // 로그인 후 페이지 이동
+      } catch (error) {
+        console.error("Google 로그인 실패:", error);
+      }
+    },
+    onError: (error) => console.error("Google Login Failed:", error),
   });
-
-  useEffect(() => {
-    if (user && user.access_token) {
-      fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${user.access_token}`)
-        .then((res) => res.json())
-        .then(async (data: UserInfo) => {
-          try {
-            const response = await googleLogin({ email: data.email, name: data.name });
-            console.log("Google 로그인 성공:", response.token);
-            navigate('/board');
-          } catch (error) {
-            console.error("Google 로그인 실패:", error);
-          }
-        })
-        .catch((err) => console.log("Google User Info Fetch Error:", err));
-    }
-  }, [user, navigate]);
 
   return (
     <div className="shadow-2xl">

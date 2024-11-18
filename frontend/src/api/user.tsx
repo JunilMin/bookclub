@@ -1,14 +1,15 @@
 // src/api/user.ts
 import axiosInstance from './axiosInstance.tsx';
 
-interface User {
-  id?: string;
+export interface User {
+  _id?: string;
   email: string;
   username: string;
   password: string;
   rating?: number;
   absent?: number;
   friends?: string[];
+  posts?:[];
   late?: number;
   isEmailVerified?: boolean; // 이메일 인증 여부
   verificationToken?: string; // 이메일 인증 토큰
@@ -16,14 +17,67 @@ interface User {
 
 // 회원가입 요청
 export const registerUser = async (user: User): Promise<User> => {
-  const response = await axiosInstance.post('/users/register', user);
-  return response.data;
+  try {
+    const response = await axiosInstance.post('/users/register', user);
+    return response.data;
+  } catch (error) {
+    console.error("Error registering user:", error);
+    throw new Error("회원가입에 실패했습니다.");
+  }
+};
+
+// 사용자 이름으로 조회
+export const getUserByUsername = async (username: string): Promise<User> => {
+  try {
+    const response = await axiosInstance.get(`/users/username/${username}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user by username:", error);
+    throw new Error("사용자 이름으로 조회하는데 실패했습니다.");
+  }
 };
 
 // 사용자 정보 조회
 export const getUserById = async (id: string): Promise<User> => {
-  const response = await axiosInstance.get(`/users/${id}`);
-  return response.data;
+  try {
+    const response = await axiosInstance.get(`/users/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user by ID:", error);
+    throw new Error("사용자 정보를 조회하는데 실패했습니다.");
+  }
+};
+
+// 사용자 정보 업데이트
+export const updateUser = async (id: string, updatedUser: User): Promise<User> => {
+  try {
+    const response = await axiosInstance.put(`/users/${id}`, updatedUser);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating user:", error);
+    throw new Error("사용자 정보를 업데이트하는데 실패했습니다.");
+  }
+};
+
+// 사용자 삭제
+export const deleteUser = async (id: string): Promise<void> => {
+  try {
+    await axiosInstance.delete(`/users/${id}`);
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    throw new Error("사용자를 삭제하는데 실패했습니다.");
+  }
+};
+
+// 친구 추가
+export const addFriend = async (userId: string, friendId: string): Promise<User> => {
+  try {
+    const response = await axiosInstance.post(`/users/${userId}/add-friend/${friendId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error adding friend:", error);
+    throw new Error("친구를 추가하는데 실패했습니다.");
+  }
 };
 
 export const resendVerificationEmail = async (email: string): Promise<string> => {
