@@ -1,4 +1,4 @@
-import axiosInstance from './axiosInstance';
+import axiosInstance, {setAccessToken} from './axiosInstance';
 import axios from 'axios';
 
 interface AuthRequest {
@@ -8,8 +8,28 @@ interface AuthRequest {
 
 interface AuthResponse {
   token: string;
+  username: string;
 }
+//token을 여기서 파라미터로 받아서 사용해야함. axiosInstance에 토큰을 넣어서 사용해야함.
+export const refreshToken = async (): Promise<AuthResponse | null> => {
+  try {
+    const response = await axios.post(
+      "http://localhost:8080/api/auth/refresh-token",
+      {},
+      { withCredentials: true } // 쿠키를 포함하여 요청
+    );
 
+    if (response.status === 200) {
+      return response.data;
+    } else {
+      console.error("Failed to refresh token:", response.statusText);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error during refresh token request:", error);
+    return null;
+  }
+};
 // 로그인 요청
 export const login = async (authRequest: AuthRequest): Promise<AuthResponse> => {
   const response = await axiosInstance.post('/auth/login', authRequest);

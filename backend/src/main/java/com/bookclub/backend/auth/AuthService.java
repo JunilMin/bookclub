@@ -53,10 +53,10 @@ public class AuthService {
           Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
           refreshTokenCookie.setHttpOnly(true);
           refreshTokenCookie.setSecure(true);
-          refreshTokenCookie.setPath("/api/auth/refresh-token");
+          refreshTokenCookie.setPath("/");
           response.addCookie(refreshTokenCookie);
 
-          return new AuthResponse(accessToken);
+          return new AuthResponse(accessToken, username);
         }
       } catch (Exception e) {
         System.out.println("Error decrypting password: " + e.getMessage());
@@ -64,6 +64,7 @@ public class AuthService {
     }
     return null;
   }
+
   public AuthResponse refreshAccessToken(String refreshToken, HttpServletResponse response) {
     if (jwtUtils.validateJwtToken(refreshToken)) {
       String username = jwtUtils.getUsernameFromJwtToken(refreshToken);
@@ -79,10 +80,11 @@ public class AuthService {
         response.addCookie(refreshTokenCookie);
       }
 
-      return new AuthResponse(newAccessToken);
+      return new AuthResponse(newAccessToken, username);
     }
     return null;
   }
+
   /**
    * 새 일반 사용자를 등록합니다. 이름이 이미 존재하면 예외를 발생시킵니다.
    *
@@ -122,10 +124,11 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
       .orElseGet(() -> userService.createGoogleUser(email, name));
   
   // 액세스 토큰만 AuthResponse에 포함하여 반환
-  String accessToken = jwtUtils.generateJwtToken(user.getEmail(), "access");
+  String accessToken = jwtUtils.generateJwtToken(user.getUsername(), "access");
 
+  // 구글 로그인시, username 이 겹칠 수도 있는 문제 해결해야함.
   // 리프레시 토큰을 생성하고 HttpOnly 쿠키로 설정
-  String refreshToken = jwtUtils.generateJwtToken(user.getEmail(), "refresh");
+  String refreshToken = jwtUtils.generateJwtToken(user.getUsername(), "refresh");
   Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
   refreshTokenCookie.setHttpOnly(true);
   refreshTokenCookie.setSecure(true);
@@ -133,7 +136,7 @@ public AuthResponse authenticateOrCreateGoogleUser(String email, String name, Ht
   response.addCookie(refreshTokenCookie);
 
   // 액세스 토큰만 포함한 AuthResponse 반환
-  return new AuthResponse(accessToken);
+  return new AuthResponse(accessToken, user.getUsername());
 }
 
   public boolean verifyEmail(String token, String email) {

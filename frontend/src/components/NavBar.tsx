@@ -2,17 +2,18 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './styles/NavBar.css';
 import Button from './Button';
-import  useAuthStore  from '../stores/useAuthStore';
+import {useAuth} from '../AuthContext/AuthContext';
 function NavBar() {
+    const {user, handleLogout} = useAuth();
     const navigate = useNavigate();
+
     const handleLoginClick = () => {
         navigate('/login'); // 로그인 페이지로 이동
     };
-    const { isLoggedIn, logout } = useAuthStore();
-    console.log(isLoggedIn);
-    const handleLogout = async () => {
+
+    const handleLogoutButton = async () => {
         try {
-            await logout();
+            await handleLogout();
             console.log('로그아웃 성공');
         } catch (error) {
             console.error('로그아웃 실패:', error);
@@ -25,8 +26,8 @@ function NavBar() {
                 <Link to="/board">Dashboard</Link>
                 <Link to="/about">About</Link>
             </div>
-            {isLoggedIn ? (
-                <button onClick= {handleLogout}>
+            {user ? (
+                <button onClick= {handleLogoutButton}>
                 Logout
                 </button>
             ): (

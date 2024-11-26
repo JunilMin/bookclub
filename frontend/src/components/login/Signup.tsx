@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { verifyEmail } from '../../api/auth';
-import { registerUser, resendVerificationEmail, verificationStatus, getVerificationToken } from '../../api/user';
+import { useAuth } from '../../AuthContext/AuthContext';
 
 interface SignupFormData {
   username: string;
@@ -10,6 +9,7 @@ interface SignupFormData {
 }
 
 const Signup: React.FC = () => {
+  const { handleRegister, resendEmailVerification, verifyRegisterToken } = useAuth();
   const [formData, setFormData] = useState<SignupFormData>({
     username: '',
     email: '',
@@ -18,9 +18,10 @@ const Signup: React.FC = () => {
   });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
+
   const [token, setToken] = useState<string>('');
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
 
   const handleTokenInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setToken(e.target.value);
@@ -44,11 +45,7 @@ const Signup: React.FC = () => {
 
     try {
       // Register the user
-      const user = await registerUser({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-      });
+      await handleRegister(formData.email, formData.password, formData.username);
       setMessage("Registration successful! Please check your email to verify your account.");
       setError(null);
       setIsRegistered(true); // Mark as registered to control UI state
@@ -61,26 +58,18 @@ const Signup: React.FC = () => {
   const handleResendEmail = async () => {
     try {
       // Resend verification email if not received
-      const response = await resendVerificationEmail(formData.email);
-      setMessage(response || "Verification email resent! Please check your inbox.");
+      await resendEmailVerification(formData.email);
+      setMessage("Verification email resent! Please check your inbox.");
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || "Failed to resend verification email.";
       setError(errorMessage);
     }
   };
-  const handleCheckVerificationToken = async () => {
-    try {
-      const token = await getVerificationToken(formData.email);
-      console.log(token);
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || "Failed to get verification token.";
-      setError(errorMessage);
-    }
-  }
+
   const handleVerifyToken = async () => {
     try {
-      const response = await verifyEmail(token, formData.email);
-      setMessage(response || "Email verified successfully!");
+      await verifyRegisterToken(token, formData.email);
+      setMessage("Email verified successfully!");
       setError(null);
       setIsEmailVerified(true);
     } catch (err: any) {
@@ -88,23 +77,31 @@ const Signup: React.FC = () => {
       setError(errorMessage);
     }
   }
-  
+  // const handleCheckVerificationToken = async () => {
+  //   try {
+  //     const token = await getVerificationToken(formData.email);
+  //     console.log(token);
+  //   } catch (err: any) {
+  //     const errorMessage = err?.response?.data?.message || "Failed to get verification token.";
+  //     setError(errorMessage);
+  //   }
+  // }
 
-  const handleEmailVerification = async () => {
-    try {
-      const status = await verificationStatus(formData.email);
-      console.log(status);
-      if (!status) {
-        setError("Email is not verified yet.");
-        return;
-      }
-      setError(null);
-      setIsEmailVerified(true);
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || "Failed to verify email.";
-      setError(errorMessage);
-    }
-  };
+  // const handleEmailVerification = async () => {
+  //   try {
+  //     const status = await verificationStatus(formData.email);
+  //     console.log(status);
+  //     if (!status) {
+  //       setError("Email is not verified yet.");
+  //       return;
+  //     }
+  //     setError(null);
+  //     setIsEmailVerified(true);
+  //   } catch (err: any) {
+  //     const errorMessage = err?.response?.data?.message || "Failed to verify email.";
+  //     setError(errorMessage);
+  //   }
+  // };
 
   return (
     

@@ -1,5 +1,5 @@
 // posts.ts
-import axiosInstance from './axiosInstance';
+import axiosInstance, {setAccessToken} from './axiosInstance';
 
 export interface ObjectId {
   timestamp: number;
@@ -18,30 +18,36 @@ export interface Post {
 }
 
 // 모든 포스트 조회
-export const getAllPosts = async (): Promise<Post[]> => {
+export const getAllPosts = async (token: string): Promise<Post[]> => {
+  setAccessToken(token);
   const response = await axiosInstance.get('/posts');
   return response.data;
 };
 
 // 특정 포스트 조회
-export const getPostById = async (id: string): Promise<Post> => {
+export const getPostById = async (id: string, token: string): Promise<Post> => {
+  setAccessToken(token);
   const response = await axiosInstance.get(`/posts/${id}`);
   return response.data;
 };
 
 // 새로운 포스트 생성
-export const createPost = async (post: Partial<Post>): Promise<Post> => {
+export const createPost = async (post: Partial<Post>, token: string): Promise<Post> => {
+  setAccessToken(token);
   const response = await axiosInstance.post('/posts', post);
   return response.data;
 };
 
 // 포스트 수정
-export const updatePost = async (id: string, post: Post): Promise<Post> => {
+export const updatePost = async (id: string, post: Post, token: string): Promise<Post> => {
+  setAccessToken(token);
   const response = await axiosInstance.put(`/posts/${id}`, post);
   return response.data;
 };
 
-// 포스트 삭제
-export const deletePost = async (id: string): Promise<void> => {
+// 포스트 삭제 로직, 해당 유저의 포스트만 삭제 가능 추가해야함
+export const deletePost = async (id: string, token: string): Promise<string> => {
+  setAccessToken(token);
   await axiosInstance.delete(`/posts/${id}`);
+  return "삭제 성공";
 };

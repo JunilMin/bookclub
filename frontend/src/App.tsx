@@ -5,13 +5,13 @@ import Board from './screens/Board';
 import About from './screens/About';
 import NavBar from './components/NavBar';
 import Login from './screens/Login';
-import AuthProvider from './stores/useAuthStore';
+import { AuthProvider} from './AuthContext/AuthContext';
 import './App.css';
 
 const App: React.FC = () => {
   return (
     <>
-      {/* <AuthProvider> */}
+      <AuthProvider>
         <Router>
           <NavBar />
           <div className="app-container">
@@ -23,7 +23,7 @@ const App: React.FC = () => {
             </Routes>
           </div>
         </Router>
-      {/* </AuthProvider> */}
+      </AuthProvider>
     </>
   );
 };

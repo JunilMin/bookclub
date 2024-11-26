@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FcGoogle } from "react-icons/fc";
 import { useGoogleLogin, TokenResponse } from "@react-oauth/google";
-import useAuthStore from '../../stores/useAuthStore';
+import { useAuth } from '../../AuthContext/AuthContext';
+
 interface UserInfo {
   id: string;
   email: string;
@@ -12,8 +13,7 @@ interface UserInfo {
 }
 
 const GoogleLoginHandler: React.FC = () => {
-  const googleLogin = useAuthStore((state) => state.googleLogin);
-  const [user, setUser] = useState<TokenResponse | null>(null);
+  const { handleGoogleLogin } = useAuth();
   const navigate = useNavigate();
 
   const login = useGoogleLogin({
@@ -24,7 +24,7 @@ const GoogleLoginHandler: React.FC = () => {
           `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${access_token}`
         );
         const userInfo = await userInfoResponse.json();
-        await googleLogin(userInfo.email, userInfo.name);
+        await handleGoogleLogin(userInfo.email, userInfo.name);
         navigate('/board'); // 로그인 후 페이지 이동
       } catch (error) {
         console.error("Google 로그인 실패:", error);

@@ -1,5 +1,5 @@
 // src/api/user.ts
-import axiosInstance from './axiosInstance.tsx';
+import axiosInstance, {setAccessToken} from './axiosInstance';
 
 export interface User {
   _id?: string;
@@ -27,8 +27,9 @@ export const registerUser = async (user: User): Promise<User> => {
 };
 
 // 사용자 이름으로 조회
-export const getUserByUsername = async (username: string): Promise<User> => {
+export const getUserByUsername = async (username: string, token: string): Promise<User> => {
   try {
+    setAccessToken(token);
     const response = await axiosInstance.get(`/users/username/${username}`);
     return response.data;
   } catch (error) {
@@ -38,8 +39,9 @@ export const getUserByUsername = async (username: string): Promise<User> => {
 };
 
 // 사용자 정보 조회
-export const getUserById = async (id: string): Promise<User> => {
+export const getUserById = async (id: string, token:string): Promise<User> => {
   try {
+    setAccessToken(token);
     const response = await axiosInstance.get(`/users/${id}`);
     return response.data;
   } catch (error) {
@@ -49,8 +51,9 @@ export const getUserById = async (id: string): Promise<User> => {
 };
 
 // 사용자 정보 업데이트
-export const updateUser = async (id: string, updatedUser: User): Promise<User> => {
+export const updateUser = async (id: string, updatedUser: User, token:string): Promise<User> => {
   try {
+    setAccessToken(token);
     const response = await axiosInstance.put(`/users/${id}`, updatedUser);
     return response.data;
   } catch (error) {
@@ -60,8 +63,9 @@ export const updateUser = async (id: string, updatedUser: User): Promise<User> =
 };
 
 // 사용자 삭제
-export const deleteUser = async (id: string): Promise<void> => {
+export const deleteUser = async (id: string, token:string): Promise<void> => {
   try {
+    setAccessToken(token);
     await axiosInstance.delete(`/users/${id}`);
   } catch (error) {
     console.error("Error deleting user:", error);
@@ -70,8 +74,9 @@ export const deleteUser = async (id: string): Promise<void> => {
 };
 
 // 친구 추가
-export const addFriend = async (userId: string, friendId: string): Promise<User> => {
+export const addFriend = async (userId: string, friendId: string, token:string): Promise<User> => {
   try {
+    setAccessToken(token);
     const response = await axiosInstance.post(`/users/${userId}/add-friend/${friendId}`);
     return response.data;
   } catch (error) {
