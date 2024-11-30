@@ -5,6 +5,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.bookclub.backend.googleapi.GoogleCalendarService;
+import com.google.api.services.calendar.model.Event;
+
+import java.net.URI;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,7 +19,92 @@ public class UserController {
 
   @Autowired
   private UserService userService;
+  
+  @Autowired
+  private GoogleCalendarService googleCalendarService;
 
+   /**
+     * Google Calendar 열기 (웹 브라우저)
+     */
+    @GetMapping("/{userId}/google-calendar/open")
+    public ResponseEntity<?> openGoogleCalendar() {
+        try {
+            URI calendarUri = new URI("https://calendar.google.com/");
+            return ResponseEntity.status(302).location(calendarUri).build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error opening Google Calendar: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Google Calendar 이벤트 조회
+     */
+    @GetMapping("/{userId}/google-calendar/events")
+    public ResponseEntity<?> listEvents(@PathVariable String userId, @RequestParam String accessToken) {
+        try {
+            List<Event> events = googleCalendarService.listEvents(accessToken);
+            return ResponseEntity.ok(events);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error listing events: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Google Calendar 이벤트 추가
+     */
+    @PostMapping("/{userId}/google-calendar/add-event")
+    public ResponseEntity<?> addEvent(
+            @PathVariable String userId,
+            @RequestParam String accessToken,
+            @RequestParam String summary,
+            @RequestParam Date startDate,
+            @RequestParam Date endDate
+    ) {
+        try {
+            Event event = googleCalendarService.addEvent(accessToken, summary, startDate, endDate);
+            return ResponseEntity.ok(event);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error adding event: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Google Calendar 이벤트 삭제
+     */
+    @DeleteMapping("/{userId}/google-calendar/delete-event")
+    public ResponseEntity<?> deleteEvent(
+            @PathVariable String userId,
+            @RequestParam String accessToken,
+            @RequestParam String eventId
+    ) {
+        try {
+            googleCalendarService.deleteEvent(accessToken, eventId);
+            return ResponseEntity.ok("Event deleted successfully.");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error deleting event: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Google Calendar 이벤트 수정
+     */
+    @PutMapping("/{userId}/google-calendar/update-event")
+    public ResponseEntity<?> updateEvent(
+            @PathVariable String userId,
+            @RequestParam String accessToken,
+            @RequestParam String eventId,
+            @RequestParam String summary,
+            @RequestParam Date startDate,
+            @RequestParam Date endDate
+    ) {
+        try {
+            Event updatedEvent = googleCalendarService.updateEvent(accessToken, eventId, summary, startDate, endDate);
+            return ResponseEntity.ok(updatedEvent);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error updating event: " + e.getMessage());
+        }
+    }
+    
   /**
    * 모든 사용자 조회
    */
