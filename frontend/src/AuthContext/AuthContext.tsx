@@ -115,9 +115,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // console.log("responseddd", response);
         setUser({ ...response, uid: firebaseUser.uid });
       } catch {
-        console.log("catch ran",firebaseUser.uid);
-        setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!});
-        await registerUser(user , token);
+        
+        setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ' '});
+        console.log("catch ran",user);
+        await registerUser(user! , token);
         const response = await getByUID(firebaseUser.uid);
         setUser({ ...response, uid: firebaseUser.uid });
       }
