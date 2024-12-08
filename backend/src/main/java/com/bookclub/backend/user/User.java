@@ -16,7 +16,8 @@ import java.util.List;
 @NoArgsConstructor  // 기본 생성자 생성
 public class User {
   @Id
-  private ObjectId id;
+  private String id;
+  private String uid;
   private String email;
   private String username;
   private String password;

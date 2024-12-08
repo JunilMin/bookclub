@@ -38,52 +38,52 @@ public class AuthService {
    * @param password 로그인 시 제공된 평문 비밀번호
    * @return JWT 토큰 또는 인증 실패 시 null 반환
    */
-   public AuthResponse authenticateUser(String username, String password, HttpServletResponse response) {
-    Optional<User> userOptional = userRepository.findByUsername(username);
+  //  public AuthResponse authenticateUser(String username, String password, HttpServletResponse response) {
+  //   Optional<User> userOptional = userRepository.findByUsername(username);
 
-    if (userOptional.isPresent()) {
-      User user = userOptional.get();
-      try {
-        String decryptedPassword = EncryptUtils.decrypt(user.getPassword());
-        if (password.equals(decryptedPassword)) {
-          String accessToken = jwtUtils.generateJwtToken(username, "access");
-          String refreshToken = jwtUtils.generateJwtToken(username, "refresh");
+  //   if (userOptional.isPresent()) {
+  //     User user = userOptional.get();
+  //     try {
+  //       String decryptedPassword = EncryptUtils.decrypt(user.getPassword());
+  //       if (password.equals(decryptedPassword)) {
+  //         String accessToken = jwtUtils.generateJwtToken(username, "access");
+  //         String refreshToken = jwtUtils.generateJwtToken(username, "refresh");
 
-          // 리프레시 토큰을 HttpOnly 쿠키로 설정
-          Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-          refreshTokenCookie.setHttpOnly(true);
-          refreshTokenCookie.setSecure(true);
-          refreshTokenCookie.setPath("/");
-          response.addCookie(refreshTokenCookie);
+  //         // 리프레시 토큰을 HttpOnly 쿠키로 설정
+  //         Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+  //         refreshTokenCookie.setHttpOnly(true);
+  //         refreshTokenCookie.setSecure(true);
+  //         refreshTokenCookie.setPath("/");
+  //         response.addCookie(refreshTokenCookie);
 
-          return new AuthResponse(accessToken, username);
-        }
-      } catch (Exception e) {
-        System.out.println("Error decrypting password: " + e.getMessage());
-      }
-    }
-    return null;
-  }
+  //         return new AuthResponse(accessToken, username);
+  //       }
+  //     } catch (Exception e) {
+  //       System.out.println("Error decrypting password: " + e.getMessage());
+  //     }
+  //   }
+  //   return null;
+  // }
 
-  public AuthResponse refreshAccessToken(String refreshToken, HttpServletResponse response) {
-    if (jwtUtils.validateJwtToken(refreshToken)) {
-      String username = jwtUtils.getUsernameFromJwtToken(refreshToken);
-      String newAccessToken = jwtUtils.generateJwtToken(username, "access");
+  // public AuthResponse refreshAccessToken(String refreshToken, HttpServletResponse response) {
+  //   if (jwtUtils.validateJwtToken(refreshToken)) {
+  //     String username = jwtUtils.getUsernameFromJwtToken(refreshToken);
+  //     String newAccessToken = jwtUtils.generateJwtToken(username, "access");
 
-      // Refresh Token의 만료가 임박한 경우 새로 발급
-      if (jwtUtils.isTokenExpiringSoon(refreshToken)) {
-        String newRefreshToken = jwtUtils.generateJwtToken(username, "refresh");
-        Cookie refreshTokenCookie = new Cookie("refreshToken", newRefreshToken);
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setSecure(true);
-        refreshTokenCookie.setPath("/api/auth/refresh-token");
-        response.addCookie(refreshTokenCookie);
-      }
+  //     // Refresh Token의 만료가 임박한 경우 새로 발급
+  //     if (jwtUtils.isTokenExpiringSoon(refreshToken)) {
+  //       String newRefreshToken = jwtUtils.generateJwtToken(username, "refresh");
+  //       Cookie refreshTokenCookie = new Cookie("refreshToken", newRefreshToken);
+  //       refreshTokenCookie.setHttpOnly(true);
+  //       refreshTokenCookie.setSecure(true);
+  //       refreshTokenCookie.setPath("/api/auth/refresh-token");
+  //       response.addCookie(refreshTokenCookie);
+  //     }
 
-      return new AuthResponse(newAccessToken, username);
-    }
-    return null;
-  }
+  //     return new AuthResponse(newAccessToken, username);
+  //   }
+  //   return null;
+  // }
 
   /**
    * 새 일반 사용자를 등록합니다. 이름이 이미 존재하면 예외를 발생시킵니다.
@@ -119,39 +119,39 @@ public class AuthService {
  * @param response HTTP 응답 객체로 리프레시 토큰을 쿠키로 설정하기 위해 사용
  * @return 액세스 토큰을 포함한 AuthResponse 객체
  */
-public AuthResponse authenticateOrCreateGoogleUser(String email, String name, HttpServletResponse response) {
-  User user = userService.findGoogleUser(email)
-      .orElseGet(() -> userService.createGoogleUser(email, name));
+// public AuthResponse authenticateOrCreateGoogleUser(String email, String name, HttpServletResponse response) {
+//   User user = userService.findGoogleUser(email)
+//       .orElseGet(() -> userService.createGoogleUser(email, name));
   
-  // 액세스 토큰만 AuthResponse에 포함하여 반환
-  String accessToken = jwtUtils.generateJwtToken(user.getUsername(), "access");
+//   // 액세스 토큰만 AuthResponse에 포함하여 반환
+//   String accessToken = jwtUtils.generateJwtToken(user.getUsername(), "access");
 
-  // 구글 로그인시, username 이 겹칠 수도 있는 문제 해결해야함.
-  // 리프레시 토큰을 생성하고 HttpOnly 쿠키로 설정
-  String refreshToken = jwtUtils.generateJwtToken(user.getUsername(), "refresh");
-  Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-  refreshTokenCookie.setHttpOnly(true);
-  refreshTokenCookie.setSecure(true);
-  refreshTokenCookie.setPath("/api/auth/refresh-token");
-  response.addCookie(refreshTokenCookie);
+//   // 구글 로그인시, username 이 겹칠 수도 있는 문제 해결해야함.
+//   // 리프레시 토큰을 생성하고 HttpOnly 쿠키로 설정
+//   String refreshToken = jwtUtils.generateJwtToken(user.getUsername(), "refresh");
+//   Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+//   refreshTokenCookie.setHttpOnly(true);
+//   refreshTokenCookie.setSecure(true);
+//   refreshTokenCookie.setPath("/api/auth/refresh-token");
+//   response.addCookie(refreshTokenCookie);
 
-  // 액세스 토큰만 포함한 AuthResponse 반환
-  return new AuthResponse(accessToken, user.getUsername());
-}
+//   // 액세스 토큰만 포함한 AuthResponse 반환
+//   return new AuthResponse(accessToken, user.getUsername());
+// }
 
-  public boolean verifyEmail(String token, String email) {
-    Optional<User> userOptional = userRepository.findByEmail(email);
-    if (userOptional.isPresent()) {
-        User user = userOptional.get();
-        if (user.getVerificationToken() != null && user.getVerificationToken().equals(token)) {
-            user.setEmailVerified(true);
-            user.setVerificationToken(null); // 토큰 제거
-            userRepository.save(user);
-            return true;
-        }
-    }
-    return false;
-  }
+  // public boolean verifyEmail(String token, String email) {
+  //   Optional<User> userOptional = userRepository.findByEmail(email);
+  //   if (userOptional.isPresent()) {
+  //       User user = userOptional.get();
+  //       if (user.getVerificationToken() != null && user.getVerificationToken().equals(token)) {
+  //           user.setEmailVerified(true);
+  //           user.setVerificationToken(null); // 토큰 제거
+  //           userRepository.save(user);
+  //           return true;
+  //       }
+  //   }
+  //   return false;
+  // }
   /**
    * 로그아웃을 처리하여 리프레시 토큰을 삭제합니다.
    *

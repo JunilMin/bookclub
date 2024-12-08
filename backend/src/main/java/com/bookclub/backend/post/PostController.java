@@ -56,8 +56,8 @@ public class PostController {
      * 게시물 생성
      */
     @PostMapping
-    public ResponseEntity<Post> createPost(@RequestBody Post post) {
-        Post createdPost = postService.createPost(post);
+    public ResponseEntity<Post> createPost(@RequestBody Post post, @RequestParam String accessToken) {
+        Post createdPost = postService.createPost(post, accessToken);
         return ResponseEntity.ok(createdPost);
     }
 

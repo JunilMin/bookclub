@@ -126,7 +126,28 @@ public class UserController {
       return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
     }
   }
+  /**
+   * Firebase JWT를 디코드하여 UID로 사용자 정보 조회
+   *
+   * @param token Firebase JWT 토큰
+   * @return 사용자 정보
+   */
+  @GetMapping("/uid")
+  public ResponseEntity<?> getUserByUID(@RequestHeader("Authorization") String token) {
+      try {
+          // "Bearer " 접두사 제거
+          String uid = token;
+          if (uid.startsWith("Bearer ")) {
+              uid = uid.substring(7);
+          }
 
+          return userService.getUserByUID(uid)
+                  .map(ResponseEntity::ok)
+                  .orElse(ResponseEntity.notFound().build());
+      } catch (Exception e) {
+          return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+      }
+  }
   /**
    * 사용자 이름으로 사용자 조회
    */
@@ -184,33 +205,6 @@ public class UserController {
   }
 
   /**
-   * 이메일 인증 토큰을 재전송합니다.
-   *
-   * @param email 인증 토큰을 재전송할 이메일 주소
-   * @return 성공 또는 오류 메시지를 포함한 응답
-   */
-  @PostMapping("/resend-verification/{email}")
-  public ResponseEntity<?> resendVerificationToken(@PathVariable("email") String email) {
-    try {
-      userService.resendVerificationToken(email);
-      return ResponseEntity.ok("새로운 인증 이메일이 발송되었습니다.");
-    } catch (RuntimeException e) {
-      return ResponseEntity.badRequest().body(e.getMessage());
-    }
-  }
-
-  // Verification status check endpoint
-  @GetMapping("/verify-email-check/{email}")
-  public ResponseEntity<Boolean> verificationStatus(@PathVariable("email") String email) {
-    if (email != null) {
-      boolean isVerified = userService.checkVerificationStatus(email);
-      return ResponseEntity.ok(isVerified);
-    } else {
-      return ResponseEntity.badRequest().body(false);
-    }
-  }
-
-  /**
    * 친구 추가 요청을 처리합니다.
    * 
    * @param userId   친구를 추가할 사용자의 ID
@@ -230,6 +224,35 @@ public class UserController {
       return ResponseEntity.badRequest().body(null); // 이미 친구이거나 다른 오류 시 예외 처리
     }
   }
+
+  /**
+   * 이메일 인증 토큰을 재전송합니다.
+   *
+   * @param email 인증 토큰을 재전송할 이메일 주소
+   * @return 성공 또는 오류 메시지를 포함한 응답
+   */
+  // @PostMapping("/resend-verification/{email}")
+  // public ResponseEntity<?> resendVerificationToken(@PathVariable("email") String email) {
+  //   try {
+  //     userService.resendVerificationToken(email);
+  //     return ResponseEntity.ok("새로운 인증 이메일이 발송되었습니다.");
+  //   } catch (RuntimeException e) {
+  //     return ResponseEntity.badRequest().body(e.getMessage());
+  //   }
+  // }
+
+  // Verification status check endpoint
+  // @GetMapping("/verify-email-check/{email}")
+  // public ResponseEntity<Boolean> verificationStatus(@PathVariable("email") String email) {
+  //   if (email != null) {
+  //     boolean isVerified = userService.checkVerificationStatus(email);
+  //     return ResponseEntity.ok(isVerified);
+  //   } else {
+  //     return ResponseEntity.badRequest().body(false);
+  //   }
+  // }
+
+
 
   // // Email verification endpoint
   // @GetMapping("/verification-token/{email}")
