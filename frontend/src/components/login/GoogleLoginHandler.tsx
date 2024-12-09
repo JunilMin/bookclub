@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { FcGoogle } from "react-icons/fc";
 import { useGoogleLogin, TokenResponse } from "@react-oauth/google";
 import { useAuth } from '../../AuthContext/AuthContext';
-
+import axios from 'axios';
 interface UserInfo {
   id: string;
   email: string;
@@ -20,11 +20,15 @@ const GoogleLoginHandler: React.FC = () => {
     onSuccess: async (tokenResponse) => {
       try {
         const { access_token } = tokenResponse;
-        const userInfoResponse = await fetch(
-          `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${access_token}`
-        );
-        const userInfo = await userInfoResponse.json();
-        await handleGoogleLogin(userInfo.email, userInfo.name);
+        console.log("access_token", tokenResponse);
+        const userInfoResponse = await axios
+        .get('https://www.googleapis.com/oauth2/v1/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        })
+        .then(res => res.data);
+        console.log("userInfoResponse", userInfoResponse);
+        const userInfo =  userInfoResponse;
+        await handleGoogleLogin();
         navigate('/board'); // 로그인 후 페이지 이동
       } catch (error) {
         console.error("Google 로그인 실패:", error);

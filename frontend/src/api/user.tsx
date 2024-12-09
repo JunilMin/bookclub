@@ -2,10 +2,11 @@
 import axiosInstance, {setAccessToken} from './axiosInstance';
 
 export interface User {
-  _id?: string;
+  id?: string;
+  uid: string;
   email: string;
   username: string;
-  password: string;
+  password?: string;
   rating?: number;
   absent?: number;
   friends?: string[];
@@ -16,8 +17,10 @@ export interface User {
 }
 
 // 회원가입 요청
-export const registerUser = async (user: User): Promise<User> => {
+export const registerUser = async (user: User, token: string): Promise<User> => {
   try {
+    setAccessToken(token);
+    
     const response = await axiosInstance.post('/users/register', user);
     return response.data;
   } catch (error) {
@@ -37,6 +40,17 @@ export const getUserByUsername = async (username: string, token: string): Promis
     throw new Error("사용자 이름으로 조회하는데 실패했습니다.");
   }
 };
+export const getByUID  = async (uid: string,token: string): Promise<User> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.get(`/users/uid/${uid}`);
+    console.log("sss");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user by username:", error);
+    throw new Error("사용자 이름으로 조회하는데 실패했습니다.");
+  }
+}
 
 // 사용자 정보 조회
 export const getUserById = async (id: string, token:string): Promise<User> => {
@@ -85,33 +99,33 @@ export const addFriend = async (userId: string, friendId: string, token:string):
   }
 };
 
-export const resendVerificationEmail = async (email: string): Promise<string> => {
-  try {
-    console.log(email);
-    const response = await axiosInstance.post(`/users/resend-verification/${email}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error resending verification email:", error);
-    throw new Error("이메일 재전송에 실패했습니다."); // Custom error message
-  }
-};
+// export const resendVerificationEmail = async (email: string): Promise<string> => {
+//   try {
+//     console.log(email);
+//     const response = await axiosInstance.post(`/users/resend-verification/${email}`);
+//     return response.data;
+//   } catch (error) {
+//     console.error("Error resending verification email:", error);
+//     throw new Error("이메일 재전송에 실패했습니다."); // Custom error message
+//   }
+// };
 
-export const verificationStatus = async (email: string): Promise<boolean> => { 
-  try {
-    const response = await axiosInstance.get(`/users/verify-email-check/${email}`);
-    return response.data; // response.data should be a boolean
-  } catch (error) {
-    console.error("Error checking verification status:", error);
-    throw new Error("인증 상태 확인에 실패했습니다."); // Custom error message
-  }
-};
+// export const verificationStatus = async (email: string): Promise<boolean> => { 
+//   try {
+//     const response = await axiosInstance.get(`/users/verify-email-check/${email}`);
+//     return response.data; // response.data should be a boolean
+//   } catch (error) {
+//     console.error("Error checking verification status:", error);
+//     throw new Error("인증 상태 확인에 실패했습니다."); // Custom error message
+//   }
+// };
 
-export const getVerificationToken = async (email: string): Promise<string> => {
-  try {
-    const response = await axiosInstance.get(`/users/verification-token/${email}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error getting verification token:", error);
-    throw new Error("인증 토큰을 가져오는데 실패했습니다."); // Custom error message
-  }
-}
+// export const getVerificationToken = async (email: string): Promise<string> => {
+//   try {
+//     const response = await axiosInstance.get(`/users/verification-token/${email}`);
+//     return response.data;
+//   } catch (error) {
+//     console.error("Error getting verification token:", error);
+//     throw new Error("인증 토큰을 가져오는데 실패했습니다."); // Custom error message
+//   }
+// }

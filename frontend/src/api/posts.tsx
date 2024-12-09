@@ -32,9 +32,11 @@ export const getPostById = async (id: string, token: string): Promise<Post> => {
 };
 
 // 새로운 포스트 생성
-export const createPost = async (post: Partial<Post>, token: string): Promise<Post> => {
-  setAccessToken(token);
-  const response = await axiosInstance.post('/posts', post);
+export const createPost = async (post: Partial<Post>, accessToken: string): Promise<Post> => {
+  setAccessToken(accessToken);
+  const response = await axiosInstance.post('/posts', post, {
+    params: { accessToken }, // Query parameter로 accessToken 전달
+  });
   return response.data;
 };
 

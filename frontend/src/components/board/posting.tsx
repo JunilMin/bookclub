@@ -1,8 +1,8 @@
 // Posting.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPost, Post, ObjectId } from '../../api/posts';
 import '../styles/Posting.css';
-
+import { useAuth } from '../../AuthContext/AuthContext';
 interface PostForm {
   due: string;
   capacity: number;
@@ -11,6 +11,11 @@ interface PostForm {
 }
 
 const Posting: React.FC = () => {
+  const { user, accessToken, getUserId } = useAuth();
+  useEffect(() => {
+    // console.log("Access Token:", accessToken);
+    // console.log("User 객체:", user);
+  }, [user, accessToken]);
   const [postForm, setPostForm] = useState<PostForm>({
     due: '',
     capacity: 1,
@@ -28,10 +33,14 @@ const Posting: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    const userId = getUserId();
+    if (!accessToken || !user) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
     // 서버에서 요구하는 데이터 구조에 맞게 newPost 객체 생성
     const newPost: Partial<Post> = {
-      creater: 'wnsdy98', // 실제 사용자 ID가 ObjectId가 아닌 문자열로 전송됨
+      creater: userId, // 실제 사용자 ID가 ObjectId가 아닌 문자열로 전송됨
       date: new Date().toISOString().slice(0, -5), // ISO 형식으로 변환
       due: new Date(postForm.due).toISOString().slice(0, -5), // ISO 형식으로 변환
       capacity: postForm.capacity,
@@ -39,9 +48,9 @@ const Posting: React.FC = () => {
       level: postForm.level,
       book: postForm.book,
     };
-    console.log(newPost);
+    console.log("newPost",newPost);
     try {
-      const createdPost = await createPost(newPost);
+      await createPost(newPost, accessToken);
       alert('포스트가 성공적으로 생성되었습니다!');
       setPostForm({ due: '', capacity: 1, level: 'moderate', book: '' });
     } catch (error) {

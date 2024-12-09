@@ -16,7 +16,8 @@ import java.util.List;
 @NoArgsConstructor  // 기본 생성자 생성
 public class User {
   @Id
-  private ObjectId id;
+  private String id;
+  private String uid;
   private String email;
   private String username;
   private String password;
@@ -25,6 +26,6 @@ public class User {
   private int absent;
   private List<String> friends;
   private int late;
-  private boolean isEmailVerified; // 이메일 인증 여부
-  private String verificationToken; // 이메일 인증 토큰
+  // private boolean isEmailVerified; // 이메일 인증 여부
+  // private String verificationToken; // 이메일 인증 토큰
 }

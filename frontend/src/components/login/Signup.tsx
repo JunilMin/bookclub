@@ -9,7 +9,7 @@ interface SignupFormData {
 }
 
 const Signup: React.FC = () => {
-  const { handleRegister, resendEmailVerification, verifyRegisterToken } = useAuth();
+  const { handleRegister, resendVerificationEmail, verificationStatus} = useAuth();
   const [formData, setFormData] = useState<SignupFormData>({
     username: '',
     email: '',
@@ -58,7 +58,7 @@ const Signup: React.FC = () => {
   const handleResendEmail = async () => {
     try {
       // Resend verification email if not received
-      await resendEmailVerification(formData.email);
+      await resendVerificationEmail();
       setMessage("Verification email resent! Please check your inbox.");
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || "Failed to resend verification email.";
@@ -66,17 +66,17 @@ const Signup: React.FC = () => {
     }
   };
 
-  const handleVerifyToken = async () => {
-    try {
-      await verifyRegisterToken(token, formData.email);
-      setMessage("Email verified successfully!");
-      setError(null);
-      setIsEmailVerified(true);
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || "Failed to verify email.";
-      setError(errorMessage);
-    }
-  }
+  // const handleVerifyToken = async () => {
+  //   try {
+  //     await verifyRegisterToken(token, formData.email);
+  //     setMessage("Email verified successfully!");
+  //     setError(null);
+  //     setIsEmailVerified(true);
+  //   } catch (err: any) {
+  //     const errorMessage = err?.response?.data?.message || "Failed to verify email.";
+  //     setError(errorMessage);
+  //   }
+  // }
   // const handleCheckVerificationToken = async () => {
   //   try {
   //     const token = await getVerificationToken(formData.email);
@@ -172,7 +172,7 @@ const Signup: React.FC = () => {
               placeholder="Verification Token"
               required
             />
-            <button onClick={handleVerifyToken}>Verify Token</button>
+            <button onClick={verificationStatus}>Verify Token</button>
           </div>
           {/* <button onClick={handleEmailVerification}>Verify Email</button>  */}
         </div>

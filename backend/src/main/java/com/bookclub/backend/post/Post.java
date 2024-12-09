@@ -26,5 +26,6 @@ public class Post {
   private String level;  // 난이도
   private String book;   // 책 제목
   private String username;
+  private String googleMeetLink; // Google Meet 링크
 }
 
