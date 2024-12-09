@@ -44,7 +44,9 @@ public class UserService {
   public Optional<User> getUserByUsername(String username) {
     return userRepository.findByUsername(username);
   }
-
+  public Optional<User> getUserByUID(String uid, String token) {
+    return userRepository.findByUid(uid);
+  }
   /**
      * Firebase JWT 토큰을 디코드하여 UID로 사용자 조회
      *
@@ -84,8 +86,12 @@ public class UserService {
       user.setUid(user.getUid());
       user.setFriends(new ArrayList<>()); 
       user.setPosts(new ArrayList<>());
-      user.setPassword(EncryptUtils.encrypt(user.getPassword()));
-      user.setEmailVerified(false); // 이메일 인증 미완료 상태로 설정
+      if (user.getPassword() == "") {
+        user.setPassword("");
+      } else {
+        user.setPassword(EncryptUtils.encrypt(user.getPassword()));
+      }
+      // user.setEmailVerified(false); // 이메일 인증 미완료 상태로 설정
       user = userRepository.save(user);
 
       return user;

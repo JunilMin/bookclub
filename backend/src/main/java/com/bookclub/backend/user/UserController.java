@@ -148,6 +148,23 @@ public class UserController {
           return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
       }
   }
+  
+  /**
+   * Firebase UID를 받아서 사용자 정보 조회
+   *
+   * @param token Firebase JWT 토큰
+   * @return 사용자 정보
+   */
+  @GetMapping("/uid/{uid}")
+  public ResponseEntity<?> getUserByUID(@PathVariable String uid, @RequestHeader("Authorization") String token) {
+      try {
+          return userService.getUserByUID(uid, token)
+                  .map(ResponseEntity::ok)
+                  .orElse(ResponseEntity.notFound().build());
+      } catch (Exception e) {
+          return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+      }
+  }
   /**
    * 사용자 이름으로 사용자 조회
    */

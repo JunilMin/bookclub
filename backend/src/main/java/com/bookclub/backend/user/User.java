@@ -26,6 +26,6 @@ public class User {
   private int absent;
   private List<String> friends;
   private int late;
-  private boolean isEmailVerified; // 이메일 인증 여부
-  private String verificationToken; // 이메일 인증 토큰
+  // private boolean isEmailVerified; // 이메일 인증 여부
+  // private String verificationToken; // 이메일 인증 토큰
 }

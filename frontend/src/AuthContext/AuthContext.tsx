@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (firebaseUser) {
         try {
           const token = await firebaseUser.getIdToken();
-          const response = await getByUID(firebaseUser.uid);
+          const response = await getByUID(firebaseUser.uid, token);
           setUser({ ...response, uid: firebaseUser.uid });
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error("Please verify your email before logging in.");
       }
       const token = await firebaseUser.getIdToken();
-      const response = await getByUID(firebaseUser.uid);
+      const response = await getByUID(firebaseUser.uid, token);
       setUser({ ...response, uid: firebaseUser.uid });
     } catch (e: any) {
       throw new Error("Login failed: " + e.message);
@@ -111,16 +111,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // console.log("dusueuwer",firebaseUser.uid);
       try {
         // console.log("try ran",firebaseUser.uid);
-        const response = await getByUID(token);
+        const response = await getByUID(firebaseUser.uid, token);
         // console.log("responseddd", response);
         setUser({ ...response, uid: firebaseUser.uid });
       } catch {
         
-        setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ' '});
-        console.log("catch ran",user);
-        await registerUser(user! , token);
-        const response = await getByUID(firebaseUser.uid);
-        setUser({ ...response, uid: firebaseUser.uid });
+        setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''});
+        console.log("catch ran",{uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ' '});
+        await registerUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''} , token);
+        // const response = await getByUID(firebaseUser.uid);
       }
     } catch (e: any) {
       throw new Error("Google login failed: " + e.message);

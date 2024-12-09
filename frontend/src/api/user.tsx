@@ -40,10 +40,10 @@ export const getUserByUsername = async (username: string, token: string): Promis
     throw new Error("사용자 이름으로 조회하는데 실패했습니다.");
   }
 };
-export const getByUID  = async (token: string): Promise<User> => {
+export const getByUID  = async (uid: string,token: string): Promise<User> => {
   try {
     setAccessToken(token);
-    const response = await axiosInstance.get(`/users/uid`);
+    const response = await axiosInstance.get(`/users/uid/${uid}`);
     console.log("sss");
     return response.data;
   } catch (error) {
