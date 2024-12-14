@@ -1,86 +1,88 @@
-package com.bookclub.backend.googleapi;
+// package com.bookclub.backend.googleapi;
 
-import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
-import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
-import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.services.calendar.Calendar;
-import com.google.api.services.calendar.model.ConferenceData;
-import com.google.api.services.calendar.model.ConferenceSolutionKey;
-import com.google.api.services.calendar.model.CreateConferenceRequest;
-import com.google.api.services.calendar.model.Event;
-import com.google.api.services.calendar.model.EventDateTime;
+// import com.google.api.gax.core.FixedCredentialsProvider;
+// import com.google.apps.meet.v2.CreateSpaceRequest;
+// import com.google.apps.meet.v2.Space;
+// import com.google.apps.meet.v2.SpacesServiceClient;
+// import com.google.apps.meet.v2.SpacesServiceSettings;
+// import com.google.auth.Credentials;
+// import com.google.auth.oauth2.UserAuthorizer;
+// import org.springframework.stereotype.Service;
 
-import java.io.InputStreamReader;
-import java.util.Collections;
-import java.util.Date;
+// import java.awt.*;
+// import java.io.FileNotFoundException;
+// import java.io.IOException;
+// import java.io.InputStream;
+// import java.net.URI;
+// import java.net.URL;
+// import java.nio.file.Files;
+// import java.nio.file.Path;
+// import java.nio.file.Paths;
+// import java.util.Collections;
+// import java.util.List;
 
-public class GoogleMeetService {
+// @Service
+// public class GoogleMeetService {
 
-    private static final String APPLICATION_NAME = "Google Meet Integration";
-    private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
+//     private static final String TOKENS_DIRECTORY_PATH = "tokens";
+//     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
+//     private static final List<String> SCOPES = Collections.singletonList("https://www.googleapis.com/auth/meetings.space.created");
+//     private static final String USER = "default";
 
-    private static final java.util.List<String> SCOPES = Collections.singletonList("https://www.googleapis.com/auth/calendar");
+//     private static Credentials getCredentials() throws Exception {
+//         var receiver = new LocalServerReceiver.Builder().build();
+//         URI callbackUri = URI.create(receiver.getRedirectUri());
+//         UserAuthorizer authorizer = getAuthorizer(callbackUri);
 
-    private Calendar getCalendarService() throws Exception {
-        HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-        Credential credentials = loadCredentials(httpTransport);
-    
-        return new Calendar.Builder(httpTransport, JSON_FACTORY, credentials)
-                .setApplicationName(APPLICATION_NAME)
-                .build();
-    }
-    
+//         Credentials credentials = authorizer.getCredentials(USER);
+//         if (credentials != null) {
+//             return credentials;
+//         }
 
-   private Credential loadCredentials(HttpTransport httpTransport) throws Exception {
-    var in = GoogleMeetService.class.getResourceAsStream("/credentials.json");
-    if (in == null) {
-        throw new Exception("Resource not found: credentials.json");
-    }
-    var clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
+//         URL authorizationUrl = authorizer.getAuthorizationUrl(USER, "", null);
+//         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+//             Desktop.getDesktop().browse(authorizationUrl.toURI());
+//         } else {
+//             System.out.printf("Open the following URL to authorize access: %s\n", authorizationUrl.toExternalForm());
+//         }
 
-    var flow = new GoogleAuthorizationCodeFlow.Builder(
-            httpTransport,
-            JSON_FACTORY,
-            clientSecrets,
-            SCOPES
-    ).setAccessType("offline").build();
+//         String code = receiver.waitForCode();
+//         credentials = authorizer.getAndStoreCredentialsFromCode(USER, code, callbackUri);
+//         receiver.stop();
+//         return credentials;
+//     }
 
-    return new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize("user");
-}
+//     private static UserAuthorizer getAuthorizer(URI callbackUri) throws IOException {
+//         try (InputStream in = GoogleMeetService.class.getResourceAsStream(CREDENTIALS_FILE_PATH)) {
+//             if (in == null) {
+//                 throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
+//             }
 
+//             var clientId = ClientId.fromStream(in);
+//             return UserAuthorizer.newBuilder()
+//                     .setClientId(clientId)
+//                     .setCallbackUri(callbackUri)
+//                     .setScopes(SCOPES)
+//                     .build();
+//         }
+//     }
 
-    public String createGoogleMeetEvent(String summary, String description, Date startDate, Date endDate) throws Exception {
-        var service = getCalendarService();
+//     public String createGoogleMeetSpace() {
+//         try {
+//             Credentials credentials = getCredentials();
+//             var settings = SpacesServiceSettings.newBuilder()
+//                     .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
+//                     .build();
 
-        Event event = new Event()
-                .setSummary(summary)
-                .setDescription(description)
-                .setStart(new EventDateTime().setDateTime(new com.google.api.client.util.DateTime(startDate)))
-                .setEnd(new EventDateTime().setDateTime(new com.google.api.client.util.DateTime(endDate)));
-
-        // Google Meet Conference 설정
-        ConferenceData conferenceData = new ConferenceData();
-        conferenceData.setCreateRequest(
-                new CreateConferenceRequest()
-                        .setRequestId("unique-request-id")
-                        .setConferenceSolutionKey(
-                                new ConferenceSolutionKey().setType("hangoutsMeet")
-                        )
-        );
-        event.setConferenceData(conferenceData);
-
-        // Google Calendar에 이벤트 생성
-        event = service.events().insert("primary", event)
-                .setConferenceDataVersion(1)
-                .execute();
-
-        return event.getHangoutLink();
-    }
-}
+//             try (SpacesServiceClient spacesServiceClient = SpacesServiceClient.create(settings)) {
+//                 var request = CreateSpaceRequest.newBuilder()
+//                         .setSpace(Space.newBuilder().build())
+//                         .build();
+//                 var response = spacesServiceClient.createSpace(request);
+//                 return response.getMeetingUri();
+//             }
+//         } catch (Exception e) {
+//             throw new RuntimeException("Failed to create Google Meet space: " + e.getMessage(), e);
+//         }
+//     }
+// }

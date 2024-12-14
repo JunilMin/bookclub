@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { getAllPosts, Post } from '../api/posts';
 import './styles/Board.css';
 import Posting from '../components/board/posting.tsx';
+
 const Board: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
 
