@@ -29,8 +29,7 @@ import java.util.List;
 public class MeetService {
 
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    private static final List<String> SCOPES = Collections
-            .singletonList("https://www.googleapis.com/auth/meetings.space.created");
+    private static final List<String> SCOPES = Collections.singletonList("https://www.googleapis.com/auth/meetings.space.created");
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
     private static final String USER = "default";
 
@@ -72,7 +71,7 @@ public class MeetService {
 
             return UserAuthorizer.newBuilder()
                     .setClientId(clientId)
-                    .setCallbackUri(callbackUri)
+                    .setCallbackUri(URI.create("http://localhost:8888/api/meet/create")) // 포트 8888로 변경
                     .setScopes(SCOPES)
                     .setPKCEProvider(new DefaultPKCEProvider() {
                         @Override
@@ -80,12 +79,17 @@ public class MeetService {
                             return super.getCodeChallenge().split("=")[0];
                         }
                     })
-                    .setTokenStore(TOKEN_STORE).build();
+                    .setTokenStore(TOKEN_STORE)
+                    .build();
         }
     }
 
     private Credentials getCredentials() throws Exception {
-        LocalServerReceiver receiver = new LocalServerReceiver.Builder().build();
+        LocalServerReceiver receiver = new LocalServerReceiver.Builder()
+                .setPort(8888) // 포트를 8888로 설정
+                .setCallbackPath("/api/meet/create") // 승인된 Redirect URI와 일치
+                .build();
+
         try {
             URI callbackUri = URI.create(receiver.getRedirectUri());
             UserAuthorizer authorizer = getAuthorizer(callbackUri);
@@ -96,12 +100,12 @@ public class MeetService {
             }
 
             URL authorizationUrl = authorizer.getAuthorizationUrl(USER, "", null);
-            if (Desktop.isDesktopSupported() &&
-                    Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+            System.out.println("Authorization URL: " + authorizationUrl);
+
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(authorizationUrl.toURI());
             } else {
-                System.out.printf("Open the following URL to authorize access: %s\n",
-                        authorizationUrl.toExternalForm());
+                System.out.printf("Open the following URL to authorize access: %s\n", authorizationUrl.toExternalForm());
             }
 
             String code = receiver.waitForCode();
