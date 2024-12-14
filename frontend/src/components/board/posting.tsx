@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createPost, Post, ObjectId } from '../../api/posts';
 import '../styles/Posting.css';
 import { useAuth } from '../../AuthContext/AuthContext';
+
 interface PostForm {
   due: string;
   capacity: number;
@@ -11,11 +12,12 @@ interface PostForm {
 }
 
 const Posting: React.FC = () => {
-  const { user, accessToken, getUserId } = useAuth();
-  useEffect(() => {
-    // console.log("Access Token:", accessToken);
-    // console.log("User 객체:", user);
-  }, [user, accessToken]);
+  // const { user, accessToken, getUserId } = useAuth();
+  const { user, accessToken } = useAuth();
+  // useEffect(() => {
+  //   // console.log("Access Token:", accessToken);
+  //   // console.log("User 객체:", user);
+  // }, [user]);
   const [postForm, setPostForm] = useState<PostForm>({
     due: '',
     capacity: 1,
@@ -33,11 +35,12 @@ const Posting: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const userId = getUserId();
+    
     if (!accessToken || !user) {
       alert('로그인이 필요합니다.');
       return;
     }
+    const userId = user.id;
     // 서버에서 요구하는 데이터 구조에 맞게 newPost 객체 생성
     const newPost: Partial<Post> = {
       creater: userId, // 실제 사용자 ID가 ObjectId가 아닌 문자열로 전송됨

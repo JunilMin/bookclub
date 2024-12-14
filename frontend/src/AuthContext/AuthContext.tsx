@@ -27,6 +27,7 @@ const firebaseConfig = {
 interface AuthContextProps {
   user: User | null;
   isLoading: boolean;
+  accessToken: string;
   handleLogin: (email: string, password: string) => Promise<void>;
   handleRegister: (email: string, password: string, username: string) => Promise<void>;
   handleGoogleLogin: () => Promise<void>;
@@ -47,6 +48,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -55,7 +57,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           const token = await firebaseUser.getIdToken();
           const response = await getByUID(firebaseUser.uid, token);
-          setUser({ ...response, uid: firebaseUser.uid });
+          setUser({ ...response});
+          setAccessToken(token);
         } catch (error) {
           console.error("Error fetching user data:", error);
         }
@@ -95,7 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       const token = await firebaseUser.getIdToken();
       const response = await getByUID(firebaseUser.uid, token);
-      setUser({ ...response, uid: firebaseUser.uid });
+      setUser({ ...response});
     } catch (e: any) {
       throw new Error("Login failed: " + e.message);
     }
@@ -113,13 +116,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // console.log("try ran",firebaseUser.uid);
         const response = await getByUID(firebaseUser.uid, token);
         // console.log("responseddd", response);
-        setUser({ ...response, uid: firebaseUser.uid });
+        setUser({ ...response});
+        setAccessToken(token);
       } catch {
         
-        setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''});
+        // setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''});
         console.log("catch ran",{uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ' '});
         await registerUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''} , token);
-        // const response = await getByUID(firebaseUser.uid);
+        const response = await getByUID(firebaseUser.uid, token);
+        setUser({ ...response});
+        setAccessToken(token);
       }
     } catch (e: any) {
       throw new Error("Google login failed: " + e.message);
@@ -149,6 +155,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       value={{
         user,
         isLoading,
+        accessToken,
         handleLogin,
         handleRegister,
         handleGoogleLogin,

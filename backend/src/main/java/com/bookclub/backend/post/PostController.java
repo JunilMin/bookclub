@@ -18,18 +18,18 @@ public class PostController {
     /**
      * Google Meet 링크와 함께 게시물 생성
      */
-    @PostMapping("/google-meet")
-    public ResponseEntity<Post> createPostWithGoogleMeet(
-        @RequestBody Post post,
-        @RequestParam String accessToken
-    ) {
-        try {
-            Post createdPost = postService.createPostWithGoogleMeet(post, accessToken);
-            return ResponseEntity.ok(createdPost);
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(null);
-        }
-    }
+    // @PostMapping("/google-meet")
+    // public ResponseEntity<Post> createPostWithGoogleMeet(
+    //     @RequestBody Post post,
+    //     @RequestParam String accessToken
+    // ) {
+    //     try {
+    //         Post createdPost = postService.createPostWithGoogleMeet(post, accessToken);
+    //         return ResponseEntity.ok(createdPost);
+    //     } catch (Exception e) {
+    //         return ResponseEntity.status(500).body(null);
+    //     }
+    // }
 
     /**
      * 모든 게시물 조회

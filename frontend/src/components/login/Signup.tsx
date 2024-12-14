@@ -21,7 +21,7 @@ const Signup: React.FC = () => {
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
 
   const [token, setToken] = useState<string>('');
-  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
+  // const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
 
   const handleTokenInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setToken(e.target.value);
