@@ -44,7 +44,7 @@ export const getByUID  = async (uid: string,token: string): Promise<User> => {
   try {
     setAccessToken(token);
     const response = await axiosInstance.get(`/users/uid/${uid}`);
-    console.log("sss");
+    console.log("이 메시지가 보인다면 로그인에 성공을 했다는 것이오.");
     return response.data;
   } catch (error) {
     console.error("Error fetching user by username:", error);
