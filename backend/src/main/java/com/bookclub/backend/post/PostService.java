@@ -23,7 +23,7 @@ public class PostService {
     private UserService userService;
 
     @Autowired
-    private GoogleCalendarService googleCalendarService;
+    private GoogleMeetService GoogleMeetService;
 
     /**
      * Google Meet 링크와 함께 게시물 생성

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { isTokenExpiringSoon } from "../utils/tokenUtils";
+
 
 const axiosInstance = axios.create({
   baseURL: "http://localhost:8080/api",
@@ -9,8 +9,7 @@ const axiosInstance = axios.create({
   },
 });
 
-// let isRefreshing = false; // 토큰 갱신 상태
-// let subscribers: ((token: string) => void)[] = []; // 대기 중인 요청
+
 
 /**
  * Authorization 헤더를 동적으로 추가하는 메서드
@@ -24,13 +23,6 @@ export const setAccessToken = (token: string) => {
   }
 };
 
-/**
- * 갱신된 토큰을 모든 대기 중인 요청에 전달
- */
-// const onRefreshed = (token: string) => {
-//   subscribers.forEach((callback) => callback(token));
-//   subscribers = [];
-// };
 
 /**
  * 요청 인터셉터
@@ -38,6 +30,32 @@ export const setAccessToken = (token: string) => {
 axiosInstance.interceptors.request.use(
   async (config) => {
     let token: string = axiosInstance.defaults.headers.common["Authorization"] as string;
+    if (token && config.headers) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+export default axiosInstance;
+
+// import { isTokenExpiringSoon } from "../utils/tokenUtils";
+// let isRefreshing = false; // 토큰 갱신 상태
+// let subscribers: ((token: string) => void)[] = []; // 대기 중인 요청
+/**
+ * 갱신된 토큰을 모든 대기 중인 요청에 전달
+ */
+// const onRefreshed = (token: string) => {
+//   subscribers.forEach((callback) => callback(token));
+//   subscribers = [];
+// };
+/**
+ * 요청 인터셉터
+ */
+// axiosInstance.interceptors.request.use(
+//   async (config) => {
+//     let token: string = axiosInstance.defaults.headers.common["Authorization"] as string;
 
     // // "Bearer <token>" 형식에서 토큰만 추출
     // if (typeof token === "string" && token.startsWith("Bearer ")) {
@@ -82,13 +100,13 @@ axiosInstance.interceptors.request.use(
     // }
 
     // Authorization 헤더에 토큰 추가
-    if (token && config.headers) {
-      config.headers["Authorization"] = `Bearer ${token}`;
-    }
+//     if (token && config.headers) {
+//       config.headers["Authorization"] = `Bearer ${token}`;
+//     }
 
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+//     return config;
+//   },
+//   (error) => Promise.reject(error)
+// );
 
-export default axiosInstance;
+

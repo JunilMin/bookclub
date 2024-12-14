@@ -1,14 +1,17 @@
 package com.bookclub.backend.ISBNAPI;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.web.bind.annotation.*;
 import java.util.List;
+
 @RestController
+@RequestMapping("/api/ISBN")
 public class ISBNSearchController {
     private final ISBNSearchService ISBNSearchService = new ISBNSearchService();
 
-    @GetMapping("/api/booksearch")
+    @GetMapping("/search")
     public Object searchISBN(@RequestParam String query) {
         try {
             List<ISBN> books = ISBNSearchService.searchISBN(query);
