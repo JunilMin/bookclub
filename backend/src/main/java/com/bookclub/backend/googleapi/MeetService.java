@@ -1,6 +1,5 @@
 package com.bookclub.backend.googleapi;
 
-import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.apps.meet.v2.CreateSpaceRequest;
 import com.google.apps.meet.v2.Space;
@@ -8,116 +7,44 @@ import com.google.apps.meet.v2.SpacesServiceClient;
 import com.google.apps.meet.v2.SpacesServiceSettings;
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.ClientId;
-import com.google.auth.oauth2.DefaultPKCEProvider;
-import com.google.auth.oauth2.TokenStore;
 import com.google.auth.oauth2.UserAuthorizer;
 import org.springframework.stereotype.Service;
 
-import java.awt.*;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
 @Service
 public class MeetService {
 
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    private static final List<String> SCOPES = Collections.singletonList("https://www.googleapis.com/auth/meetings.space.created");
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-    private static final String USER = "default";
-
-    private static final TokenStore TOKEN_STORE = new TokenStore() {
-        private Path pathFor(String id) {
-            return Paths.get(".", TOKENS_DIRECTORY_PATH, id + ".json");
-        }
-
-        @Override
-        public String load(String id) throws IOException {
-            if (!Files.exists(pathFor(id))) {
-                return null;
-            }
-            return Files.readString(pathFor(id));
-        }
-
-        @Override
-        public void store(String id, String token) throws IOException {
-            Files.createDirectories(Paths.get(".", TOKENS_DIRECTORY_PATH));
-            Files.writeString(pathFor(id), token);
-        }
-
-        @Override
-        public void delete(String id) throws IOException {
-            if (!Files.exists(pathFor(id))) {
-                return;
-            }
-            Files.delete(pathFor(id));
-        }
-    };
-
-    private UserAuthorizer getAuthorizer(URI callbackUri) throws IOException {
-        try (InputStream in = MeetService.class.getResourceAsStream(CREDENTIALS_FILE_PATH)) {
-            if (in == null) {
-                throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
-            }
-
-            ClientId clientId = ClientId.fromStream(in);
-
-            return UserAuthorizer.newBuilder()
-                    .setClientId(clientId)
-                    .setCallbackUri(URI.create("http://localhost:8888/api/meet/create")) // 포트 8888로 변경
-                    .setScopes(SCOPES)
-                    .setPKCEProvider(new DefaultPKCEProvider() {
-                        @Override
-                        public String getCodeChallenge() {
-                            return super.getCodeChallenge().split("=")[0];
-                        }
-                    })
-                    .setTokenStore(TOKEN_STORE)
-                    .build();
-        }
-    }
-
-    private Credentials getCredentials() throws Exception {
-        LocalServerReceiver receiver = new LocalServerReceiver.Builder()
-                .setPort(8888) // 포트를 8888로 설정
-                .setCallbackPath("/api/meet/create") // 승인된 Redirect URI와 일치
-                .build();
-
-        try {
-            URI callbackUri = URI.create(receiver.getRedirectUri());
-            UserAuthorizer authorizer = getAuthorizer(callbackUri);
-
-            Credentials credentials = authorizer.getCredentials(USER);
-            if (credentials != null) {
-                return credentials;
-            }
-
-            URL authorizationUrl = authorizer.getAuthorizationUrl(USER, "", null);
-            System.out.println("Authorization URL: " + authorizationUrl);
-
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                Desktop.getDesktop().browse(authorizationUrl.toURI());
-            } else {
-                System.out.printf("Open the following URL to authorize access: %s\n", authorizationUrl.toExternalForm());
-            }
-
-            String code = receiver.waitForCode();
-            credentials = authorizer.getAndStoreCredentialsFromCode(USER, code, callbackUri);
-            return credentials;
-        } finally {
-            receiver.stop();
-        }
-    }
+    private static final String CALLBACK_URI = "http://localhost:8888/api/meet/callback";
+    private static final List<String> SCOPES = Collections.singletonList("https://www.googleapis.com/auth/meetings");
 
     public String createSpace() throws Exception {
-        Credentials credentials = getCredentials();
+        // PKCE 코드 생성
+        String codeVerifier = PKCEUtils.generateCodeVerifier();
+        String codeChallenge = PKCEUtils.generateCodeChallenge(codeVerifier);
+
+        // UserAuthorizer 초기화
+        UserAuthorizer authorizer = getUserAuthorizer();
+
+        // OAuth Authorization URL 출력
+        String authorizationUrl = authorizer.getAuthorizationUrl("user", null, null) +
+                "&code_challenge=" + codeChallenge +
+                "&code_challenge_method=S256";
+        System.out.println("Go to the following URL to authorize: ");
+        System.out.println(authorizationUrl);
+
+        // 인증 코드 입력
+        System.out.println("Enter the authorization code:");
+        String code = new java.util.Scanner(System.in).nextLine();
+
+        // Access Token 저장
+        Credentials credentials = authorizer.getAndStoreCredentialsFromCode("user", code, URI.create(CALLBACK_URI));
+
+        // Google Meet API 호출
         SpacesServiceSettings settings = SpacesServiceSettings.newBuilder()
                 .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                 .build();
@@ -129,5 +56,20 @@ public class MeetService {
             Space response = spacesServiceClient.createSpace(request);
             return response.getMeetingUri();
         }
+    }
+
+    private UserAuthorizer getUserAuthorizer() throws Exception {
+        InputStream credentialsStream = MeetService.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
+        if (credentialsStream == null) {
+            throw new IllegalArgumentException("credentials.json 파일을 찾을 수 없습니다.");
+        }
+        ClientId clientId = ClientId.fromStream(credentialsStream);
+
+        return UserAuthorizer.newBuilder()
+                .setClientId(clientId)
+                .setScopes(SCOPES)
+                .setCallbackUri(URI.create(CALLBACK_URI))
+                .setTokenStore(new SimpleTokenStore()) // Custom TokenStore 사용
+                .build();
     }
 }
