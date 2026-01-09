@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import {
   onAuthStateChanged,
   getAuth,
@@ -6,13 +6,46 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
-  sendPasswordResetEmail,
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getUserByUsername, registerUser, User, getByUID } from "../api/user";
+import { registerUser, User, getByUID } from "../api/user";
+import { setTokenCookie, refreshTokenCookie, logoutServer } from "../api/auth";
+
+// 상수 정의
+const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000; // 50분마다 토큰 갱신 (Firebase 토큰은 1시간 만료)
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30분 비활동 시 자동 로그아웃
+const INACTIVITY_WARNING_TIME = 5 * 60 * 1000; // 로그아웃 5분 전 경고
+
+// localStorage 키 (username만 저장, 민감 정보는 httpOnly 쿠키에 저장)
+const STORAGE_KEY_USERNAME = 'bookclub_username';
+
+// localStorage 헬퍼 함수
+const saveToStorage = (user: User) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_USERNAME, user.username);
+  } catch (error) {
+    console.error('localStorage 저장 실패:', error);
+  }
+};
+
+const loadFromStorage = (): string | null => {
+  try {
+    return localStorage.getItem(STORAGE_KEY_USERNAME);
+  } catch (error) {
+    console.error('localStorage 로드 실패:', error);
+    return null;
+  }
+};
+
+const clearStorage = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEY_USERNAME);
+  } catch (error) {
+    console.error('localStorage 삭제 실패:', error);
+  }
+};
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -28,16 +61,22 @@ interface AuthContextProps {
   user: User | null;
   isLoading: boolean;
   accessToken: string;
+  googleAccessToken: string; // Google OAuth Access Token (Calendar API용)
+  sessionWarning: boolean; // 세션 만료 경고 표시 여부
+  remainingTime: number; // 남은 시간 (초)
+  isFirstLogin: boolean; // 첫 Google 로그인 여부 (username 설정 필요)
   handleLogin: (email: string, password: string) => Promise<void>;
   handleRegister: (email: string, password: string, username: string) => Promise<void>;
   handleGoogleLogin: () => Promise<void>;
   handleLogout: () => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   verificationStatus: () => Promise<boolean>;
+  extendSession: () => void; // 세션 연장
+  refreshUserData: () => Promise<void>; // 사용자 정보 새로고침
+  clearFirstLogin: () => void; // 첫 로그인 상태 초기화
 }
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const auth = getAuth(app);
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -47,23 +86,243 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // localStorage에서 username만 로드 (로그인 상태 확인용)
+  const savedUsername = loadFromStorage();
+
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string>(""); // Google OAuth Access Token (httpOnly 쿠키에 저장됨)
+  // localStorage에 username이 있으면 인증 확인 필요
+  const [isLoading, setIsLoading] = useState(!!savedUsername);
+  const [sessionWarning, setSessionWarning] = useState(false); // 세션 만료 경고
+  const [remainingTime, setRemainingTime] = useState(0); // 남은 시간 (초)
+  const [isFirstLogin, setIsFirstLogin] = useState(false); // 첫 Google 로그인 여부
 
+  // Refs for timers
+  const lastActivityRef = useRef<number>(Date.now());
+  const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tokenRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 활동 기록 업데이트
+  const updateLastActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    // 경고 상태였다면 해제
+    if (sessionWarning) {
+      setSessionWarning(false);
+      setRemainingTime(0);
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+    }
+  }, [sessionWarning]);
+
+  // 세션 연장 (사용자가 명시적으로 연장 버튼 클릭 시)
+  const extendSession = useCallback(() => {
+    updateLastActivity();
+    console.log("세션이 연장되었습니다.");
+  }, [updateLastActivity]);
+
+  // 사용자 정보 새로고침
+  const refreshUserData = useCallback(async () => {
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser && accessToken) {
+      try {
+        const response = await getByUID(firebaseUser.uid, accessToken);
+        setUser({ ...response });
+        saveToStorage(response);
+        setIsFirstLogin(false);
+      } catch (error) {
+        console.error("사용자 정보 새로고침 실패:", error);
+      }
+    }
+  }, [accessToken]);
+
+  // 첫 로그인 상태 초기화
+  const clearFirstLogin = useCallback(() => {
+    setIsFirstLogin(false);
+  }, []);
+
+  // 토큰 갱신 함수
+  const refreshAccessToken = useCallback(async () => {
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser) {
+      try {
+        const token = await firebaseUser.getIdToken(true); // force refresh
+        setAccessToken(token);
+        // 쿠키에도 토큰 갱신
+        await refreshTokenCookie(token);
+        console.log("토큰이 갱신되었습니다.");
+      } catch (error) {
+        console.error("토큰 갱신 실패:", error);
+      }
+    }
+  }, []);
+
+  // 비활동 체크 및 자동 로그아웃
+  const checkInactivity = useCallback(async () => {
+    const now = Date.now();
+    const timeSinceLastActivity = now - lastActivityRef.current;
+
+    if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
+      // 30분 초과 - 자동 로그아웃
+      console.log("30분 비활동으로 자동 로그아웃됩니다.");
+      setSessionWarning(false);
+      // 서버 쿠키 삭제
+      await logoutServer();
+      clearStorage();
+      await signOut(auth);
+      setUser(null);
+      setAccessToken("");
+      setGoogleAccessToken("");
+      alert("비활동으로 인해 자동 로그아웃 되었습니다.");
+    } else if (timeSinceLastActivity >= INACTIVITY_TIMEOUT - INACTIVITY_WARNING_TIME) {
+      // 25분 경과 - 경고 표시
+      if (!sessionWarning) {
+        setSessionWarning(true);
+        const remaining = Math.ceil((INACTIVITY_TIMEOUT - timeSinceLastActivity) / 1000);
+        setRemainingTime(remaining);
+
+        // 카운트다운 시작
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+        }
+        countdownTimerRef.current = setInterval(() => {
+          setRemainingTime((prev) => {
+            if (prev <= 1) {
+              if (countdownTimerRef.current) {
+                clearInterval(countdownTimerRef.current);
+              }
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    }
+  }, [sessionWarning]);
+
+  // 활동 이벤트 리스너 설정
+  useEffect(() => {
+    if (!user) return;
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+
+    // 디바운스된 활동 업데이트 (1초에 한 번만)
+    let lastUpdate = 0;
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastUpdate > 1000) {
+        lastUpdate = now;
+        updateLastActivity();
+      }
+    };
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    return () => {
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [user, updateLastActivity]);
+
+  // 비활동 체크 타이머 설정
+  useEffect(() => {
+    if (!user) {
+      // 로그아웃 상태면 타이머 정리
+      if (inactivityTimerRef.current) {
+        clearInterval(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      setSessionWarning(false);
+      setRemainingTime(0);
+      return;
+    }
+
+    // 1분마다 비활동 체크
+    inactivityTimerRef.current = setInterval(checkInactivity, 60 * 1000);
+
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearInterval(inactivityTimerRef.current);
+      }
+    };
+  }, [user, checkInactivity]);
+
+  // 토큰 자동 갱신 타이머 설정
+  useEffect(() => {
+    if (!user) {
+      if (tokenRefreshTimerRef.current) {
+        clearInterval(tokenRefreshTimerRef.current);
+        tokenRefreshTimerRef.current = null;
+      }
+      return;
+    }
+
+    // 50분마다 토큰 갱신
+    tokenRefreshTimerRef.current = setInterval(refreshAccessToken, TOKEN_REFRESH_INTERVAL);
+
+    return () => {
+      if (tokenRefreshTimerRef.current) {
+        clearInterval(tokenRefreshTimerRef.current);
+      }
+    };
+  }, [user, refreshAccessToken]);
+
+  // Firebase Auth 상태 변경 감지 및 백그라운드 토큰 갱신
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
+          // 토큰 갱신 (백그라운드에서)
           const token = await firebaseUser.getIdToken();
-          const response = await getByUID(firebaseUser.uid, token);
-          setUser({ ...response});
           setAccessToken(token);
+
+          // 쿠키에 토큰 저장
+          await setTokenCookie(token);
+
+          try {
+            // 기존 사용자 조회
+            const response = await getByUID(firebaseUser.uid, token);
+            setUser({ ...response });
+            // localStorage에 username만 저장
+            saveToStorage(response);
+          } catch (fetchError) {
+            // 신규 사용자: DB에 등록
+            console.log("신규 사용자 등록 중...", firebaseUser.email);
+            await registerUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email!,
+              username: firebaseUser.displayName || firebaseUser.email!.split('@')[0],
+              password: ''
+            }, token);
+            const response = await getByUID(firebaseUser.uid, token);
+            setUser({ ...response });
+            // localStorage에 username만 저장
+            saveToStorage(response);
+          }
+          // 로그인 시 활동 시간 초기화
+          lastActivityRef.current = Date.now();
         } catch (error) {
           console.error("Error fetching user data:", error);
+          setUser(null);
+          setAccessToken("");
+          clearStorage();
         }
       } else {
+        // Firebase에서 로그아웃 상태 -> localStorage도 정리
         setUser(null);
+        setAccessToken("");
+        setGoogleAccessToken("");
+        clearStorage();
       }
       setIsLoading(false);
     });
@@ -106,35 +365,85 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const handleGoogleLogin = async (): Promise<void> => {
     const provider = new GoogleAuthProvider();
+    // Google Calendar API 사용을 위한 scope 추가
+    provider.addScope('https://www.googleapis.com/auth/calendar');
     try {
+      console.log("Google 로그인 시도...");
       const userCredential = await signInWithPopup(auth, provider);
+      console.log("Google 로그인 성공:", userCredential.user.email);
       const firebaseUser = userCredential.user;
       const token = await firebaseUser.getIdToken();
-      // console.log("토오큰",userCredential);
-      // console.log("dusueuwer",firebaseUser.uid);
+
+      // Google OAuth Access Token 가져오기 (Calendar API용)
+      const credential = GoogleAuthProvider.credentialFromResult(userCredential);
+      const googleToken = credential?.accessToken || "";
+      setGoogleAccessToken(googleToken);
+
+      // httpOnly 쿠키에 Firebase 토큰과 Google Access Token 저장
+      await setTokenCookie(token, googleToken);
+
+      if (googleToken) {
+        console.log("Google Access Token 획득 및 httpOnly 쿠키 저장 성공 (Calendar API 사용 가능)");
+      } else {
+        console.warn("Google Access Token을 받지 못했습니다. Google Meet 링크 생성이 불가능합니다.");
+        console.warn("해결 방법: 1) 로그아웃 후 다시 Google 로그인 시도 2) 브라우저 캐시 삭제 후 재로그인");
+      }
+
       try {
-        // console.log("try ran",firebaseUser.uid);
-        const response = await getByUID(firebaseUser.uid, token);
-        // console.log("responseddd", response);
-        setUser({ ...response});
-        setAccessToken(token);
-      } catch {
-        
-        // setUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''});
-        console.log("catch ran",{uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ' '});
-        await registerUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: firebaseUser.displayName!, password: ''} , token);
         const response = await getByUID(firebaseUser.uid, token);
         setUser({ ...response});
         setAccessToken(token);
+        // localStorage에 username만 저장 (로그인 상태 확인용)
+        saveToStorage(response);
+        setIsFirstLogin(false); // 기존 사용자
+      } catch (fetchError) {
+        console.log("신규 사용자 등록 중...", firebaseUser.email);
+        // 임시 username으로 등록 (나중에 사용자가 변경)
+        const tempUsername = firebaseUser.displayName || firebaseUser.email!.split('@')[0];
+        const photoUrl = firebaseUser.photoURL || ''; // Google 프로필 사진 URL
+        await registerUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: tempUsername, password: '', photoUrl: photoUrl} , token);
+        const response = await getByUID(firebaseUser.uid, token);
+        setUser({ ...response});
+        setAccessToken(token);
+        // localStorage에 username만 저장 (로그인 상태 확인용)
+        saveToStorage(response);
+        setIsFirstLogin(true); // 신규 사용자 - username 설정 페이지로 이동 필요
+        console.log("첫 Google 로그인 - username 설정 페이지로 이동 필요");
       }
     } catch (e: any) {
+      console.error("Google 로그인 에러 코드:", e.code);
+      console.error("Google 로그인 에러 메시지:", e.message);
       throw new Error("Google login failed: " + e.message);
     }
   };
 
   const handleLogout = async (): Promise<void> => {
+    // 타이머 정리
+    if (inactivityTimerRef.current) {
+      clearInterval(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    if (tokenRefreshTimerRef.current) {
+      clearInterval(tokenRefreshTimerRef.current);
+      tokenRefreshTimerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setSessionWarning(false);
+    setRemainingTime(0);
+
+    // 서버 쿠키 삭제
+    await logoutServer();
+
+    // localStorage 정리 (username과 googleToken 모두 삭제)
+    clearStorage();
+
     await signOut(auth);
     setUser(null);
+    setAccessToken("");
+    setGoogleAccessToken("");
   };
 
   const resendVerificationEmail = async (): Promise<void> => {
@@ -156,12 +465,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         isLoading,
         accessToken,
+        googleAccessToken,
+        sessionWarning,
+        remainingTime,
+        isFirstLogin,
         handleLogin,
         handleRegister,
         handleGoogleLogin,
         handleLogout,
         resendVerificationEmail,
         verificationStatus,
+        extendSession,
+        refreshUserData,
+        clearFirstLogin,
       }}
     >
       {children}

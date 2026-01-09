@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo:*)",
+      "Bash(xargs cat:*)",
+      "Bash(cat:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill //F //PID 44472)",
+      "Bash(nslookup:*)",
+      "Bash(docker:*)",
+      "Bash(./gradlew bootRun:*)",
+      "Bash(curl:*)",
+      "Bash(./gradlew:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

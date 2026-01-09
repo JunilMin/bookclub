@@ -3,7 +3,7 @@ import axios from "axios";
 
 const axiosInstance = axios.create({
   baseURL: "http://localhost:8080/api",
-  // withCredentials: true, // 쿠키 포함
+  withCredentials: true, // 쿠키 포함
   headers: {
     "Content-Type": "application/json",
   },

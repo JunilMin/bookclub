@@ -25,7 +25,12 @@ public class Post {
   private List<String> member;  // 멤버 ObjectId 리스트
   private String level;  // 난이도
   private String book;   // 책 제목
+  private String isbn;   // 책 ISBN
   private String username;
-  private String googleMeetLink; // Google Meet 링크
+
+  // Google Meet 관련 필드
+  private String meetLink;           // Google Meet 링크
+  private String calendarEventId;    // Calendar 이벤트 ID (수정/삭제용)
+  private String meetError;          // Meet 생성 실패 시 에러 메시지
 }
 

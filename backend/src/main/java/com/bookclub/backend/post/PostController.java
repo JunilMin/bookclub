@@ -1,5 +1,7 @@
 package com.bookclub.backend.post;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -9,27 +11,11 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/posts")
-@CrossOrigin(origins = "http://localhost:5173") // 필요 시, 프론트 구현 후 주석 해제
+@CrossOrigin(origins = "http://localhost:5173")
 public class PostController {
 
     @Autowired
     private PostService postService;
-
-    /**
-     * Google Meet 링크와 함께 게시물 생성
-     */
-    // @PostMapping("/google-meet")
-    // public ResponseEntity<Post> createPostWithGoogleMeet(
-    //     @RequestBody Post post,
-    //     @RequestParam String accessToken
-    // ) {
-    //     try {
-    //         Post createdPost = postService.createPostWithGoogleMeet(post, accessToken);
-    //         return ResponseEntity.ok(createdPost);
-    //     } catch (Exception e) {
-    //         return ResponseEntity.status(500).body(null);
-    //     }
-    // }
 
     /**
      * 모든 게시물 조회
@@ -48,17 +34,38 @@ public class PostController {
             Optional<Post> post = postService.getPostById(id);
             return post.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build(); // 유효하지 않은 ObjectId 형식에 대한 예외 처리
+            return ResponseEntity.badRequest().build();
         }
     }
 
     /**
-     * 게시물 생성
+     * 게시물 생성 (Google Meet 링크 자동 생성)
+     * @param post 생성할 게시물
+     * google_access_token은 httpOnly 쿠키에서 읽어옴
      */
     @PostMapping
-    public ResponseEntity<Post> createPost(@RequestBody Post post, @RequestParam String accessToken) {
-        Post createdPost = postService.createPost(post, accessToken);
+    public ResponseEntity<Post> createPost(
+            @RequestBody Post post,
+            HttpServletRequest request) {
+        // 쿠키에서 google_access_token 읽기
+        String googleAccessToken = getGoogleAccessTokenFromCookie(request);
+        Post createdPost = postService.createPost(post, googleAccessToken);
         return ResponseEntity.ok(createdPost);
+    }
+
+    /**
+     * 쿠키에서 google_access_token 추출
+     */
+    private String getGoogleAccessTokenFromCookie(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("google_access_token".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -87,6 +94,36 @@ public class PostController {
             postService.deletePost(id);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 북미팅 참여
+     */
+    @PostMapping("/{id}/join")
+    public ResponseEntity<Post> joinBookMeeting(
+            @PathVariable String id,
+            @RequestParam String username) {
+        try {
+            Post post = postService.joinBookMeeting(id, username);
+            return ResponseEntity.ok(post);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 북미팅 참여 취소
+     */
+    @PostMapping("/{id}/leave")
+    public ResponseEntity<Post> leaveBookMeeting(
+            @PathVariable String id,
+            @RequestParam String username) {
+        try {
+            Post post = postService.leaveBookMeeting(id, username);
+            return ResponseEntity.ok(post);
+        } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         }
     }

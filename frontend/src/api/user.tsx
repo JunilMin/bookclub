@@ -12,8 +12,11 @@ export interface User {
   friends?: string[];
   posts?:[];
   late?: number;
+  createdBookMeetings?: string[];      // 내가 생성한 북미팅 ID 리스트
+  participatedBookMeetings?: string[]; // 참여한 북미팅 ID 리스트 (지난/현재 모두)
   isEmailVerified?: boolean; // 이메일 인증 여부
   verificationToken?: string; // 이메일 인증 토큰
+  photoUrl?: string; // Google 프로필 사진 URL
 }
 
 // 회원가입 요청
@@ -96,6 +99,39 @@ export const addFriend = async (userId: string, friendId: string, token:string):
   } catch (error) {
     console.error("Error adding friend:", error);
     throw new Error("친구를 추가하는데 실패했습니다.");
+  }
+};
+
+// username 중복 체크
+export const checkUsernameAvailable = async (username: string): Promise<boolean> => {
+  try {
+    const response = await axiosInstance.get(`/users/check-username/${username}`);
+    return response.data; // true: 사용 가능, false: 이미 사용 중
+  } catch (error) {
+    console.error("Error checking username:", error);
+    throw new Error("닉네임 중복 확인에 실패했습니다.");
+  }
+};
+
+// username 유효성 검사 (중복 체크 + 비속어 체크)
+export interface UsernameValidationResult {
+  valid: boolean;
+  reason: 'ok' | 'duplicate' | 'profanity' | 'error';
+  message: string;
+  score?: number; // 비속어 점수 (profanity인 경우)
+}
+
+export const validateUsernameAPI = async (username: string): Promise<UsernameValidationResult> => {
+  try {
+    const response = await axiosInstance.get(`/users/validate-username/${username}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error validating username:", error);
+    return {
+      valid: false,
+      reason: 'error',
+      message: '닉네임 검증에 실패했습니다.'
+    };
   }
 };
 

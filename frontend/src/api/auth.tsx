@@ -1,4 +1,4 @@
-import axiosInstance, {setAccessToken} from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import axios from 'axios';
 
 interface AuthRequest {
@@ -10,6 +10,28 @@ interface AuthResponse {
   token: string;
   username: string;
 }
+
+// 토큰을 서버에 전송하여 httpOnly 쿠키에 저장
+// googleAccessToken이 있으면 함께 저장
+export const setTokenCookie = async (token: string, googleAccessToken?: string): Promise<void> => {
+  try {
+    await axiosInstance.post('/auth/set-token', { token, googleAccessToken });
+  } catch (error) {
+    console.error('토큰 쿠키 설정 실패:', error);
+    throw error;
+  }
+};
+
+// 토큰 갱신 시 쿠키 업데이트
+// googleAccessToken이 있으면 함께 갱신
+export const refreshTokenCookie = async (token: string, googleAccessToken?: string): Promise<void> => {
+  try {
+    await axiosInstance.post('/auth/refresh-token', { token, googleAccessToken });
+  } catch (error) {
+    console.error('토큰 쿠키 갱신 실패:', error);
+    throw error;
+  }
+};
 //token을 여기서 파라미터로 받아서 사용해야함. axiosInstance에 토큰을 넣어서 사용해야함.
 export const refreshToken = async (): Promise<AuthResponse | null> => {
   try {
@@ -42,11 +64,10 @@ export const login = async (authRequest: AuthRequest): Promise<AuthResponse> => 
 //   return response.data;
 // };
 
-// 로그아웃
-export const logout = async () => {
+// 로그아웃 - 서버의 쿠키 삭제
+export const logoutServer = async () => {
   try {
-    await axiosInstance.post('/auth/logout'); // 서버에서 Refresh Token 삭제
-    window.location.href = '/login'; // 로그인 페이지로 리디렉션
+    await axiosInstance.post('/auth/logout'); // 서버에서 쿠키 삭제
   } catch (error) {
     console.error("로그아웃 요청 실패:", error);
   }

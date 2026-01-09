@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 import './styles/About.css';
@@ -13,10 +13,10 @@ function About() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const containers = gsap.utils.toArray(".container");
+    const containers = gsap.utils.toArray<HTMLElement>(".container");
 
     containers.forEach((container) => {
-      const sections = (container as HTMLElement).querySelectorAll(".panel");
+      const sections = container.querySelectorAll(".panel");
 
       gsap.to(sections, {
         xPercent: -100 * (sections.length - 1),
