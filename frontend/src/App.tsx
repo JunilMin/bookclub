@@ -5,6 +5,7 @@ import Board from './screens/Board';
 import PostCreate from './screens/PostCreate';
 import SetUsername from './screens/SetUsername';
 import Profile from './screens/Profile';
+import Meeting from './screens/Meeting';
 import About from './screens/About';
 import NavBar from './components/NavBar';
 import Login from './screens/Login';
@@ -43,6 +44,7 @@ const AppContent: React.FC = () => {
           <Route path="/" element={<Home />} />
           <Route path="/board" element={<Board />} />
           <Route path="/board/create" element={<PostCreate />} />
+          <Route path="/meeting/:id" element={<Meeting />} />
           <Route path="/set-username" element={<SetUsername />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/about" element={<About />} />

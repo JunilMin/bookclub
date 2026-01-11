@@ -29,9 +29,10 @@ export const setAccessToken = (token: string) => {
  */
 axiosInstance.interceptors.request.use(
   async (config) => {
-    let token: string = axiosInstance.defaults.headers.common["Authorization"] as string;
+    const token = axiosInstance.defaults.headers.common["Authorization"] as string;
+    // Token already has "Bearer " prefix from setAccessToken, so just use it directly
     if (token && config.headers) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers["Authorization"] = token;
     }
 
     return config;

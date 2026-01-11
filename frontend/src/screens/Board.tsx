@@ -1,383 +1,613 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward } from 'react-icons/fi';
 import { getAllPosts, Post, joinBookMeeting, leaveBookMeeting, deletePost } from '../api/posts';
-import './styles/Board.css';
 import { useAuth } from '../AuthContext/AuthContext';
+import RoomModal, { Room } from '../components/RoomModal';
+import Footer from '../components/Footer';
+import './styles/Board.css';
 
-const REFRESH_INTERVAL = 30000; // 30초마다 자동 새로고침
+// Google Books API book info cache
+const bookInfoCache = new Map<string, { author: string; genre: string; cover: string }>();
 
-type TabType = 'all' | 'my';
+// Fetch book info from Google Books API by ISBN
+async function fetchBookInfo(isbn: string): Promise<{ author: string; genre: string; cover: string }> {
+  if (!isbn) {
+    return { author: 'Unknown Author', genre: 'General', cover: '' };
+  }
 
-// 날짜가 지났는지 확인 (해당 날짜의 다음 날부터 지난 것으로 간주)
-const isPassed = (dueDate: string): boolean => {
-  const due = new Date(dueDate);
-  const today = new Date();
-  // 오늘 날짜의 시작 (00:00:00)
-  today.setHours(0, 0, 0, 0);
-  // due 날짜의 다음 날 시작
-  const nextDay = new Date(due);
-  nextDay.setDate(nextDay.getDate() + 1);
-  nextDay.setHours(0, 0, 0, 0);
-  return today >= nextDay;
-};
+  // Check cache first
+  if (bookInfoCache.has(isbn)) {
+    return bookInfoCache.get(isbn)!;
+  }
 
-// PostItem 컴포넌트 Props
-interface PostItemProps {
-  post: Post;
-  t: (key: string) => string;
-  currentUsername?: string;
-  currentUserId?: string;
-  onJoin?: (postId: string) => void;
-  onLeave?: (postId: string) => void;
-  onDelete?: (postId: string) => void;
-  isProcessing?: boolean;
+  let author = 'Unknown Author';
+  let genre = 'General';
+  let cover = '';
+
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1`
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+
+      if (data.items && data.items.length > 0) {
+        const volumeInfo = data.items[0].volumeInfo;
+
+        // Get author
+        if (volumeInfo.authors && volumeInfo.authors.length > 0) {
+          author = volumeInfo.authors.join(', ');
+        }
+
+        // Get genre/category
+        if (volumeInfo.categories && volumeInfo.categories.length > 0) {
+          genre = volumeInfo.categories[0];
+        }
+
+        // Get cover image
+        if (volumeInfo.imageLinks) {
+          cover = volumeInfo.imageLinks.thumbnail || volumeInfo.imageLinks.smallThumbnail || '';
+          // Convert http to https
+          if (cover.startsWith('http:')) {
+            cover = cover.replace('http:', 'https:');
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore errors, use defaults
+  }
+
+  const result = { author, genre, cover };
+  bookInfoCache.set(isbn, result);
+  return result;
 }
 
-// PostItem 컴포넌트
-const PostItem: React.FC<PostItemProps> = ({
-  post,
-  t,
-  currentUsername,
-  currentUserId,
-  onJoin,
-  onLeave,
-  onDelete,
-  isProcessing
-}) => {
-  // 생성자 여부 체크 (username 또는 userId로 비교 - 기존 데이터 호환성)
-  const isCreator = currentUsername && post.creater &&
-    (currentUsername === post.creater || currentUserId === post.creater);
-  // 참가자 여부 체크 (username 또는 userId로 비교 - 기존 데이터 호환성)
-  const isParticipant = currentUsername && post.member &&
-    (post.member.includes(currentUsername) || (currentUserId && post.member.includes(currentUserId)));
-  const canJoin = currentUsername && !isCreator && !isParticipant && (post.member?.length || 0) < post.capacity;
-  const canLeave = currentUsername && !isCreator && isParticipant;
-  const canSeeMeetLink = isCreator || isParticipant;
-  const memberCount = post.member?.length || 0;
+// Generate placeholder avatar
+function generateAvatar(name: string): string {
+  const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+  const colorIndex = name.charCodeAt(0) % colors.length;
+  const initial = name.charAt(0).toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    <rect width="40" height="40" fill="${colors[colorIndex]}" rx="20"/>
+    <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-family="Arial" font-size="18" font-weight="bold">${initial}</text>
+  </svg>`;
+  // Use encodeURIComponent for non-Latin1 characters (Korean, etc.)
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
 
-  return (
-    <li className="post-item">
-      <p><strong>{post.book}</strong></p>
-      <p>{t('post_created')}: {new Date(post.date).toLocaleString()}</p>
-      <p>{t('post_meeting_time')}: {new Date(post.due).toLocaleString()}</p>
-      <p>{t('post_capacity')}: {memberCount}/{post.capacity}</p>
-      <p>{t('post_level')}: {post.level}</p>
-      <p>{t('post_creator_label')}: {post.creater}</p>
+// Convert Post to Room
+function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: { author: string; genre: string; cover: string }): Room {
+  const now = new Date();
+  const dueDate = new Date(post.due);
+  const duration = 60; // minutes
+  const endDate = new Date(dueDate.getTime() + duration * 60 * 1000);
 
-      {/* 삭제 버튼 - 생성자만 */}
-      {isCreator && onDelete && (
-        <button
-          className="delete-button"
-          onClick={() => onDelete(post.id)}
-          disabled={isProcessing}
-        >
-          {isProcessing ? t('loading') : t('board_delete')}
-        </button>
-      )}
+  // Determine status: past (ended), live (in progress), upcoming (not started)
+  let status: 'live' | 'upcoming' | 'past';
+  if (now > endDate) {
+    status = 'past';
+  } else if (now >= dueDate) {
+    status = 'live';
+  } else {
+    status = 'upcoming';
+  }
 
-      {/* 참가 버튼 - 생성자가 아니고 참가하지 않은 경우 */}
-      {canJoin && onJoin && (
-        <button
-          className="join-button"
-          onClick={() => onJoin(post.id)}
-          disabled={isProcessing}
-        >
-          {isProcessing ? t('loading') : t('board_join')}
-        </button>
-      )}
+  const levelTagMap: Record<string, string> = {
+    low: 'Beginner',
+    moderate: 'Intermediate',
+    high: 'Advanced'
+  };
 
-      {/* 참가 취소 버튼 - 생성자가 아니고 참가한 경우 */}
-      {canLeave && onLeave && (
-        <button
-          className="leave-button"
-          onClick={() => onLeave(post.id)}
-          disabled={isProcessing}
-        >
-          {isProcessing ? t('loading') : t('board_leave')}
-        </button>
-      )}
+  const tags = [levelTagMap[post.level] || post.level];
+  if (bookInfo.genre && bookInfo.genre !== 'General') {
+    tags.push(bookInfo.genre);
+  }
 
-      {/* Meet 링크 - 생성자 또는 참가자만 볼 수 있음 */}
-      {canSeeMeetLink && post.meetLink ? (
-        <a
-          href={post.meetLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="meet-link-button"
-        >
-          {t('board_join_meet')}
-        </a>
-      ) : post.meetError && isCreator ? (
-        <p className="meet-error">{t('board_meet_error')}: {post.meetError}</p>
-      ) : null}
+  return {
+    id: post.id,
+    title: `${post.book} Discussion`,
+    host: post.creater,
+    hostAvatar: generateAvatar(post.creater),
+    book: {
+      title: post.book,
+      author: bookInfo.author,
+      cover: bookInfo.cover || `https://via.placeholder.com/224x320?text=${encodeURIComponent(post.book)}`,
+      genre: bookInfo.genre,
+      isbn: post.isbn || ''
+    },
+    dueISO: post.due,
+    duration: 60,
+    participants: post.member?.length || 0,
+    maxParticipants: post.capacity,
+    level: post.level,
+    description: `Join us for an engaging discussion about "${post.book}". Share your insights and connect with fellow readers.`,
+    tags,
+    status,
+    isJoined: currentUsername ? post.member?.includes(currentUsername) || post.creater === currentUsername : false,
+    isMyRoom: currentUsername ? post.creater === currentUsername : false,
+    meetLink: post.meetLink,
+    calendarEventId: post.calendarEventId
+  };
+}
 
-      {/* 참가 상태 표시 */}
-      {isCreator && <span className="status-badge creator-badge">{t('board_creator')}</span>}
-      {isParticipant && !isCreator && <span className="status-badge participant-badge">{t('board_participant')}</span>}
-    </li>
-  );
-};
+type TabType = 'all' | 'my' | 'joined';
+type StatusFilter = 'all' | 'live' | 'upcoming' | 'past';
+type SortBy = 'latest' | 'mostPopular' | 'startingSoon';
+
+const REFRESH_INTERVAL = 30000;
 
 const Board: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [searchParams] = useSearchParams();
   const { accessToken, user } = useAuth();
+  const gridRef = useRef<HTMLDivElement>(null);
 
+  // Data state
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
+  const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGenre, setSelectedGenre] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('latest');
+  const [activeTab, setActiveTab] = useState<TabType>('all');
+
+  // Modal state
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+
+  // Handle URL params for tab filter
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter === 'created') {
+      setActiveTab('my');
+    } else if (filter === 'participating') {
+      setActiveTab('joined');
+    }
+  }, [searchParams]);
+
+  // Fetch posts
   const fetchPosts = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
+    setError(null);
+
     try {
       const data = await getAllPosts(accessToken);
       setPosts(data);
-    } catch (error) {
-      console.error('Error fetching posts:', error);
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+      setError(t('browse_error'));
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
-  // 초기 로드 및 토큰 변경 시 새로고침
+  // Initial load
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
 
-  // 주기적 자동 새로고침 (30초)
+  // Auto refresh
   useEffect(() => {
     if (!accessToken) return;
-
-    const intervalId = setInterval(() => {
-      fetchPosts();
-    }, REFRESH_INTERVAL);
-
+    const intervalId = setInterval(fetchPosts, REFRESH_INTERVAL);
     return () => clearInterval(intervalId);
   }, [accessToken, fetchPosts]);
 
-  // 포스트 생성 페이지로 이동
-  const handleCreatePost = useCallback(() => {
-    navigate('/board/create');
-  }, [navigate]);
+  // Convert posts to rooms with book info
+  useEffect(() => {
+    const convertPostsToRooms = async () => {
+      const roomPromises = posts.map(async (post) => {
+        const bookInfo = await fetchBookInfo(post.isbn || '');
+        return postToRoom(post, user?.username, bookInfo);
+      });
 
-  // 북미팅 참가
-  const handleJoin = useCallback(async (postId: string) => {
+      const convertedRooms = await Promise.all(roomPromises);
+      setRooms(convertedRooms);
+    };
+
+    if (posts.length > 0) {
+      convertPostsToRooms();
+    } else {
+      setRooms([]);
+    }
+  }, [posts, user?.username]);
+
+  // Get unique genres from rooms
+  const genres = useMemo(() => {
+    const genreSet = new Set<string>();
+    rooms.forEach(room => {
+      if (room.book.genre && room.book.genre !== 'General') {
+        genreSet.add(room.book.genre);
+      }
+    });
+    return Array.from(genreSet).sort();
+  }, [rooms]);
+
+  // Filtered and sorted rooms
+  const filteredRooms = useMemo(() => {
+    let result = [...rooms];
+
+    // Tab filter
+    if (activeTab === 'my') {
+      result = result.filter(room => room.isMyRoom);
+    } else if (activeTab === 'joined') {
+      result = result.filter(room => room.isJoined && !room.isMyRoom);
+    }
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(room =>
+        room.title.toLowerCase().includes(query) ||
+        room.book.title.toLowerCase().includes(query) ||
+        room.book.author.toLowerCase().includes(query) ||
+        room.host.toLowerCase().includes(query) ||
+        room.book.isbn.toLowerCase().includes(query)
+      );
+    }
+
+    // Genre filter
+    if (selectedGenre !== 'all') {
+      result = result.filter(room => room.book.genre === selectedGenre);
+    }
+
+    // Status filter
+    if (selectedStatus !== 'all') {
+      result = result.filter(room => room.status === selectedStatus);
+    }
+
+    // Sort
+    switch (sortBy) {
+      case 'latest':
+        result.sort((a, b) => new Date(b.dueISO).getTime() - new Date(a.dueISO).getTime());
+        break;
+      case 'mostPopular':
+        result.sort((a, b) => b.participants - a.participants);
+        break;
+      case 'startingSoon':
+        result.sort((a, b) => new Date(a.dueISO).getTime() - new Date(b.dueISO).getTime());
+        break;
+    }
+
+    return result;
+  }, [rooms, activeTab, searchQuery, selectedGenre, selectedStatus, sortBy]);
+
+  // Handlers
+  const handleScrollToGrid = () => {
+    gridRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleJoin = useCallback(async (roomId: string) => {
     if (!accessToken || !user?.username) return;
 
     setIsProcessing(true);
     try {
-      await joinBookMeeting(postId, user.username, accessToken);
-      await fetchPosts(); // 새로고침
-    } catch (error) {
-      console.error('Error joining book meeting:', error);
+      await joinBookMeeting(roomId, user.username, accessToken);
+      await fetchPosts();
+      setSelectedRoom(null);
+    } catch (err) {
+      console.error('Error joining meeting:', err);
       alert(t('board_join_error'));
     } finally {
       setIsProcessing(false);
     }
   }, [accessToken, user?.username, fetchPosts, t]);
 
-  // 북미팅 참가 취소
-  const handleLeave = useCallback(async (postId: string) => {
+  const handleLeave = useCallback(async (roomId: string) => {
     if (!accessToken || !user?.username) return;
 
     setIsProcessing(true);
     try {
-      await leaveBookMeeting(postId, user.username, accessToken);
-      await fetchPosts(); // 새로고침
-    } catch (error) {
-      console.error('Error leaving book meeting:', error);
+      await leaveBookMeeting(roomId, user.username, accessToken);
+      await fetchPosts();
+    } catch (err) {
+      console.error('Error leaving meeting:', err);
       alert(t('board_leave_error'));
     } finally {
       setIsProcessing(false);
     }
   }, [accessToken, user?.username, fetchPosts, t]);
 
-  // 북미팅 삭제
-  const handleDelete = useCallback(async (postId: string) => {
+  const handleDelete = useCallback(async (roomId: string) => {
     if (!accessToken) return;
-
-    if (!window.confirm(t('board_delete_confirm'))) {
-      return;
-    }
 
     setIsProcessing(true);
     try {
-      await deletePost(postId, accessToken);
-      await fetchPosts(); // 새로고침
-    } catch (error) {
-      console.error('Error deleting book meeting:', error);
+      await deletePost(roomId, accessToken);
+      setSelectedRoom(null);
+      await fetchPosts();
+    } catch (err) {
+      console.error('Error deleting room:', err);
       alert(t('board_delete_error'));
     } finally {
       setIsProcessing(false);
     }
   }, [accessToken, fetchPosts, t]);
 
-  // 전체 게시판용: 지나지 않은 포스트만 필터링
-  const activePosts = useMemo(() => {
-    return posts
-      .filter((post) => !isPassed(post.due))
-      .sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
-  }, [posts]);
+  const formatDate = (isoString: string) => {
+    return new Date(isoString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
 
-  // 내가 생성하거나 참여한 포스트 필터링 및 분류
-  const { myPosts, upcomingPost, currentPosts, passedPosts } = useMemo(() => {
-    const username = user?.username;
-    const userId = user?.id;
-    if (!username) {
-      return { myPosts: [], upcomingPost: null, currentPosts: [], passedPosts: [] };
-    }
+  const formatTime = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
 
-    // 내가 생성했거나 참여한 포스트 (기존 데이터 호환성: username 또는 userId로 비교)
-    const myPosts = posts.filter(
-      (post) => post.creater === username || post.creater === userId ||
-        (post.member && post.member.includes(username))
+  // Login required view
+  if (!accessToken) {
+    return (
+      <div className="board-page">
+        <div className="board-login-required">
+          <FiBookOpen size={64} />
+          <h2>{t('browse_login_required')}</h2>
+          <button className="board-login-btn" onClick={() => navigate('/login')}>
+            {t('browse_login_button')}
+          </button>
+        </div>
+        <Footer />
+      </div>
     );
-
-    // 지나지 않은 포스트와 지난 포스트 분류
-    const notPassedPosts = myPosts
-      .filter((post) => !isPassed(post.due))
-      .sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
-
-    const passedPosts = myPosts
-      .filter((post) => isPassed(post.due))
-      .sort((a, b) => new Date(b.due).getTime() - new Date(a.due).getTime()); // 최신순
-
-    // 가장 가까운 upcoming 하나
-    const upcomingPost = notPassedPosts.length > 0 ? notPassedPosts[0] : null;
-    // 나머지 current
-    const currentPosts = notPassedPosts.slice(1);
-
-    return { myPosts, upcomingPost, currentPosts, passedPosts };
-  }, [posts, user]);
+  }
 
   return (
-    <div className="board">
-      <h2>{t('board_title')} {isLoading && <span className="loading-indicator">...</span>}</h2>
-
-      {/* 탭 메뉴 */}
-      <div className="tab-container">
-        <button
-          className={`tab-button ${activeTab === 'all' ? 'active' : ''}`}
-          onClick={() => setActiveTab('all')}
-        >
-          {t('board_all_posts')}
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'my' ? 'active' : ''}`}
-          onClick={() => setActiveTab('my')}
-        >
-          {t('board_my_posts')}
-        </button>
-      </div>
-
-      {/* 포스트 생성 버튼 */}
-      {user && (
-        <button className="create-post-button" onClick={handleCreatePost}>
-          + {t('board_create_post')}
-        </button>
-      )}
-
-      {/* All Posts 탭 - 지나지 않은 미팅만 표시 */}
-      {activeTab === 'all' && (
-        <>
-          {activePosts.length > 0 ? (
-            <ul className="post-board">
-              {activePosts.map((post) => (
-                <PostItem
-                  key={post.id}
-                  post={post}
-                  t={t}
-                  currentUsername={user?.username}
-                  currentUserId={user?.id}
-                  onJoin={handleJoin}
-                  onLeave={handleLeave}
-                  onDelete={handleDelete}
-                  isProcessing={isProcessing}
-                />
-              ))}
-            </ul>
-          ) : (
-            <p className="no-posts">{t('board_no_posts')}</p>
-          )}
-        </>
-      )}
-
-      {/* My Posts 탭 */}
-      {activeTab === 'my' && (
-        <div className="my-posts-container">
-          {myPosts.length === 0 ? (
-            <p className="no-posts">{t('board_no_my_posts')}</p>
-          ) : (
-            <>
-              {/* Upcoming Book Meeting */}
-              {upcomingPost && (
-                <section className="post-section upcoming-section">
-                  <h3>📅 {t('board_upcoming')}</h3>
-                  <ul className="post-board">
-                    <PostItem
-                      post={upcomingPost}
-                      t={t}
-                      currentUsername={user?.username}
-                      currentUserId={user?.id}
-                      onJoin={handleJoin}
-                      onLeave={handleLeave}
-                      onDelete={handleDelete}
-                      isProcessing={isProcessing}
-                    />
-                  </ul>
-                </section>
-              )}
-
-              {/* Current Book Meetings */}
-              {currentPosts.length > 0 && (
-                <section className="post-section current-section">
-                  <h3>📚 {t('board_current')}</h3>
-                  <ul className="post-board">
-                    {currentPosts.map((post) => (
-                      <PostItem
-                        key={post.id}
-                        post={post}
-                        t={t}
-                        currentUsername={user?.username}
-                        currentUserId={user?.id}
-                        onJoin={handleJoin}
-                        onLeave={handleLeave}
-                        onDelete={handleDelete}
-                        isProcessing={isProcessing}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              {/* Passed Book Meetings */}
-              {passedPosts.length > 0 && (
-                <section className="post-section passed-section">
-                  <h3>✅ {t('board_passed')}</h3>
-                  <ul className="post-board">
-                    {passedPosts.map((post) => (
-                      <PostItem
-                        key={post.id}
-                        post={post}
-                        t={t}
-                        currentUsername={user?.username}
-                        currentUserId={user?.id}
-                        onJoin={handleJoin}
-                        onLeave={handleLeave}
-                        onDelete={handleDelete}
-                        isProcessing={isProcessing}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              )}
-            </>
-          )}
+    <div className="board-page">
+      {/* Hero Section */}
+      <section className="board-hero">
+        <div className="board-hero-content">
+          <span className="board-hero-badge">
+            {t('browse_hero_badge')}
+          </span>
+          <h1 className="board-hero-title">
+            {t('browse_hero_title')}
+          </h1>
+          <p className="board-hero-subtitle">
+            {t('browse_hero_subtitle')}
+          </p>
+          <div className="board-hero-cta">
+            <button className="board-cta-primary" onClick={handleScrollToGrid}>
+              {t('browse_hero_cta_browse')}
+            </button>
+            <button className="board-cta-secondary" onClick={() => navigate('/board/create')}>
+              {t('browse_hero_cta_create')}
+            </button>
+          </div>
         </div>
+
+        {/* Stats */}
+        <div className="board-stats">
+          <div className="board-stat-card">
+            <FiUsers className="board-stat-icon" />
+            <span className="board-stat-value">10,000+</span>
+            <span className="board-stat-label">{t('browse_stat_readers')}</span>
+          </div>
+          <div className="board-stat-card">
+            <FiMessageCircle className="board-stat-icon" />
+            <span className="board-stat-value">500+</span>
+            <span className="board-stat-label">{t('browse_stat_discussions')}</span>
+          </div>
+          <div className="board-stat-card">
+            <FiAward className="board-stat-icon" />
+            <span className="board-stat-value">50+</span>
+            <span className="board-stat-label">{t('browse_stat_genres')}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Filter Section */}
+      <section className="board-filters" ref={gridRef}>
+        <div className="board-filters-row">
+          {/* Search */}
+          <div className="board-search">
+            <FiSearch className="board-search-icon" />
+            <input
+              type="text"
+              placeholder={t('browse_search_placeholder')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="board-search-input"
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="board-filter-group">
+            <select
+              value={selectedGenre}
+              onChange={(e) => setSelectedGenre(e.target.value)}
+              className="board-filter-select"
+            >
+              <option value="all">{t('browse_filter_all_genres')}</option>
+              {genres.map(genre => (
+                <option key={genre} value={genre}>{genre}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value as StatusFilter)}
+              className="board-filter-select"
+            >
+              <option value="all">{t('browse_filter_all_status')}</option>
+              <option value="live">{t('browse_filter_live')}</option>
+              <option value="upcoming">{t('browse_filter_upcoming')}</option>
+              <option value="past">{t('browse_filter_past')}</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              className="board-filter-select"
+            >
+              <option value="latest">{t('browse_sort_latest')}</option>
+              <option value="mostPopular">{t('browse_sort_popular')}</option>
+              <option value="startingSoon">{t('browse_sort_starting_soon')}</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="board-tabs">
+          <button
+            className={`board-tab ${activeTab === 'all' ? 'active' : ''}`}
+            onClick={() => setActiveTab('all')}
+          >
+            {t('browse_tab_all')}
+          </button>
+          <button
+            className={`board-tab ${activeTab === 'my' ? 'active' : ''}`}
+            onClick={() => setActiveTab('my')}
+          >
+            {t('browse_tab_my')}
+          </button>
+          <button
+            className={`board-tab ${activeTab === 'joined' ? 'active' : ''}`}
+            onClick={() => setActiveTab('joined')}
+          >
+            {t('browse_tab_joined')}
+          </button>
+        </div>
+      </section>
+
+      {/* Rooms Grid */}
+      <section className="board-rooms">
+        {isLoading ? (
+          <div className="board-loading">
+            <div className="board-loading-spinner"></div>
+            <p>{t('browse_loading')}</p>
+          </div>
+        ) : error ? (
+          <div className="board-error">
+            <p>{error}</p>
+            <button className="board-retry-btn" onClick={fetchPosts}>
+              {t('browse_retry')}
+            </button>
+          </div>
+        ) : filteredRooms.length === 0 ? (
+          <div className="board-empty">
+            <FiBookOpen size={48} />
+            <h3>{t('browse_no_rooms')}</h3>
+            <p>{t('browse_no_rooms_desc')}</p>
+            <button className="board-create-btn" onClick={() => navigate('/board/create')}>
+              {t('browse_hero_cta_create')}
+            </button>
+          </div>
+        ) : (
+          <div className="board-grid">
+            {filteredRooms.map(room => (
+              <div
+                key={room.id}
+                className="room-card"
+                onClick={() => setSelectedRoom(room)}
+              >
+                {/* Cover */}
+                <div className="room-card-cover">
+                  <img
+                    src={room.book.cover}
+                    alt={room.book.title}
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://via.placeholder.com/300x400?text=${encodeURIComponent(room.book.title)}`;
+                    }}
+                  />
+                  <span className={`room-status-badge ${room.status}`}>
+                    {room.status === 'live' && <span className="live-dot"></span>}
+                    {room.status === 'live'
+                      ? t('browse_card_live')
+                      : room.status === 'past'
+                        ? t('browse_card_past')
+                        : t('browse_card_upcoming')}
+                  </span>
+                  {room.isMyRoom && (
+                    <span className="room-my-badge">{t('browse_card_my_room')}</span>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="room-card-content">
+                  <h3 className="room-card-title">{room.title}</h3>
+                  <p className="room-card-book">
+                    {room.book.title} by {room.book.author}
+                  </p>
+
+                  {/* Host */}
+                  <div className="room-card-host">
+                    <img src={room.hostAvatar} alt={room.host} className="room-host-avatar" />
+                    <span>{t('browse_card_hosted_by')} {room.host}</span>
+                  </div>
+
+                  {/* Meta */}
+                  <div className="room-card-meta">
+                    <span className="room-meta-item">
+                      <FiCalendar size={14} />
+                      {formatDate(room.dueISO)} {formatTime(room.dueISO)}
+                    </span>
+                    <span className="room-meta-item">
+                      <FiUsers size={14} />
+                      {room.participants}/{room.maxParticipants} {t('browse_card_participants')}
+                    </span>
+                  </div>
+
+                  {/* Action Button */}
+                  <button
+                    className={`room-card-btn ${room.status} ${room.isJoined ? 'joined' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (room.isJoined || room.isMyRoom) {
+                        navigate(`/meeting/${room.id}`, { state: { meetLink: room.meetLink, room } });
+                      } else if (room.status !== 'past') {
+                        handleJoin(room.id);
+                      }
+                    }}
+                    disabled={isProcessing || (room.status === 'past' && !room.isJoined && !room.isMyRoom)}
+                  >
+                    {room.isJoined || room.isMyRoom
+                      ? t('browse_card_view_details')
+                      : room.status === 'past'
+                        ? t('browse_card_ended')
+                        : room.status === 'live'
+                          ? t('browse_card_join_now')
+                          : t('browse_card_reserve')
+                    }
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Room Modal */}
+      {selectedRoom && (
+        <RoomModal
+          room={selectedRoom}
+          onClose={() => setSelectedRoom(null)}
+          onJoin={handleJoin}
+          onDelete={handleDelete}
+          isProcessing={isProcessing}
+        />
       )}
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };
