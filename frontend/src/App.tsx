@@ -7,6 +7,8 @@ import SetUsername from './screens/SetUsername';
 import Register from './screens/Register';
 import Profile from './screens/Profile';
 import Meeting from './screens/Meeting';
+import Meet from './screens/Meet';
+import MeetRoom from './screens/MeetRoom';
 import About from './screens/About';
 import NavBar from './components/NavBar';
 import Login from './screens/Login';
@@ -50,6 +52,8 @@ const AppContent: React.FC = () => {
           <Route path="/board" element={<Board />} />
           <Route path="/board/create" element={<PostCreate />} />
           <Route path="/meeting/:id" element={<Meeting />} />
+          <Route path="/meet/:sessionId" element={<Meet />} />
+          <Route path="/meet-room/:sessionId" element={<MeetRoom />} />
           <Route path="/register" element={<Register />} />
           <Route path="/set-username" element={<SetUsername />} />
           <Route path="/profile" element={<Profile />} />

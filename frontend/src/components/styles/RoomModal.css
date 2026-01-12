@@ -344,3 +344,14 @@
 .room-modal-btn-danger:hover:not(:disabled) {
   background: #b91c1c;
 }
+
+.room-modal-btn-enter {
+  flex: 1;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+}
+
+.room-modal-btn-enter:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  transform: translateY(-1px);
+}

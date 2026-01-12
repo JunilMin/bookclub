@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo } from 'react-icons/fi';
+import { joinSession } from '../api/sessions';
+import { useAuth } from '../AuthContext/AuthContext';
 import './styles/RoomModal.css';
 
 // Room interface (same as in Board.tsx)
@@ -42,6 +44,8 @@ interface RoomModalProps {
 const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, isProcessing }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { accessToken } = useAuth();
+  const [isEntering, setIsEntering] = useState(false);
 
   // Close on Escape key
   useEffect(() => {
@@ -102,6 +106,31 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
       navigate(`/meeting/${room.id}`, { state: { meetLink: room.meetLink, room } });
     } else {
       onJoin(room.id);
+    }
+  };
+
+  // 미팅 입장하기 - 세션 생성/조회 후 /meet/:sessionId로 이동
+  const handleEnterMeeting = async () => {
+    if (!accessToken) {
+      navigate('/login');
+      return;
+    }
+
+    setIsEntering(true);
+    try {
+      const response = await joinSession(room.id, accessToken);
+      navigate(`/meet-room/${response.sessionId}`);
+    } catch (error: any) {
+      console.error('Failed to enter meeting:', error);
+      if (error.response?.status === 403) {
+        alert(t('meeting_not_participant') || 'You are not a participant of this meeting');
+      } else if (error.response?.status === 404) {
+        alert(t('meeting_not_found') || 'Meeting not found');
+      } else {
+        alert(t('meeting_enter_error') || 'Failed to enter meeting');
+      }
+    } finally {
+      setIsEntering(false);
     }
   };
 
@@ -255,27 +284,40 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
 
         {/* Actions */}
         <div className="room-modal-actions">
+          {/* Enter Meeting 버튼 - 참가자/주최자만 표시 */}
+          {(room.isJoined || room.isMyRoom) && room.status !== 'past' && (
+            <button
+              className="room-modal-btn room-modal-btn-enter"
+              onClick={handleEnterMeeting}
+              disabled={isEntering}
+            >
+              <FiVideo size={18} />
+              {isEntering ? t('loading') : t('browse_modal_enter_meeting') || 'Enter Meeting'}
+            </button>
+          )}
+          {/* Google Meet 직접 열기 */}
           {(room.isJoined || room.isMyRoom) && room.meetLink && (
             <button className="room-modal-btn room-modal-btn-meet" onClick={handleOpenMeet}>
               <FiExternalLink size={18} />
               {t('browse_modal_open_meet')}
             </button>
           )}
-          <button
-            className="room-modal-btn room-modal-btn-primary"
-            onClick={handleJoinClick}
-            disabled={isProcessing || (spotsLeft <= 0 && !room.isJoined && !room.isMyRoom)}
-          >
-            {isProcessing ? t('loading') : (
-              room.isJoined || room.isMyRoom
-                ? t('browse_card_view_details')
-                : room.status === 'past'
+          {/* 참가하기/예약하기 버튼 - 비참가자만 표시 */}
+          {!room.isJoined && !room.isMyRoom && (
+            <button
+              className="room-modal-btn room-modal-btn-primary"
+              onClick={handleJoinClick}
+              disabled={isProcessing || spotsLeft <= 0 || room.status === 'past'}
+            >
+              {isProcessing ? t('loading') : (
+                room.status === 'past'
                   ? t('browse_card_ended')
                   : room.status === 'live'
                     ? t('browse_card_join_now')
                     : t('browse_card_reserve')
-            )}
-          </button>
+              )}
+            </button>
+          )}
           <button className="room-modal-btn room-modal-btn-secondary" onClick={handleCreateSimilar}>
             {t('browse_modal_create_similar')}
           </button>

@@ -1,0 +1,359 @@
+/* Center Panel - Collaborative Notes */
+.collaborative-notes {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.notes-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #6b7280;
+}
+
+/* Header */
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.notes-title-section h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px;
+}
+
+.notes-meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.last-edited {
+  display: inline-block;
+}
+
+.notes-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Presence Avatars */
+.presence-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.presence-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid white;
+  margin-left: -8px;
+  overflow: hidden;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+}
+
+.presence-avatar:first-child {
+  margin-left: 0;
+}
+
+.presence-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.presence-more {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid white;
+  margin-left: -8px;
+  background: #374151;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #10b981;
+}
+
+.sync-status .syncing {
+  animation: spin 1s linear infinite;
+  color: #6b7280;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Toolbar */
+.notes-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: #e5e7eb;
+  margin: 0 8px;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.toolbar-btn.active {
+  background: #10b981;
+  color: white;
+}
+
+/* Editor Wrapper */
+.notes-editor-wrapper {
+  flex: 1;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* TipTap Editor Styles */
+.tiptap-editor-content {
+  padding: 24px;
+  min-height: 400px;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #374151;
+}
+
+.tiptap-editor-content h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin: 24px 0 16px;
+}
+
+.tiptap-editor-content h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111827;
+  margin: 20px 0 12px;
+}
+
+.tiptap-editor-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 16px 0 10px;
+}
+
+.tiptap-editor-content p {
+  margin: 0 0 12px;
+}
+
+.tiptap-editor-content ul,
+.tiptap-editor-content ol {
+  padding-left: 24px;
+  margin: 0 0 12px;
+}
+
+.tiptap-editor-content li {
+  margin-bottom: 4px;
+}
+
+.tiptap-editor-content blockquote {
+  border-left: 4px solid #10b981;
+  padding-left: 16px;
+  margin: 16px 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.tiptap-editor-content pre {
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 14px;
+  margin: 16px 0;
+}
+
+.tiptap-editor-content code {
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+/* Task List */
+.tiptap-editor-content ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-editor-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tiptap-editor-content ul[data-type="taskList"] li > label {
+  margin-top: 3px;
+}
+
+.tiptap-editor-content ul[data-type="taskList"] li > label input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.tiptap-editor-content ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+/* Placeholder */
+.tiptap-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Footer */
+.notes-footer {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.notes-hint {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .notes-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .notes-title-section h2 {
+    font-size: 20px;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .notes-toolbar {
+    gap: 8px;
+  }
+
+  .tiptap-editor-content {
+    padding: 16px;
+    min-height: 300px;
+  }
+}
+
+/* Connection Status */
+.connection-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.connection-status.connected {
+  color: #10b981;
+}
+
+.connection-status.disconnected {
+  color: #ef4444;
+  animation: pulse 2s infinite;
+}
+
+/* Editors Count */
+.editors-count {
+  display: inline-block;
+  font-size: 12px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* Offline Warning */
+.offline-warning {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #f59e0b;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

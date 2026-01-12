@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward } from 'react-icons/fi';
-import { getAllPosts, Post, joinBookMeeting, leaveBookMeeting, deletePost } from '../api/posts';
+import { getAllPosts, Post, joinBookMeeting, deletePost } from '../api/posts';
 import { useAuth } from '../AuthContext/AuthContext';
 import RoomModal, { Room } from '../components/RoomModal';
 import Footer from '../components/Footer';
@@ -302,21 +302,6 @@ const Board: React.FC = () => {
     } catch (err) {
       console.error('Error joining meeting:', err);
       alert(t('board_join_error'));
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [accessToken, user?.username, fetchPosts, t]);
-
-  const handleLeave = useCallback(async (roomId: string) => {
-    if (!accessToken || !user?.username) return;
-
-    setIsProcessing(true);
-    try {
-      await leaveBookMeeting(roomId, user.username, accessToken);
-      await fetchPosts();
-    } catch (err) {
-      console.error('Error leaving meeting:', err);
-      alert(t('board_leave_error'));
     } finally {
       setIsProcessing(false);
     }
