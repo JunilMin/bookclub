@@ -57,6 +57,15 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+// Google 로그인 시 pending 상태로 저장할 사용자 정보
+interface PendingGoogleUser {
+  uid: string;
+  email: string;
+  photoUrl: string;
+  firebaseToken: string;
+  googleAccessToken: string;
+}
+
 interface AuthContextProps {
   user: User | null;
   isLoading: boolean;
@@ -65,6 +74,7 @@ interface AuthContextProps {
   sessionWarning: boolean; // 세션 만료 경고 표시 여부
   remainingTime: number; // 남은 시간 (초)
   isFirstLogin: boolean; // 첫 Google 로그인 여부 (username 설정 필요)
+  pendingGoogleUser: PendingGoogleUser | null; // 닉네임 설정 대기 중인 Google 사용자
   handleLogin: (email: string, password: string) => Promise<void>;
   handleRegister: (email: string, password: string, username: string) => Promise<void>;
   handleGoogleLogin: () => Promise<void>;
@@ -74,6 +84,8 @@ interface AuthContextProps {
   extendSession: () => void; // 세션 연장
   refreshUserData: () => Promise<void>; // 사용자 정보 새로고침
   clearFirstLogin: () => void; // 첫 로그인 상태 초기화
+  completeGoogleRegistration: (username: string) => Promise<void>; // Google 회원가입 완료 (닉네임 설정 후)
+  cancelGoogleRegistration: () => Promise<void>; // Google 회원가입 취소
 }
 
 const app = initializeApp(firebaseConfig);
@@ -97,12 +109,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [sessionWarning, setSessionWarning] = useState(false); // 세션 만료 경고
   const [remainingTime, setRemainingTime] = useState(0); // 남은 시간 (초)
   const [isFirstLogin, setIsFirstLogin] = useState(false); // 첫 Google 로그인 여부
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<PendingGoogleUser | null>(null); // 닉네임 설정 대기 중인 Google 사용자
 
   // Refs for timers
   const lastActivityRef = useRef<number>(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tokenRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Google 회원가입 진행 중인지 추적하는 ref (onAuthStateChanged에서 자동 등록 방지)
+  const isGoogleRegistrationPendingRef = useRef<boolean>(false);
 
   // 활동 기록 업데이트
   const updateLastActivity = useCallback(() => {
@@ -296,18 +311,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // localStorage에 username만 저장
             saveToStorage(response);
           } catch (fetchError) {
-            // 신규 사용자: DB에 등록
-            console.log("신규 사용자 등록 중...", firebaseUser.email);
-            await registerUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email!,
-              username: firebaseUser.displayName || firebaseUser.email!.split('@')[0],
-              password: ''
-            }, token);
-            const response = await getByUID(firebaseUser.uid, token);
-            setUser({ ...response });
-            // localStorage에 username만 저장
-            saveToStorage(response);
+            // 신규 사용자 감지
+            // Google 회원가입 진행 중이면 자동 등록 스킵 (handleGoogleLogin에서 처리)
+            if (isGoogleRegistrationPendingRef.current) {
+              console.log("Google 회원가입 진행 중 - 자동 등록 스킵");
+              return;
+            }
+            // 이메일 회원가입의 경우 handleRegister에서 이미 등록되므로 여기까지 오지 않음
+            // 예외적인 경우를 위해 로그만 출력
+            console.log("신규 사용자 감지 (자동 등록 안함):", firebaseUser.email);
           }
           // 로그인 시 활동 시간 초기화
           lastActivityRef.current = Date.now();
@@ -396,25 +408,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // localStorage에 username만 저장 (로그인 상태 확인용)
         saveToStorage(response);
         setIsFirstLogin(false); // 기존 사용자
+        isGoogleRegistrationPendingRef.current = false;
       } catch (fetchError) {
-        console.log("신규 사용자 등록 중...", firebaseUser.email);
-        // 임시 username으로 등록 (나중에 사용자가 변경)
-        const tempUsername = firebaseUser.displayName || firebaseUser.email!.split('@')[0];
-        const photoUrl = firebaseUser.photoURL || ''; // Google 프로필 사진 URL
-        await registerUser({uid: firebaseUser.uid, email: firebaseUser.email!, username: tempUsername, password: '', photoUrl: photoUrl} , token);
-        const response = await getByUID(firebaseUser.uid, token);
-        setUser({ ...response});
+        // 신규 사용자 - DB에 저장하지 않고 pending 상태로 유지
+        console.log("신규 Google 사용자 감지 - 닉네임 설정 페이지로 이동 필요", firebaseUser.email);
+        const photoUrl = firebaseUser.photoURL || '';
+
+        // onAuthStateChanged에서 자동 등록 방지
+        isGoogleRegistrationPendingRef.current = true;
+
+        // pending 상태로 저장 (아직 DB에 저장하지 않음)
+        setPendingGoogleUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email!,
+          photoUrl: photoUrl,
+          firebaseToken: token,
+          googleAccessToken: googleToken,
+        });
         setAccessToken(token);
-        // localStorage에 username만 저장 (로그인 상태 확인용)
-        saveToStorage(response);
         setIsFirstLogin(true); // 신규 사용자 - username 설정 페이지로 이동 필요
-        console.log("첫 Google 로그인 - username 설정 페이지로 이동 필요");
+        console.log("첫 Google 로그인 - 회원가입 페이지로 이동 필요");
       }
     } catch (e: any) {
       console.error("Google 로그인 에러 코드:", e.code);
       console.error("Google 로그인 에러 메시지:", e.message);
       throw new Error("Google login failed: " + e.message);
     }
+  };
+
+  // Google 회원가입 완료 (닉네임 설정 후 DB에 저장)
+  const completeGoogleRegistration = async (username: string): Promise<void> => {
+    if (!pendingGoogleUser) {
+      throw new Error("No pending Google user to register");
+    }
+
+    try {
+      const { uid, email, photoUrl, firebaseToken, googleAccessToken: pendingGoogleToken } = pendingGoogleUser;
+
+      // DB에 사용자 등록
+      await registerUser({
+        uid,
+        email,
+        username,
+        password: '',
+        photoUrl,
+      }, firebaseToken);
+
+      // 등록된 사용자 정보 조회
+      const response = await getByUID(uid, firebaseToken);
+      setUser({ ...response });
+      setAccessToken(firebaseToken);
+      setGoogleAccessToken(pendingGoogleToken);
+      saveToStorage(response);
+
+      // pending 상태 초기화
+      setPendingGoogleUser(null);
+      setIsFirstLogin(false);
+      isGoogleRegistrationPendingRef.current = false;
+
+      console.log("Google 회원가입 완료:", username);
+    } catch (error) {
+      console.error("Google 회원가입 실패:", error);
+      throw error;
+    }
+  };
+
+  // Google 회원가입 취소 (Firebase에서 로그아웃)
+  const cancelGoogleRegistration = async (): Promise<void> => {
+    isGoogleRegistrationPendingRef.current = false;
+    setPendingGoogleUser(null);
+    setIsFirstLogin(false);
+    setAccessToken("");
+    setGoogleAccessToken("");
+    await logoutServer();
+    await signOut(auth);
+    console.log("Google 회원가입 취소됨");
   };
 
   const handleLogout = async (): Promise<void> => {
@@ -469,6 +537,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         sessionWarning,
         remainingTime,
         isFirstLogin,
+        pendingGoogleUser,
         handleLogin,
         handleRegister,
         handleGoogleLogin,
@@ -478,6 +547,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         extendSession,
         refreshUserData,
         clearFirstLogin,
+        completeGoogleRegistration,
+        cancelGoogleRegistration,
       }}
     >
       {children}

@@ -48,7 +48,8 @@ bookclub/
 │   │   │   ├── Board.tsx
 │   │   │   ├── PostCreate.tsx
 │   │   │   ├── Profile.tsx      # 프로필 페이지
-│   │   │   ├── SetUsername.tsx
+│   │   │   ├── Register.tsx     # Google 회원가입 (닉네임 설정)
+│   │   │   ├── SetUsername.tsx  # 기존 사용자 닉네임 변경
 │   │   │   ├── Login.tsx
 │   │   │   ├── About.tsx
 │   │   │   └── styles/
@@ -83,7 +84,8 @@ bookclub/
 | `/board` | Board | 게시판 (모임 목록) |
 | `/board/create` | PostCreate | 토론방 만들기 |
 | `/profile` | Profile | 프로필 페이지 |
-| `/set-username` | SetUsername | 닉네임 설정 (첫 로그인 시) |
+| `/register` | Register | Google 회원가입 (닉네임 설정 후 DB 저장) |
+| `/set-username` | SetUsername | 기존 사용자 닉네임 변경 |
 | `/login` | Login | 로그인 페이지 |
 | `/about` | About | 소개 페이지 |
 
@@ -103,8 +105,38 @@ bookclub/
                                     5. 검증 성공 시 API 접근 허용
 ```
 
+### Google 회원가입 흐름 (신규 사용자)
+
+```
+[Google 로그인 클릭]
+        ↓
+[Firebase signInWithPopup() 성공]
+        ↓
+[handleGoogleLogin: 신규 사용자 감지]
+        ↓
+[pendingGoogleUser 상태에 저장] ← DB 저장 안함
+[isGoogleRegistrationPendingRef = true]
+        ↓
+[/register 페이지로 리다이렉트]
+        ↓
+[닉네임 입력 + 중복/비속어 검사]
+        ↓
+["가입 완료" 버튼 클릭]
+        ↓
+[completeGoogleRegistration(username)]
+        ↓
+[DB에 사용자 저장] → 로그인 완료
+```
+
+**핵심 포인트:**
+- Google 로그인 성공 시 신규 사용자는 바로 DB에 저장되지 않음
+- `pendingGoogleUser` 상태에 임시 저장 후 `/register`로 이동
+- 닉네임 설정 완료 후 "가입 완료" 버튼 클릭 시에만 DB 저장
+- `isGoogleRegistrationPendingRef`로 `onAuthStateChanged`의 자동 등록 방지
+
 ### 주요 파일
 - `frontend/src/AuthContext/AuthContext.tsx` - Firebase 인증 Context
+- `frontend/src/screens/Register.tsx` - Google 회원가입 페이지
 - `backend/.../firebase/FirebaseConfig.java` - Firebase 초기화
 - `backend/.../firebase/FirebaseAuthFilter.java` - 토큰 검증 필터
 - `backend/.../config/SecurityConfig.java` - Spring Security 설정
@@ -117,8 +149,9 @@ bookclub/
 
 | 기능 | 설명 |
 |------|------|
-| 회원가입 | Firebase Auth + MongoDB 저장 |
-| Google 로그인 | Firebase signInWithPopup |
+| Google 회원가입 | Firebase Auth → 닉네임 설정 → MongoDB 저장 (2단계) |
+| 이메일 회원가입 | Firebase Auth + MongoDB 저장 (1단계) |
+| Google 로그인 | Firebase signInWithPopup (기존 사용자) |
 | 이메일 로그인 | Firebase signInWithEmailAndPassword |
 | 사용자 프로필 | uid, email, username, rating, friends, photoUrl 등 |
 
@@ -149,6 +182,7 @@ public class User {
 - `GET /api/users/uid/{uid}` - Firebase UID로 조회
 - `GET /api/users/uid` - 토큰에서 UID 추출하여 조회
 - `GET /api/users/username/{username}` - username으로 조회
+- `GET /api/users/validate-username/{username}` - 닉네임 유효성 검사 (중복 + 비속어)
 - `POST /api/users/{userId}/add-friend/{friendId}` - 친구 추가
 - `PUT /api/users/{id}` - 사용자 정보 수정
 - `DELETE /api/users/{id}` - 사용자 삭제

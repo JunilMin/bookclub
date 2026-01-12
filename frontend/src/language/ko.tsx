@@ -138,6 +138,18 @@ const ko = {
   set_username_error_not_logged_in: '먼저 로그인해주세요.',
   set_username_error_update_failed: '닉네임 저장에 실패했습니다.',
 
+  // Register Page (Google Sign Up)
+  register_title: '회원가입 완료',
+  register_subtitle: '닉네임을 설정하여 회원가입을 완료하세요.',
+  register_google_account: 'Google 계정',
+  register_submit: '가입 완료',
+  register_submitting: '가입 중...',
+  register_cancel: '취소',
+  register_success: '회원가입이 완료되었습니다!',
+  register_error_failed: '회원가입에 실패했습니다. 다시 시도해주세요.',
+  register_error_no_pending_user: '대기 중인 회원가입이 없습니다. 다시 로그인해주세요.',
+  register_go_to_login: '로그인으로 이동',
+
   // Account Dropdown
   dropdown_my_profile: '내 프로필',
   dropdown_my_created_meetings: '내가 만든 모임',

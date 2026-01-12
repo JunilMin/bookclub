@@ -14,7 +14,8 @@
       "Bash(./gradlew bootRun:*)",
       "Bash(curl:*)",
       "Bash(./gradlew:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

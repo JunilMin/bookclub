@@ -138,6 +138,18 @@ const en = {
   set_username_error_not_logged_in: 'Please log in first.',
   set_username_error_update_failed: 'Failed to save nickname.',
 
+  // Register Page (Google Sign Up)
+  register_title: 'Complete Sign Up',
+  register_subtitle: 'Set a nickname to complete your registration.',
+  register_google_account: 'Google Account',
+  register_submit: 'Complete Registration',
+  register_submitting: 'Registering...',
+  register_cancel: 'Cancel',
+  register_success: 'Registration completed successfully!',
+  register_error_failed: 'Registration failed. Please try again.',
+  register_error_no_pending_user: 'No pending registration. Please try signing in again.',
+  register_go_to_login: 'Go to Login',
+
   // Account Dropdown
   dropdown_my_profile: 'My Profile',
   dropdown_my_created_meetings: 'My Created Meetings',
