@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { createPost, Post } from '../api/posts';
-import { searchGoogleBooks, searchNaverBooks, BookSearchResult } from '../api/bookSearch';
+import { searchGoogleBooks, searchNaverBooks, BookSearchResult, getBookByISBN } from '../api/bookSearch';
 import { useAuth } from '../AuthContext/AuthContext';
 import './styles/PostCreate.css';
 
@@ -29,6 +29,7 @@ interface PostCreateForm {
 const PostCreate: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, accessToken } = useAuth();
 
   // 현재 언어에 따라 기본 책 언어 설정
@@ -57,6 +58,33 @@ const PostCreate: React.FC = () => {
 
   // 오늘 날짜를 YYYY-MM-DD 형식으로 가져오기
   const today = new Date().toISOString().split('T')[0];
+
+  // "비슷한 모임 만들기"에서 전달받은 ISBN으로 책 정보 조회
+  useEffect(() => {
+    const state = location.state as { isbn?: string } | null;
+    if (state?.isbn) {
+      const loadBookByISBN = async () => {
+        setIsSearching(true);
+        try {
+          const book = await getBookByISBN(state.isbn);
+          if (book) {
+            setForm(prev => ({ ...prev, selectedBook: book }));
+            setBookSearch(book.title);
+          } else {
+            console.warn('Book not found for ISBN:', state.isbn);
+          }
+        } catch (error) {
+          console.error('Failed to load book by ISBN:', error);
+        } finally {
+          setIsSearching(false);
+        }
+      };
+
+      loadBookByISBN();
+      // state 초기화 (뒤로가기 시 재적용 방지)
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // 책 검색 (debounced)
   const searchBooks = useCallback(async (query: string) => {
@@ -196,19 +224,31 @@ const PostCreate: React.FC = () => {
 
           {/* Book Search */}
           <div className="book-search-container">
-            <input
-              type="text"
-              className="book-search-input"
-              placeholder={t('post_create_book_search_placeholder')}
-              value={bookSearch}
-              onChange={(e) => {
-                setBookSearch(e.target.value);
-                if (!e.target.value) {
-                  setForm(prev => ({ ...prev, selectedBook: null }));
-                }
-              }}
-              onFocus={() => bookResults.length > 0 && setShowResults(true)}
-            />
+            <div className="book-search-input-wrapper">
+              <input
+                type="text"
+                className="book-search-input"
+                placeholder={t('post_create_book_search_placeholder')}
+                value={bookSearch}
+                onChange={(e) => {
+                  setBookSearch(e.target.value);
+                  if (!e.target.value) {
+                    setForm(prev => ({ ...prev, selectedBook: null }));
+                  }
+                }}
+                onFocus={() => bookResults.length > 0 && setShowResults(true)}
+              />
+              {bookResults.length > 0 && (
+                <button
+                  type="button"
+                  className="book-search-toggle"
+                  onClick={() => setShowResults(!showResults)}
+                  aria-label={showResults ? 'Close results' : 'Open results'}
+                >
+                  {showResults ? '▲' : '▼'}
+                </button>
+              )}
+            </div>
             {isSearching && <span className="search-loading">{t('post_create_searching')}</span>}
 
             {/* Search Results Dropdown */}

@@ -4,11 +4,14 @@ import com.bookclub.backend.session.dto.PresenceMessage;
 import com.bookclub.backend.session.dto.QueueActionMessage;
 import com.bookclub.backend.session.model.SpeakingQueue;
 import com.bookclub.backend.session.service.SpeakingQueueService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -16,8 +19,13 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "http://localhost:5173")
 public class SpeakingQueueController {
 
+    private static final Logger logger = LoggerFactory.getLogger(SpeakingQueueController.class);
+
     @Autowired
     private SpeakingQueueService speakingQueueService;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     /**
      * REST: Get speaking queue
@@ -99,16 +107,30 @@ public class SpeakingQueueController {
             @DestinationVariable String sessionId,
             PresenceMessage message) {
 
+        logger.info("=== Presence received: sessionId={}, action={}, userId={}, username={} ===",
+                sessionId, message.getAction(), message.getOdUserId(), message.getUsername());
+
+        SpeakingQueue updatedQueue = null;
+
         if ("JOIN".equals(message.getAction())) {
-            speakingQueueService.addParticipant(
+            updatedQueue = speakingQueueService.addParticipant(
                     sessionId,
                     message.getOdUserId(),
                     message.getUsername(),
                     message.getPhotoUrl(),
                     false
             );
+            logger.info("User {} added to session {}. Total participants: {}",
+                    message.getUsername(), sessionId, updatedQueue.getParticipants().size());
         } else if ("LEAVE".equals(message.getAction())) {
-            speakingQueueService.setParticipantOffline(sessionId, message.getOdUserId());
+            updatedQueue = speakingQueueService.setParticipantOffline(sessionId, message.getOdUserId());
+            logger.info("User {} left session {}.", message.getUsername(), sessionId);
+        }
+
+        // Broadcast updated queue to all subscribers
+        if (updatedQueue != null) {
+            logger.info("Broadcasting updated queue to /topic/session/{}/queue", sessionId);
+            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", updatedQueue);
         }
 
         return message;

@@ -10,13 +10,18 @@ const Meet: React.FC = () => {
   const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const { accessToken } = useAuth();
+  const { accessToken, isLoading: isAuthLoading } = useAuth();
 
   const [session, setSession] = useState<GetSessionResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Wait for auth loading to complete
+    if (isAuthLoading) {
+      return;
+    }
+
     if (!accessToken) {
       navigate('/login');
       return;
@@ -24,7 +29,7 @@ const Meet: React.FC = () => {
 
     if (!sessionId) {
       setError('Session ID is required');
-      setIsLoading(false);
+      setIsLoadingSession(false);
       return;
     }
 
@@ -42,12 +47,12 @@ const Meet: React.FC = () => {
           setError(t('meeting_load_error') || 'Failed to load meeting');
         }
       } finally {
-        setIsLoading(false);
+        setIsLoadingSession(false);
       }
     };
 
     fetchSession();
-  }, [sessionId, accessToken, navigate, t]);
+  }, [sessionId, accessToken, navigate, t, isAuthLoading]);
 
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleDateString('en-US', {
@@ -81,8 +86,8 @@ const Meet: React.FC = () => {
     }
   };
 
-  // Loading state
-  if (isLoading) {
+  // Loading state (wait for both auth and session data)
+  if (isAuthLoading || isLoadingSession) {
     return (
       <div className="meet-page">
         <div className="meet-loading">

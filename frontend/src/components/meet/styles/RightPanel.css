@@ -308,6 +308,44 @@
   line-height: 1.4;
 }
 
+/* Summary Actions */
+.summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.summary-actions .generate-summary-btn {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.summary-actions .generate-summary-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.insert-to-notes-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.insert-to-notes-btn:hover {
+  background: #059669;
+}
+
 .export-btn {
   display: flex;
   align-items: center;

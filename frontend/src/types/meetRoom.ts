@@ -2,6 +2,7 @@
 export interface SessionNote {
   id: string;
   sessionId: string;
+  title: string;
   content: string;
   version: number;
   createdAt: string;

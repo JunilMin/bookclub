@@ -15,7 +15,9 @@
       "Bash(curl:*)",
       "Bash(./gradlew:*)",
       "Bash(ls:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }

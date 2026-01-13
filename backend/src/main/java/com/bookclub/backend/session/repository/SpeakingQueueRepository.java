@@ -8,5 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface SpeakingQueueRepository extends MongoRepository<SpeakingQueue, String> {
-    Optional<SpeakingQueue> findBySessionId(String sessionId);
+    Optional<SpeakingQueue> findFirstBySessionId(String sessionId);
+
+    void deleteAllBySessionId(String sessionId);
 }

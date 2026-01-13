@@ -111,3 +111,36 @@ const searchGoogleBooksKorean = async (query: string): Promise<BookSearchResult[
     return [];
   }
 };
+
+// ISBN으로 책 직접 조회 (Google Books API)
+export const getBookByISBN = async (isbn: string): Promise<BookSearchResult | null> => {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`
+    );
+
+    if (!response.ok) {
+      throw new Error('Google Books API error');
+    }
+
+    const data = await response.json();
+
+    if (!data.items || data.items.length === 0) {
+      return null;
+    }
+
+    const item = data.items[0];
+    return {
+      title: item.volumeInfo.title || 'Unknown Title',
+      author: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+      thumbnail: item.volumeInfo.imageLinks?.thumbnail || item.volumeInfo.imageLinks?.smallThumbnail,
+      publisher: item.volumeInfo.publisher,
+      publishedDate: item.volumeInfo.publishedDate,
+      description: item.volumeInfo.description,
+      isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier || isbn,
+    };
+  } catch (error) {
+    console.error('Get book by ISBN error:', error);
+    return null;
+  }
+};

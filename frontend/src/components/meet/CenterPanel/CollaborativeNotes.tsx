@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EditorContent } from '@tiptap/react';
-import { FiUser, FiCheck, FiCloud, FiWifi, FiWifiOff } from 'react-icons/fi';
+import { FiUser, FiCheck, FiCloud, FiWifi, FiWifiOff, FiEdit2 } from 'react-icons/fi';
 import { useCollaborativeEditor } from '../../../hooks/useCollaborativeEditor';
 import { RemoteUser } from '../../../types/collaborative';
+import { updateNoteTitle } from '../../../api/notes';
+import { useAuth } from '../../../AuthContext/AuthContext';
 import '../styles/CenterPanel.css';
 
 /**
@@ -23,15 +25,36 @@ interface CollaborativeNotesProps {
   userId: string;
   username: string;
   initialContent?: any;
+  initialTitle?: string;
 }
 
-const CollaborativeNotes: React.FC<CollaborativeNotesProps> = ({
+export interface CollaborativeNotesRef {
+  insertContentAtEnd: (content: any) => void;
+}
+
+const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesProps>(({
   docId,
   userId,
   username,
   initialContent,
-}) => {
+  initialTitle = 'Discussion Notes',
+}, ref) => {
   const { t } = useTranslation();
+  const { accessToken } = useAuth();
+
+  // Title editing state
+  const [title, setTitle] = useState(initialTitle);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Update title when initialTitle changes
+  useEffect(() => {
+    if (initialTitle) {
+      setTitle(initialTitle);
+      setTempTitle(initialTitle);
+    }
+  }, [initialTitle]);
 
   // === Op-based Collaborative Hook ===
   const {
@@ -46,6 +69,68 @@ const CollaborativeNotes: React.FC<CollaborativeNotesProps> = ({
     initialContent,
     placeholder: t('meet_notes_placeholder') || 'Start taking notes...',
   });
+
+  // === Title Editing Handlers ===
+  const handleTitleDoubleClick = () => {
+    setIsEditingTitle(true);
+    setTempTitle(title);
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTempTitle(e.target.value);
+  };
+
+  const handleTitleSave = async () => {
+    if (!tempTitle.trim() || !accessToken) {
+      setIsEditingTitle(false);
+      setTempTitle(title);
+      return;
+    }
+
+    try {
+      await updateNoteTitle(docId, tempTitle.trim(), username, accessToken);
+      setTitle(tempTitle.trim());
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error('Failed to update title:', error);
+      setTempTitle(title);
+      setIsEditingTitle(false);
+    }
+  };
+
+  const handleTitleBlur = () => {
+    handleTitleSave();
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleTitleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditingTitle(false);
+      setTempTitle(title);
+    }
+  };
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  // === Expose methods to parent ===
+  useImperativeHandle(ref, () => ({
+    insertContentAtEnd: (content: any) => {
+      if (!editor) return;
+
+      // Move cursor to end of document
+      editor.commands.focus('end');
+
+      // Insert the content
+      editor.commands.insertContent(content);
+    },
+  }), [editor]);
 
   // === Toolbar Button Component ===
   const ToolbarButton: React.FC<{
@@ -99,7 +184,29 @@ const CollaborativeNotes: React.FC<CollaborativeNotesProps> = ({
       {/* Header */}
       <div className="notes-header">
         <div className="notes-title-section">
-          <h2>{t('meet_discussion_notes') || 'Discussion Notes'}</h2>
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={tempTitle}
+              onChange={handleTitleChange}
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+              className="notes-title-input"
+              maxLength={100}
+            />
+          ) : (
+            <div className="notes-title-container">
+              <h2 onDoubleClick={handleTitleDoubleClick}>{title}</h2>
+              <button
+                className="title-edit-btn"
+                onClick={() => setIsEditingTitle(true)}
+                title={t('edit_title') || 'Edit title'}
+              >
+                <FiEdit2 size={16} />
+              </button>
+            </div>
+          )}
           <div className="notes-meta">
             {remoteUsers.length > 0 && (
               <span className="editors-count">
@@ -257,6 +364,8 @@ const CollaborativeNotes: React.FC<CollaborativeNotesProps> = ({
       </div>
     </div>
   );
-};
+});
+
+CollaborativeNotes.displayName = 'CollaborativeNotes';
 
 export default CollaborativeNotes;

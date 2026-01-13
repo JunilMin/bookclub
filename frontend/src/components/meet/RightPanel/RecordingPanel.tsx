@@ -17,7 +17,7 @@ interface RecordingPanelProps {
   isHost: boolean;
   onToggleRecording: () => void;
   onGenerateSummary: () => void;
-  onExport: () => void;
+  onInsertToNotes: () => void;
 }
 
 const RecordingPanel: React.FC<RecordingPanelProps> = ({
@@ -25,7 +25,7 @@ const RecordingPanel: React.FC<RecordingPanelProps> = ({
   isHost,
   onToggleRecording,
   onGenerateSummary,
-  onExport,
+  onInsertToNotes,
 }) => {
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
@@ -192,11 +192,23 @@ const RecordingPanel: React.FC<RecordingPanelProps> = ({
               </div>
             )}
 
-            {/* Export */}
-            <button className="export-btn" onClick={onExport}>
-              <FiDownload size={16} />
-              {t('meet_export_summary') || 'Export Summary'}
-            </button>
+            {/* Action Buttons */}
+            <div className="summary-actions">
+              <button
+                className="generate-summary-btn"
+                onClick={handleGenerateSummary}
+                disabled={isGenerating}
+              >
+                <FiCpu size={16} />
+                {isGenerating
+                  ? t('meet_generating') || 'Generating...'
+                  : t('meet_regenerate_summary') || 'Regenerate Summary'}
+              </button>
+              <button className="insert-to-notes-btn" onClick={onInsertToNotes}>
+                <FiDownload size={16} />
+                {t('meet_insert_to_notes') || 'Insert to Notes'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="summary-empty">

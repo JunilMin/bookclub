@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FiVideo,
@@ -31,17 +31,32 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   onRemoveFromQueue,
 }) => {
   const { t } = useTranslation();
+  const [speakerTime, setSpeakerTime] = useState('0:00');
 
-  // Calculate speaker time
-  const getSpeakerTime = () => {
-    if (!queue?.currentSpeaker?.startedAt) return '0:00';
-    const start = new Date(queue.currentSpeaker.startedAt).getTime();
-    const now = Date.now();
-    const seconds = Math.floor((now - start) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Real-time speaker time update
+  useEffect(() => {
+    if (!queue?.currentSpeaker?.startedAt) {
+      setSpeakerTime('0:00');
+      return;
+    }
+
+    const updateTime = () => {
+      const start = new Date(queue.currentSpeaker!.startedAt).getTime();
+      const now = Date.now();
+      const seconds = Math.floor((now - start) / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      setSpeakerTime(`${minutes}:${secs.toString().padStart(2, '0')}`);
+    };
+
+    // Update immediately
+    updateTime();
+
+    // Update every second
+    const interval = setInterval(updateTime, 1000);
+
+    return () => clearInterval(interval);
+  }, [queue?.currentSpeaker?.startedAt]);
 
   return (
     <div className="moderator-controls">
@@ -88,7 +103,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
         <div className="current-speaker-card">
           <div className="speaker-header">
             <span className="speaker-label">{t('meet_current_speaker') || 'Current Speaker'}</span>
-            <span className="speaker-time">{getSpeakerTime()}</span>
+            <span className="speaker-time">{speakerTime}</span>
           </div>
           <div className="speaker-info">
             {queue.currentSpeaker.photoUrl ? (

@@ -16,6 +16,9 @@
 | **도서 데이터** | OpenLibrary API |
 | **다국어** | i18next, react-i18next |
 | **화상회의** | Google Meet (via Google Calendar API) |
+| **실시간 통신** | WebSocket (STOMP) |
+| **협업 에디터** | TipTap + Op-based CRDT |
+| **AI 요약** | OpenAI GPT-4o-mini |
 
 ---
 
@@ -30,7 +33,12 @@ bookclub/
 │   │   │   ├── auth.tsx
 │   │   │   ├── user.tsx
 │   │   │   ├── posts.tsx
-│   │   │   └── bookSearch.tsx
+│   │   │   ├── bookSearch.tsx
+│   │   │   ├── sessions.tsx     # 세션 API
+│   │   │   ├── notes.ts         # 협업 노트 API
+│   │   │   ├── speakingQueue.ts # 발언 대기열 API
+│   │   │   ├── aiSummary.ts     # AI 요약 API
+│   │   │   └── websocket.ts     # WebSocket 클라이언트
 │   │   ├── AuthContext/         # Firebase 인증 Context
 │   │   │   └── AuthContext.tsx
 │   │   ├── components/          # 재사용 컴포넌트
@@ -39,10 +47,24 @@ bookclub/
 │   │   │   ├── Button.tsx
 │   │   │   ├── LanguageToggle.tsx
 │   │   │   ├── SessionWarning.tsx
+│   │   │   ├── meet/            # 미팅룸 컴포넌트
+│   │   │   │   ├── LeftPanel/
+│   │   │   │   │   └── ModeratorControls.tsx  # 모더레이터 제어 패널
+│   │   │   │   ├── CenterPanel/
+│   │   │   │   │   └── CollaborativeNotes.tsx # 협업 노트 에디터
+│   │   │   │   ├── RightPanel/
+│   │   │   │   │   └── RecordingPanel.tsx     # 녹음 & AI 요약
+│   │   │   │   └── styles/
 │   │   │   └── styles/
 │   │   │       ├── AccountDropdown.css
 │   │   │       ├── NavBar.css
 │   │   │       └── ...
+│   │   ├── hooks/               # Custom Hooks
+│   │   │   ├── useCollaborativeEditor.ts  # Op-based 협업 에디터
+│   │   │   └── useWebSocket.ts            # WebSocket 연결 관리
+│   │   ├── types/               # TypeScript 타입 정의
+│   │   │   ├── collaborative.ts # 협업 에디터 타입
+│   │   │   └── meetRoom.ts      # 미팅룸 타입
 │   │   ├── screens/             # 페이지 컴포넌트
 │   │   │   ├── Home.tsx
 │   │   │   ├── Board.tsx
@@ -52,9 +74,11 @@ bookclub/
 │   │   │   ├── SetUsername.tsx  # 기존 사용자 닉네임 변경
 │   │   │   ├── Login.tsx
 │   │   │   ├── About.tsx
+│   │   │   ├── MeetRoom.tsx     # 실시간 미팅룸 (3 패널 레이아웃)
 │   │   │   └── styles/
 │   │   │       ├── Profile.css
 │   │   │       ├── Board.css
+│   │   │       ├── MeetRoom.css
 │   │   │       └── ...
 │   │   ├── language/            # 다국어 지원
 │   │   │   ├── i18n.tsx
@@ -71,7 +95,34 @@ bookclub/
         ├── post/                # 게시판/모임
         ├── messages/            # 1:1 메시징
         ├── ISBNAPI/             # 도서 검색
-        └── googleapi/           # Google Calendar/Meet 통합
+        ├── googleapi/           # Google Calendar/Meet 통합
+        ├── session/             # 세션, 발언 대기열, 협업 노트, 녹음/요약
+        │   ├── model/
+        │   │   ├── SpeakingQueue.java      # 발언 대기열 모델
+        │   │   ├── SessionNote.java        # 협업 노트 모델
+        │   │   └── SessionRecording.java   # 녹음 & AI 요약 모델
+        │   ├── controller/
+        │   │   ├── SessionNoteController.java
+        │   │   ├── SpeakingQueueController.java
+        │   │   └── AISummaryController.java
+        │   ├── service/
+        │   │   ├── SessionNoteService.java
+        │   │   ├── SpeakingQueueService.java
+        │   │   └── SessionRecordingService.java
+        │   ├── repository/
+        │   ├── Session.java             # 세션 모델 (postId 연결)
+        │   ├── SessionController.java   # 세션 참가/조회 API
+        │   └── SessionService.java
+        ├── openai/              # OpenAI GPT 통합
+        │   ├── dto/             # API 요청/응답 모델
+        │   ├── OpenAiClient.java     # OpenAI API 클라이언트
+        │   ├── OpenAIConfig.java     # API 키 설정
+        │   └── OpenAIService.java    # AI 요약 생성 로직
+        └── websocket/           # WebSocket 설정 및 핸들러
+            ├── WebSocketConfig.java        # STOMP 설정
+            ├── WebSocketAuthInterceptor.java # 토큰 검증
+            ├── WebSocketPrincipal.java
+            └── DocEditController.java      # Op-based 협업 편집 핸들러
 ```
 
 ---
@@ -83,6 +134,7 @@ bookclub/
 | `/` | Home | 홈 페이지 |
 | `/board` | Board | 게시판 (모임 목록) |
 | `/board/create` | PostCreate | 토론방 만들기 |
+| `/meet/:sessionId` | MeetRoom | 실시간 미팅룸 (3 패널 레이아웃) |
 | `/profile` | Profile | 프로필 페이지 |
 | `/register` | Register | Google 회원가입 (닉네임 설정 후 DB 저장) |
 | `/set-username` | SetUsername | 기존 사용자 닉네임 변경 |
@@ -272,6 +324,441 @@ public class User {
 
 ---
 
+## 실시간 미팅룸 시스템 (MVP v1.5)
+
+### 전체 아키텍처
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         MeetRoom (React)                          │
+│  ┌──────────────┐  ┌─────────────────┐  ┌────────────────────┐  │
+│  │ Left Panel   │  │  Center Panel   │  │   Right Panel      │  │
+│  │              │  │                 │  │                    │  │
+│  │ Moderator    │  │ Collaborative   │  │ Recording &        │  │
+│  │ Controls     │  │ Notes (TipTap)  │  │ AI Summary         │  │
+│  │              │  │                 │  │                    │  │
+│  │ - Meet Link  │  │ - Rich Editor   │  │ - Toggle Record    │  │
+│  │ - Queue      │  │ - Op-based CRDT │  │ - Generate Summary │  │
+│  │ - Raise Hand │  │ - Presence      │  │ - Insert to Notes  │  │
+│  └──────────────┘  └─────────────────┘  └────────────────────┘  │
+└────────────┬──────────────┬──────────────────┬───────────────────┘
+             │              │                  │
+        WebSocket       WebSocket          REST API
+     (Speaking Queue) (Doc Editing)     (AI Summary)
+             │              │                  │
+┌────────────┴──────────────┴──────────────────┴───────────────────┐
+│                    Spring Boot Backend                            │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────┐ │
+│  │ Speaking Queue  │  │ Doc Edit         │  │ AI Summary      │ │
+│  │ Service         │  │ Controller       │  │ Controller      │ │
+│  │                 │  │ (Op Relay)       │  │ (OpenAI)        │ │
+│  └─────────────────┘  └──────────────────┘  └─────────────────┘ │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │              MongoDB Collections                           │  │
+│  │  - sessions           - speaking_queues                    │  │
+│  │  - session_notes      - session_recordings                 │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### 세션 시스템 (Session)
+
+**라우트**: `/meet/:sessionId`
+
+세션은 Post와 1:1로 연결되며, 실시간 토론의 라이프사이클을 관리합니다.
+
+#### Session 모델 (MongoDB)
+```java
+@Document(collection = "sessions")
+public class Session {
+    @Id
+    private String id;                  // Session ID (= sessionId)
+    private String postId;              // 연결된 Post ID
+    private String status;              // "live", "ended", "scheduled"
+    private LocalDateTime createdAt;
+    private LocalDateTime startedAt;
+    private LocalDateTime endedAt;
+}
+```
+
+#### 핵심 흐름
+
+```
+사용자가 Board에서 "Join" 클릭
+        ↓
+POST /api/sessions/join { postId }
+        ↓
+SessionService: Post 권한 검증 (member 또는 creater)
+        ↓
+기존 live Session 조회
+  ├─ 있으면: 재사용
+  └─ 없으면: 새로 생성 (Session.postId = Post.id)
+        ↓
+응답: { sessionId, status, meetLink }
+        ↓
+navigate(`/meet/${sessionId}`)
+```
+
+#### API 엔드포인트
+- `POST /api/sessions/join` - 세션 참가 또는 생성 (권한 검증)
+- `GET /api/sessions/{sessionId}` - 세션 조회 (Post 정보 포함)
+
+**주요 파일**
+- `backend/src/main/java/com/bookclub/backend/session/Session.java` - 세션 모델
+- `backend/src/main/java/com/bookclub/backend/session/SessionService.java` - 세션 로직
+- `frontend/src/api/sessions.tsx` - 세션 API 호출
+- `frontend/src/screens/MeetRoom.tsx` - 미팅룸 메인 화면
+
+---
+
+### 발언 대기열 (Speaking Queue)
+
+순서 있는 토론을 위한 발언 관리 시스템입니다. 모더레이터(호스트)가 발언 순서를 제어합니다.
+
+#### SpeakingQueue 모델 (MongoDB)
+```java
+@Document(collection = "speaking_queues")
+public class SpeakingQueue {
+    @Id
+    private String id;
+    private String sessionId;
+
+    // 현재 발언자
+    private CurrentSpeaker currentSpeaker;
+
+    // 발언 대기 목록
+    private List<QueuedParticipant> queue;
+
+    // 전체 참여자
+    private List<SessionParticipant> participants;
+
+    // 내부 클래스들
+    public static class CurrentSpeaker {
+        private String odUserId;
+        private String username;
+        private String photoUrl;
+        private LocalDateTime startedAt;
+        private int speakingTimeSeconds;  // 기본 180초 (3분)
+    }
+
+    public static class QueuedParticipant {
+        private String odUserId;
+        private String username;
+        private String photoUrl;
+        private LocalDateTime queuedAt;
+        private int position;
+    }
+
+    public static class SessionParticipant {
+        private String odUserId;
+        private String username;
+        private String photoUrl;
+        private boolean isHost;
+        private boolean hasRaisedHand;
+        private boolean isOnline;
+        private LocalDateTime joinedAt;
+    }
+}
+```
+
+#### 주요 기능
+
+| 기능 | 설명 | 권한 |
+|------|------|------|
+| 손 들기/내리기 | 발언 의사 표시 (toggle) | 모든 참여자 |
+| 다음 발언자 | queue에서 첫 번째를 currentSpeaker로 이동 | 모더레이터만 |
+| 대기열에서 제거 | 특정 참여자를 queue에서 제거 | 모더레이터만 |
+| 발언 시간 표시 | currentSpeaker.startedAt 기준 실시간 카운터 | 모든 참여자 |
+
+#### WebSocket 실시간 동기화
+
+```
+클라이언트: raiseHand() 클릭
+    ↓
+POST /api/sessions/{sessionId}/queue/raise-hand
+    ↓
+SpeakingQueueService.raiseHand()
+  - participants[].hasRaisedHand 토글
+  - queue에 추가/제거
+    ↓
+WebSocket broadcast → /topic/session/{sessionId}/queue
+    ↓
+모든 클라이언트의 queue 상태 동기화
+```
+
+#### API 엔드포인트
+- `GET /api/sessions/{sessionId}/queue` - 대기열 조회
+- `POST /api/sessions/{sessionId}/queue/raise-hand` - 손 들기/내리기
+- `POST /api/sessions/{sessionId}/queue/next-speaker` - 다음 발언자 (모더레이터만)
+- `POST /api/sessions/{sessionId}/queue/remove` - 대기열에서 제거 (모더레이터만)
+
+**주요 파일**
+- `backend/src/main/java/com/bookclub/backend/session/model/SpeakingQueue.java` - 모델
+- `backend/src/main/java/com/bookclub/backend/session/service/SpeakingQueueService.java` - 비즈니스 로직
+- `frontend/src/components/meet/LeftPanel/ModeratorControls.tsx` - UI 컴포넌트
+- `frontend/src/api/speakingQueue.ts` - API 호출
+
+---
+
+### 협업 노트 (Collaborative Notes)
+
+TipTap 기반 리치 에디터로, **Op-based CRDT** 방식을 사용하여 실시간 동시 편집을 지원합니다.
+
+#### SessionNote 모델 (MongoDB)
+```java
+@Document(collection = "session_notes")
+public class SessionNote {
+    @Id
+    private String id;
+    private String sessionId;
+    private String content;         // TipTap JSON 형식
+    private int version;            // 충돌 방지용 버전
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private String lastEditedBy;    // 마지막 편집자 username
+}
+```
+
+#### Op-based CRDT 아키텍처
+
+**핵심 원칙:**
+1. **Stateless Server**: 서버는 상태를 저장하지 않고, 연산(operation)만 중계
+2. **Step-based Sync**: 문서 전체가 아닌 변경 단위(step)만 전송
+3. **Optimistic UI**: 로컬 편집은 즉시 반영, 원격 step은 비동기 적용
+4. **Debounced Send**: 연속 입력을 배치로 묶어 전송 (50ms)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  사용자 A: "Hello" 입력                                          │
+│    ↓                                                             │
+│  TipTap Transaction 생성                                         │
+│    ↓                                                             │
+│  Step 추출: { from: 0, to: 0, slice: "Hello" }                  │
+│    ↓                                                             │
+│  pendingSteps에 추가 (debounce 50ms)                             │
+│    ↓                                                             │
+│  WebSocket 전송: /app/docs/{docId}/edit                         │
+│    ↓                                                             │
+│  DocEditController: 그대로 relay                                 │
+│    ↓                                                             │
+│  Broadcast: /topic/docs/{docId}/edit                            │
+│    ↓                                                             │
+│  사용자 B: step 수신 → 로컬 적용 (커서 유지)                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| 리치 텍스트 편집 | Bold, Italic, Heading, List, Quote, Code 등 |
+| 실시간 동시 편집 | 여러 사용자가 동시 편집, 충돌 자동 해결 |
+| Presence 표시 | 활성 편집자 아바타 표시 (최대 4명 + 더보기) |
+| 자동 저장 | 2초 debounce 후 MongoDB에 저장 |
+| 연결 상태 표시 | WiFi 아이콘으로 WebSocket 연결 상태 표시 |
+| 동기화 상태 | "Syncing..." / "Synced" 표시 |
+
+#### WebSocket Topics
+
+| Topic | 방향 | 용도 |
+|-------|------|------|
+| `/app/docs/{docId}/edit` | Client → Server | Step 전송 |
+| `/topic/docs/{docId}/edit` | Server → Clients | Step broadcast |
+| `/app/docs/{docId}/presence` | Client → Server | 커서 위치 전송 |
+| `/topic/docs/{docId}/presence` | Server → Clients | Presence broadcast |
+| `/app/docs/{docId}/join` | Client → Server | 입장 알림 |
+| `/topic/docs/{docId}/users` | Server → Clients | 사용자 목록 |
+| `/app/docs/{docId}/leave` | Client → Server | 퇴장 알림 |
+
+#### API 엔드포인트
+- `GET /api/sessions/{sessionId}/notes` - 노트 조회
+- `POST /api/sessions/{sessionId}/notes` - 노트 생성
+- `PUT /api/sessions/{sessionId}/notes` - 노트 수정 (DB 저장)
+
+**주요 파일**
+- `backend/src/main/java/com/bookclub/backend/session/model/SessionNote.java` - 모델
+- `backend/src/main/java/com/bookclub/backend/websocket/DocEditController.java` - Op 중계
+- `frontend/src/components/meet/CenterPanel/CollaborativeNotes.tsx` - UI 컴포넌트
+- `frontend/src/hooks/useCollaborativeEditor.ts` - Op-based 로직
+- `frontend/src/types/collaborative.ts` - 타입 정의
+
+---
+
+### 녹음 및 AI 요약 (Recording & AI Summary)
+
+OpenAI GPT-4o-mini를 사용하여 토론 노트를 자동 요약하는 기능입니다.
+
+#### SessionRecording 모델 (MongoDB)
+```java
+@Document(collection = "session_recordings")
+public class SessionRecording {
+    @Id
+    private String id;
+    private String sessionId;
+
+    // 녹음 상태
+    private boolean isRecording;
+    private LocalDateTime recordingStartedAt;
+    private LocalDateTime recordingEndedAt;
+    private long recordingDurationSeconds;
+
+    // AI 요약
+    private AISummary aiSummary;
+
+    public static class AISummary {
+        private String oneLiner;                // 한 줄 요약
+        private List<String> keyPoints;         // 핵심 논점
+        private List<String> quotes;            // 인상 깊은 인용구
+        private List<Agreement> agreements;     // 합의/논쟁 사항
+        private List<String> openQuestions;     // 열린 질문
+        private LocalDateTime generatedAt;
+        private String modelUsed;               // "gpt-4o-mini"
+
+        public static class Agreement {
+            private String point;
+            private boolean isAgreement;  // true: 합의, false: 논쟁
+        }
+    }
+}
+```
+
+#### AI 요약 생성 흐름
+
+```
+모더레이터: "요약 생성" 클릭
+    ↓
+POST /api/sessions/{sessionId}/ai-summary
+    ↓
+AISummaryController:
+  1. Session → Post → bookTitle 조회
+  2. SessionNote → content 조회
+    ↓
+OpenAIService.generateSummary(bookTitle, noteContent)
+    ↓
+OpenAI API 호출:
+  - Model: gpt-4o-mini
+  - System Prompt: 다국어 지원, JSON 형식 요구
+  - User Prompt: "Book Title: {title}\n\nDiscussion Notes:\n{content}"
+    ↓
+JSON 응답 파싱:
+  {
+    "oneLiner": "...",
+    "keyPoints": ["...", "..."],
+    "quotes": ["...", "..."],
+    "agreements": [{"point": "...", "isAgreement": true}, ...],
+    "openQuestions": ["...", "..."]
+  }
+    ↓
+AISummary 객체 생성 → SessionRecording에 저장
+    ↓
+프론트: "노트에 삽입" 버튼 클릭
+    ↓
+CollaborativeNotes.insertContentAtEnd() 호출
+  - TipTap JSON 형식으로 변환 (Heading, List, Blockquote 등)
+  - 에디터 끝에 삽입
+```
+
+#### 주요 기능
+
+| 기능 | 설명 | 권한 |
+|------|------|------|
+| 녹음 토글 | 녹음 시작/종료 (실제 음성 녹음은 미구현) | 모더레이터만 |
+| AI 요약 생성 | 노트 내용 기반 GPT 요약 | 모더레이터만 |
+| 노트에 삽입 | 요약을 협업 노트 끝에 자동 삽입 | 모더레이터만 |
+| 다국어 요약 | 노트 언어에 맞춰 요약 (한국어/영어) | 자동 감지 |
+
+#### Fallback 동작
+- **API 키 없음**: Mock 요약 반환 (서버 시작 시 경고 로그)
+- **노트 내용 부족** (< 50자): Mock 요약 반환
+- **OpenAI API 오류**: Mock 요약 반환
+
+#### API 엔드포인트
+- `GET /api/sessions/{sessionId}/recording` - 녹음 상태 및 요약 조회
+- `POST /api/sessions/{sessionId}/recording/toggle` - 녹음 토글 (모더레이터만)
+- `POST /api/sessions/{sessionId}/ai-summary` - AI 요약 생성 (모더레이터만)
+- `GET /api/sessions/{sessionId}/export/markdown` - 노트 Markdown 변환 (준비 중)
+
+**주요 파일**
+- `backend/src/main/java/com/bookclub/backend/session/model/SessionRecording.java` - 모델
+- `backend/src/main/java/com/bookclub/backend/openai/OpenAIService.java` - AI 로직
+- `backend/src/main/java/com/bookclub/backend/openai/OpenAiClient.java` - API 클라이언트
+- `backend/src/main/java/com/bookclub/backend/session/controller/AISummaryController.java` - REST API
+- `frontend/src/components/meet/RightPanel/RecordingPanel.tsx` - UI 컴포넌트
+- `frontend/src/api/aiSummary.ts` - API 호출
+
+---
+
+### WebSocket 통합 (STOMP)
+
+모든 실시간 기능은 STOMP 프로토콜 기반 WebSocket을 통해 동작합니다.
+
+#### 설정 (backend/websocket/WebSocketConfig.java)
+
+```java
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig {
+    // Broker: /topic (broadcast), /queue (개인)
+    // App prefix: /app (클라이언트 → 서버)
+    // User prefix: /user (개인 메시지)
+
+    // Endpoint: /ws (SockJS fallback 지원)
+    // CORS: localhost:5173 허용
+
+    // 인증: WebSocketAuthInterceptor (Firebase 토큰 검증)
+}
+```
+
+#### 주요 채널
+
+| 목적 | Subscribe (수신) | Send (송신) |
+|------|------------------|-------------|
+| 발언 대기열 | `/topic/session/{sessionId}/queue` | `/app/session/{sessionId}/queue` |
+| Presence | `/topic/session/{sessionId}/presence` | `/app/session/{sessionId}/presence` |
+| 노트 편집 | `/topic/docs/{docId}/edit` | `/app/docs/{docId}/edit` |
+| 노트 Presence | `/topic/docs/{docId}/presence` | `/app/docs/{docId}/presence` |
+| 사용자 목록 | `/topic/docs/{docId}/users` | `/app/docs/{docId}/join`, `/app/docs/{docId}/leave` |
+
+#### 연결 흐름
+
+```
+MeetRoom 마운트
+    ↓
+useWebSocket(sessionId) 초기화
+    ↓
+createWebSocketClient(accessToken)
+  - URL: ws://localhost:8080/ws
+  - STOMP over SockJS
+  - connectHeaders: { Authorization: "Bearer {token}" }
+    ↓
+WebSocketAuthInterceptor: Firebase 토큰 검증
+    ↓
+연결 성공 → isConnected = true
+    ↓
+구독 시작:
+  - /topic/session/{sessionId}/queue
+  - /topic/session/{sessionId}/presence
+  - /topic/docs/{sessionId}/edit
+  - /topic/docs/{sessionId}/presence
+  - /topic/docs/{sessionId}/users
+    ↓
+Join 메시지 전송:
+  - /app/session/{sessionId}/presence
+  - /app/docs/{sessionId}/join
+    ↓
+실시간 동기화 시작
+```
+
+**주요 파일**
+- `backend/src/main/java/com/bookclub/backend/websocket/WebSocketConfig.java` - STOMP 설정
+- `backend/src/main/java/com/bookclub/backend/websocket/WebSocketAuthInterceptor.java` - 인증
+- `backend/src/main/java/com/bookclub/backend/websocket/DocEditController.java` - 노트 편집 핸들러
+- `frontend/src/api/websocket.ts` - WebSocket 클라이언트 생성
+- `frontend/src/hooks/useWebSocket.ts` - WebSocket Hook
+
+---
+
 ## Google Meet 통합 (MVP v1.0)
 
 ### 아키텍처 개요
@@ -426,15 +913,28 @@ public class Post {
 - 책 내용 기반 질문 생성
 - 실시간 음성 인식 (Whisper API)
 
-### AI 토론 요약 (P1)
-- 토론 내용 자동 전사
-- 핵심 논점 추출
-- PDF/이메일 전송
+### 실제 녹음 기능 (v2.0)
+- ✅ 녹음 상태 토글 UI (완료)
+- ❌ 실제 오디오 녹음 (MediaRecorder API)
+- ❌ 오디오 파일 저장 (S3/CloudStorage)
+- ❌ Whisper API 음성 → 텍스트 변환
+
+### AI 요약 고도화 (v2.0)
+- ✅ 기본 요약 (oneLiner, keyPoints, quotes 등) - 완료
+- ❌ 토론 내용 자동 전사 (음성 녹음 연동)
+- ❌ PDF/Markdown 내보내기 (다운로드)
+- ❌ 이메일 전송 기능
 
 ### Google Meet 동기화 (v2.1)
 - 모임 수정 시 Calendar 이벤트 업데이트
 - 모임 삭제 시 Calendar 이벤트 삭제
 - 사용자 OAuth 기반 개인 캘린더 연동
+
+### 협업 노트 고도화 (v2.1)
+- ✅ Op-based CRDT 실시간 동기화 - 완료
+- ❌ 원격 커서 시각화 (Tiptap Collaboration Cursor)
+- ❌ 버전 히스토리 (되돌리기)
+- ❌ 댓글/스레드 기능
 
 ---
 
@@ -510,6 +1010,14 @@ spring.data.mongodb.database=bookclub
 # Google Calendar API
 google.credentials.path=classpath:google-credentials.json
 google.calendar.application-name=BookClub
+google.calendar.impersonate-user=your-email@gmail.com
+
+# OpenAI API
+openai.api.key=sk-proj-your-api-key-here
+openai.model=gpt-4o-mini
+
+# Google API (Perspective API - 비속어 검사)
+google.api.key=your-google-api-key
 ```
 
 **backend/src/main/resources/serviceAccountKey.json**
@@ -545,3 +1053,49 @@ google.calendar.application-name=BookClub
 |------|------|------|
 | `Firebase app not initialized` | serviceAccountKey.json 없음 | 파일 경로 확인 |
 | `Token verification failed` | 만료된 토큰 | 클라이언트에서 토큰 갱신 |
+
+### WebSocket 관련
+
+| 에러 | 원인 | 해결 |
+|------|------|------|
+| `Cannot connect to WebSocket` | CORS 설정 또는 토큰 오류 | WebSocketConfig CORS 확인, 토큰 재발급 |
+| `Connection refused` | 백엔드 서버 미실행 | localhost:8080 확인 |
+| `Disconnected` 반복 | WebSocketAuthInterceptor 인증 실패 | 로그아웃 후 재로그인 |
+| 노트가 동기화 안됨 | WebSocket 연결 끊김 | 새로고침 또는 재접속 |
+| Step apply failed | 충돌 발생 | 자동 해결 실패 시 페이지 새로고침 |
+
+### OpenAI API 관련
+
+| 에러 | 원인 | 해결 |
+|------|------|------|
+| `OpenAI API Key is not configured` | API 키 미설정 | application.properties에 openai.api.key 추가 |
+| `401 Unauthorized` | 잘못된 API 키 | OpenAI 대시보드에서 키 확인 |
+| `429 Rate Limit` | API 할당량 초과 | 요금제 확인 또는 잠시 후 재시도 |
+| Mock 요약 반환됨 | API 키 없음 또는 노트 내용 부족 | API 키 설정, 노트 50자 이상 작성 |
+| JSON 파싱 오류 | GPT 응답 형식 오류 | Fallback 요약 반환됨 (로그 확인) |
+
+---
+
+## 미팅룸 사용 가이드
+
+### 일반 참여자
+
+1. **Board에서 "Join" 클릭** → 자동으로 세션 생성/참가
+2. **"Join Google Meet" 클릭** → 화상회의 참여
+3. **손 들기** → "Raise Hand" 버튼 클릭 (발언 대기열에 추가)
+4. **협업 노트 작성** → 중앙 패널에서 자유롭게 메모
+5. **다른 참여자 확인** → 좌측 패널 "Participants" 섹션
+
+### 모더레이터 (호스트)
+
+1. **발언 순서 제어**
+   - "Next Speaker" 클릭 → 대기열 첫 번째를 현재 발언자로 이동
+   - 발언자 우측 X 버튼 → 대기열에서 제거
+2. **녹음 관리** (우측 패널)
+   - "Start Recording" 클릭 → 녹음 상태 표시 (실제 녹음은 미구현)
+3. **AI 요약 생성** (우측 패널)
+   - "Generate AI Summary" 클릭 → GPT-4o-mini가 노트 분석
+   - 2-5초 대기 → 요약 결과 표시
+   - "Insert to Notes" 클릭 → 협업 노트 끝에 자동 삽입
+4. **세션 종료**
+   - 좌상단 "← Back" 클릭 → Board로 복귀

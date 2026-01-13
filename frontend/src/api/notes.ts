@@ -29,3 +29,20 @@ export const updateNotes = async (
   const response = await axiosInstance.put(`/sessions/${sessionId}/notes`, message);
   return response.data;
 };
+
+/**
+ * Update note title
+ */
+export const updateNoteTitle = async (
+  sessionId: string,
+  title: string,
+  username: string,
+  token: string
+): Promise<SessionNote> => {
+  setAccessToken(token);
+  const response = await axiosInstance.put(`/sessions/${sessionId}/notes/title`, {
+    title,
+    username,
+  });
+  return response.data;
+};

@@ -18,6 +18,8 @@ public class SessionNote {
 
     private String sessionId;
 
+    private String title;  // Note title (default: "{bookTitle} 북클럽" or "{bookTitle} Book Club")
+
     private String content;  // TipTap JSON content
 
     private int version;  // For conflict resolution
@@ -30,6 +32,16 @@ public class SessionNote {
 
     public SessionNote(String sessionId) {
         this.sessionId = sessionId;
+        this.title = "Discussion Notes";  // Default title (will be updated with book name)
+        this.content = getDefaultContent();
+        this.version = 1;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public SessionNote(String sessionId, String title) {
+        this.sessionId = sessionId;
+        this.title = title;  // Use provided title (e.g., "[2026-01-13] Clean Code")
         this.content = getDefaultContent();
         this.version = 1;
         this.createdAt = LocalDateTime.now();

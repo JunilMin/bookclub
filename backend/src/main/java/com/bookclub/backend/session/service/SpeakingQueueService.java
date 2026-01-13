@@ -17,7 +17,7 @@ public class SpeakingQueueService {
     private static final int DEFAULT_SPEAKING_TIME = 180; // 3 minutes
 
     public SpeakingQueue getOrCreateQueue(String sessionId) {
-        Optional<SpeakingQueue> queueOpt = speakingQueueRepository.findBySessionId(sessionId);
+        Optional<SpeakingQueue> queueOpt = speakingQueueRepository.findFirstBySessionId(sessionId);
         if (queueOpt.isPresent()) {
             return queueOpt.get();
         }

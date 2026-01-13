@@ -22,9 +22,13 @@ export const toggleRecording = async (sessionId: string, token: string): Promise
 /**
  * Generate AI summary
  */
-export const generateAISummary = async (sessionId: string, token: string): Promise<SessionRecording> => {
+export const generateAISummary = async (
+  sessionId: string,
+  token: string,
+  language: string = 'en'
+): Promise<SessionRecording> => {
   setAccessToken(token);
-  const response = await axiosInstance.post(`/sessions/${sessionId}/ai-summary`);
+  const response = await axiosInstance.post(`/sessions/${sessionId}/ai-summary?language=${language}`);
   return response.data;
 };
 

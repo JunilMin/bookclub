@@ -135,7 +135,7 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
   };
 
   const handleCreateSimilar = () => {
-    navigate('/board/create', { state: { book: room.book.title, isbn: room.book.isbn } });
+    navigate('/board/create', { state: { isbn: room.book.isbn } });
   };
 
   const handleOpenMeet = () => {

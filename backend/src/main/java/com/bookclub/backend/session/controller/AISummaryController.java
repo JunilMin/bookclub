@@ -59,7 +59,9 @@ public class AISummaryController {
      * Generate AI summary from notes
      */
     @PostMapping("/{sessionId}/ai-summary")
-    public ResponseEntity<?> generateAISummary(@PathVariable String sessionId) {
+    public ResponseEntity<?> generateAISummary(
+            @PathVariable String sessionId,
+            @RequestParam(defaultValue = "en") String language) {
         try {
             // Get session to find post
             Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
@@ -77,8 +79,8 @@ public class AISummaryController {
             Optional<SessionNote> noteOpt = sessionNoteService.getNoteBySessionId(sessionId);
             String noteContent = noteOpt.map(SessionNote::getContent).orElse("");
 
-            // Generate summary
-            AISummary summary = openAIService.generateSummary(bookTitle, noteContent);
+            // Generate summary with specified language
+            AISummary summary = openAIService.generateSummary(bookTitle, noteContent, language);
 
             // Save to recording
             SessionRecording recording = sessionRecordingService.setAISummary(sessionId, summary);

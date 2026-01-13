@@ -15,6 +15,11 @@ public class FirebaseConfig {
 
     @PostConstruct
     public void initializeFirebase() {
+        // Check if Firebase is already initialized (for DevTools hot reload)
+        if (!FirebaseApp.getApps().isEmpty()) {
+            return;
+        }
+
         try {
             InputStream serviceAccount = getClass().getClassLoader().getResourceAsStream("serviceAccountKey.json");
 

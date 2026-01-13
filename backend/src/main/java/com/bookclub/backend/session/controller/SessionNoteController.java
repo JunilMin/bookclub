@@ -1,5 +1,9 @@
 package com.bookclub.backend.session.controller;
 
+import com.bookclub.backend.post.Post;
+import com.bookclub.backend.post.PostRepository;
+import com.bookclub.backend.session.Session;
+import com.bookclub.backend.session.SessionRepository;
 import com.bookclub.backend.session.dto.NoteUpdateMessage;
 import com.bookclub.backend.session.model.SessionNote;
 import com.bookclub.backend.session.service.SessionNoteService;
@@ -13,6 +17,10 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/api/sessions")
 @CrossOrigin(origins = "http://localhost:5173")
@@ -21,12 +29,40 @@ public class SessionNoteController {
     @Autowired
     private SessionNoteService sessionNoteService;
 
+    @Autowired
+    private SessionRepository sessionRepository;
+
+    @Autowired
+    private PostRepository postRepository;
+
     /**
      * REST: Get session notes
      */
     @GetMapping("/{sessionId}/notes")
     public ResponseEntity<SessionNote> getNotes(@PathVariable String sessionId) {
-        SessionNote note = sessionNoteService.getOrCreateNote(sessionId);
+        // Get Session to find Post
+        Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
+        String noteTitle = "Discussion Notes";  // Default
+
+        if (sessionOpt.isPresent()) {
+            Session session = sessionOpt.get();
+            Optional<Post> postOpt = postRepository.findById(session.getPostId());
+            if (postOpt.isPresent()) {
+                Post post = postOpt.get();
+                String bookTitle = post.getBook();
+
+                // Format: [yyyy-MM-dd] BookTitle
+                if (post.getDue() != null) {
+                    DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                    String dateStr = post.getDue().format(dateFormatter);
+                    noteTitle = "[" + dateStr + "] " + bookTitle;
+                } else {
+                    noteTitle = bookTitle;
+                }
+            }
+        }
+
+        SessionNote note = sessionNoteService.getOrCreateNote(sessionId, noteTitle);
         return ResponseEntity.ok(note);
     }
 
@@ -42,6 +78,24 @@ public class SessionNoteController {
                 message.getContent(),
                 message.getUsername()
         );
+        return ResponseEntity.ok(note);
+    }
+
+    /**
+     * REST: Update note title
+     */
+    @PutMapping("/{sessionId}/notes/title")
+    public ResponseEntity<SessionNote> updateTitle(
+            @PathVariable String sessionId,
+            @RequestBody Map<String, String> payload) {
+        String title = payload.get("title");
+        String username = payload.get("username");
+
+        if (title == null || title.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        SessionNote note = sessionNoteService.updateTitle(sessionId, title, username);
         return ResponseEntity.ok(note);
     }
 

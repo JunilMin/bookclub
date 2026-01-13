@@ -1,4 +1,7 @@
 const en = {
+  // Language Code
+  code: 'en',
+
   // Common
   hello: 'Hello world!',
   language_en: 'English',
@@ -305,6 +308,7 @@ const en = {
   meet_participants: 'Participants',
   meet_host: 'Host',
   meet_discussion_notes: 'Discussion Notes',
+  edit_title: 'Edit title',
   meet_last_edited_by: 'Last edited by',
   meet_syncing: 'Syncing...',
   meet_synced: 'Synced',

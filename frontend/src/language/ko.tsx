@@ -1,4 +1,7 @@
 const ko = {
+  // Language Code
+  code: 'ko',
+
   // Common
   hello: '안녕하세요!',
   language_en: 'English',
@@ -305,6 +308,7 @@ const ko = {
   meet_participants: '참가자',
   meet_host: '호스트',
   meet_discussion_notes: '토론 노트',
+  edit_title: '제목 수정',
   meet_last_edited_by: '마지막 편집자',
   meet_syncing: '동기화 중...',
   meet_synced: '동기화됨',

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,7 +10,7 @@ import {
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue } from '../api/speakingQueue';
-import { getRecording, toggleRecording, generateAISummary, exportMarkdown } from '../api/aiSummary';
+import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
@@ -23,7 +23,7 @@ import './styles/MeetRoom.css';
 // Left Panel Components
 import ModeratorControls from '../components/meet/LeftPanel/ModeratorControls';
 // Center Panel Components
-import CollaborativeNotes from '../components/meet/CenterPanel/CollaborativeNotes';
+import CollaborativeNotes, { CollaborativeNotesRef } from '../components/meet/CenterPanel/CollaborativeNotes';
 // Right Panel Components
 import RecordingPanel from '../components/meet/RightPanel/RecordingPanel';
 
@@ -31,22 +31,39 @@ const MeetRoom: React.FC = () => {
   const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, isLoading, setInMeeting } = useAuth();
+
+  // Refs
+  const notesRef = useRef<CollaborativeNotesRef>(null);
 
   // State (note 상태 제거 - CollaborativeNotes가 자체 관리)
   const [session, setSession] = useState<GetSessionResponse | null>(null);
   const [initialNoteContent, setInitialNoteContent] = useState<any>(null);
+  const [initialNoteTitle, setInitialNoteTitle] = useState<string>('');
   const [queue, setQueue] = useState<SpeakingQueue | null>(null);
   const [recording, setRecording] = useState<SessionRecording | null>(null);
   const [_presence, setPresence] = useState<PresenceMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingState, setIsLoadingState] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // WebSocket (발언 대기열, presence용 - 노트는 CollaborativeNotes에서 별도 처리)
   const { isConnected, subscribe, send } = useWebSocket(sessionId || '');
 
+  // Set meeting status when entering/leaving
+  useEffect(() => {
+    setInMeeting(true);
+    return () => {
+      setInMeeting(false);
+    };
+  }, [setInMeeting]);
+
   // Fetch initial data
   useEffect(() => {
+    // Wait for auth loading to complete
+    if (isLoading) {
+      return;
+    }
+
     if (!accessToken) {
       navigate('/login');
       return;
@@ -54,7 +71,7 @@ const MeetRoom: React.FC = () => {
 
     if (!sessionId) {
       setError('Session ID is required');
-      setIsLoading(false);
+      setIsLoadingState(false);
       return;
     }
 
@@ -76,6 +93,10 @@ const MeetRoom: React.FC = () => {
             setInitialNoteContent(noteData.content);
           }
         }
+        // 초기 노트 제목 설정
+        if (noteData?.title) {
+          setInitialNoteTitle(noteData.title);
+        }
         setQueue(queueData);
         setRecording(recordingData);
       } catch (err: any) {
@@ -88,12 +109,12 @@ const MeetRoom: React.FC = () => {
           setError(t('meeting_load_error') || 'Failed to load meeting');
         }
       } finally {
-        setIsLoading(false);
+        setIsLoadingState(false);
       }
     };
 
     fetchData();
-  }, [sessionId, accessToken, navigate, t]);
+  }, [sessionId, accessToken, navigate, t, isLoading]);
 
   // Subscribe to WebSocket topics (Queue, Presence만 - Notes는 CollaborativeNotes에서 처리)
   useEffect(() => {
@@ -187,28 +208,111 @@ const MeetRoom: React.FC = () => {
   const handleGenerateSummary = useCallback(async () => {
     if (!sessionId || !accessToken) return;
     try {
-      const result = await generateAISummary(sessionId, accessToken);
+      // Get current language from i18n
+      const currentLanguage = t('code') || 'en'; // 'ko' or 'en'
+      const result = await generateAISummary(sessionId, accessToken, currentLanguage);
       setRecording(result);
     } catch (err) {
       console.error('Failed to generate summary:', err);
     }
-  }, [sessionId, accessToken]);
+  }, [sessionId, accessToken, t]);
 
-  const handleExport = useCallback(async () => {
-    if (!sessionId || !accessToken) return;
-    try {
-      const markdown = await exportMarkdown(sessionId, accessToken);
-      const blob = new Blob([markdown], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `notes-${sessionId}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Failed to export:', err);
+  const handleInsertToNotes = useCallback(() => {
+    if (!recording?.aiSummary || !notesRef.current) return;
+
+    const summary = recording.aiSummary;
+
+    // Convert AI Summary to TipTap content format
+    const summaryContent: any[] = [
+      // Horizontal rule separator
+      { type: 'horizontalRule' },
+      // AI Summary heading
+      {
+        type: 'heading',
+        attrs: { level: 2 },
+        content: [{ type: 'text', text: 'AI Summary' }],
+      },
+      // One-liner
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', marks: [{ type: 'bold' }], text: summary.oneLiner },
+        ],
+      },
+    ];
+
+    // Key Points
+    if (summary.keyPoints?.length > 0) {
+      summaryContent.push({
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: 'Key Discussion Points' }],
+      });
+      summaryContent.push({
+        type: 'bulletList',
+        content: summary.keyPoints.map((point: string) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
+        })),
+      });
     }
-  }, [sessionId, accessToken]);
+
+    // Quotes
+    if (summary.quotes?.length > 0) {
+      summaryContent.push({
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: 'Notable Quotes' }],
+      });
+      summary.quotes.forEach((quote: string) => {
+        summaryContent.push({
+          type: 'blockquote',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: `"${quote}"` }] }],
+        });
+      });
+    }
+
+    // Agreements
+    if (summary.agreements?.length > 0) {
+      summaryContent.push({
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: 'Agreements & Disagreements' }],
+      });
+      summaryContent.push({
+        type: 'bulletList',
+        content: summary.agreements.map((item: any) => ({
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: `${item.isAgreement ? '✓' : '✗'} ${item.point}`,
+            }],
+          }],
+        })),
+      });
+    }
+
+    // Open Questions
+    if (summary.openQuestions?.length > 0) {
+      summaryContent.push({
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: 'Follow-up Questions' }],
+      });
+      summaryContent.push({
+        type: 'orderedList',
+        content: summary.openQuestions.map((question: string) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: question }] }],
+        })),
+      });
+    }
+
+    // Insert to notes
+    notesRef.current.insertContentAtEnd(summaryContent);
+  }, [recording?.aiSummary]);
 
   const handleOpenMeet = useCallback(() => {
     if (session?.meetLink) {
@@ -222,8 +326,8 @@ const MeetRoom: React.FC = () => {
   // Check if current user has raised hand
   const hasRaisedHand = queue?.participants?.find(p => p.odUserId === user?.uid)?.hasRaisedHand || false;
 
-  // Loading state
-  if (isLoading) {
+  // Loading state (wait for both auth and session data)
+  if (isLoading || isLoadingState) {
     return (
       <div className="meetroom-page">
         <div className="meetroom-loading">
@@ -309,10 +413,12 @@ const MeetRoom: React.FC = () => {
         <main className="meetroom-center-panel">
           {user && sessionId && (
             <CollaborativeNotes
+              ref={notesRef}
               docId={sessionId}
               userId={user.uid}
               username={user.username || 'Anonymous'}
               initialContent={initialNoteContent}
+              initialTitle={initialNoteTitle}
             />
           )}
         </main>
@@ -324,7 +430,7 @@ const MeetRoom: React.FC = () => {
             isHost={isHost}
             onToggleRecording={handleToggleRecording}
             onGenerateSummary={handleGenerateSummary}
-            onExport={handleExport}
+            onInsertToNotes={handleInsertToNotes}
           />
         </aside>
       </div>

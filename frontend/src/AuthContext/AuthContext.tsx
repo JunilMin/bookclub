@@ -75,6 +75,7 @@ interface AuthContextProps {
   remainingTime: number; // 남은 시간 (초)
   isFirstLogin: boolean; // 첫 Google 로그인 여부 (username 설정 필요)
   pendingGoogleUser: PendingGoogleUser | null; // 닉네임 설정 대기 중인 Google 사용자
+  isInMeeting: boolean; // 미팅 참여 중 여부
   handleLogin: (email: string, password: string) => Promise<void>;
   handleRegister: (email: string, password: string, username: string) => Promise<void>;
   handleGoogleLogin: () => Promise<void>;
@@ -86,6 +87,7 @@ interface AuthContextProps {
   clearFirstLogin: () => void; // 첫 로그인 상태 초기화
   completeGoogleRegistration: (username: string) => Promise<void>; // Google 회원가입 완료 (닉네임 설정 후)
   cancelGoogleRegistration: () => Promise<void>; // Google 회원가입 취소
+  setInMeeting: (inMeeting: boolean) => void; // 미팅 참여 상태 설정
 }
 
 const app = initializeApp(firebaseConfig);
@@ -110,6 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [remainingTime, setRemainingTime] = useState(0); // 남은 시간 (초)
   const [isFirstLogin, setIsFirstLogin] = useState(false); // 첫 Google 로그인 여부
   const [pendingGoogleUser, setPendingGoogleUser] = useState<PendingGoogleUser | null>(null); // 닉네임 설정 대기 중인 Google 사용자
+  const [isInMeeting, setInMeeting] = useState(false); // 미팅 참여 중 여부
 
   // Refs for timers
   const lastActivityRef = useRef<number>(Date.now());
@@ -177,6 +180,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 비활동 체크 및 자동 로그아웃
   const checkInactivity = useCallback(async () => {
+    // 미팅 참여 중이면 비활동 체크 스킵
+    if (isInMeeting) {
+      // 미팅 중에는 활동 시간 갱신
+      lastActivityRef.current = Date.now();
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastActivity = now - lastActivityRef.current;
 
@@ -216,7 +226,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }, 1000);
       }
     }
-  }, [sessionWarning]);
+  }, [sessionWarning, isInMeeting]);
 
   // 활동 이벤트 리스너 설정
   useEffect(() => {
@@ -538,6 +548,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         remainingTime,
         isFirstLogin,
         pendingGoogleUser,
+        isInMeeting,
         handleLogin,
         handleRegister,
         handleGoogleLogin,
@@ -549,6 +560,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearFirstLogin,
         completeGoogleRegistration,
         cancelGoogleRegistration,
+        setInMeeting,
       }}
     >
       {children}

@@ -117,16 +117,16 @@ public class GoogleCalendarService {
         try {
             Calendar calendarService;
 
-            // 사용자 토큰이 있으면 사용자 OAuth 사용, 없으면 서비스 계정 사용
+            // 사용자 토큰이 있으면 사용자 OAuth 사용
+            // 서비스 계정은 Google Meet 생성 권한이 없으므로 사용자 OAuth만 지원
             if (accessToken != null && !accessToken.isEmpty()) {
                 logger.info("Creating Meet event with user OAuth token");
                 calendarService = createCalendarService(accessToken);
-            } else if (serviceAccountCredentials != null) {
-                logger.info("Creating Meet event with service account (fallback)");
-                calendarService = createCalendarServiceWithServiceAccount();
             } else {
-                logger.warn("No access token and no service account available. Skipping Meet link generation.");
-                return new MeetEventResult(null, null, "No credentials available for Calendar API");
+                // 서비스 계정으로는 Meet 링크 생성 불가 (Google Workspace + Domain-Wide Delegation 필요)
+                logger.warn("No user OAuth token provided. Service account cannot create Meet links without Domain-Wide Delegation.");
+                logger.warn("To enable Meet link creation, users must authenticate with Google OAuth including Calendar scope.");
+                return new MeetEventResult(null, null, "User OAuth token required for Meet link generation");
             }
 
             // 종료 시간이 없으면 시작 시간 + 1시간
