@@ -8,6 +8,7 @@ export interface BookSearchResult {
   publishedDate?: string;
   description?: string;
   isbn?: string;
+  categories?: string[];
 }
 
 // Google Books API 검색 (영문 책)
@@ -35,6 +36,7 @@ export const searchGoogleBooks = async (query: string): Promise<BookSearchResult
       publishedDate: item.volumeInfo.publishedDate,
       description: item.volumeInfo.description,
       isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier,
+      categories: item.volumeInfo.categories || [],
     }));
   } catch (error) {
     console.error('Google Books search error:', error);
@@ -105,6 +107,7 @@ const searchGoogleBooksKorean = async (query: string): Promise<BookSearchResult[
       publishedDate: item.volumeInfo.publishedDate,
       description: item.volumeInfo.description,
       isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier,
+      categories: item.volumeInfo.categories || [],
     }));
   } catch (error) {
     console.error('Google Books Korean search error:', error);

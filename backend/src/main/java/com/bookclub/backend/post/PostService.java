@@ -98,13 +98,44 @@ public class PostService {
         Optional<Post> existingPost = postRepository.findById(id);
         if (existingPost.isPresent()) {
             Post post = existingPost.get();
-            post.setCreater(updatedPost.getCreater());
-            post.setDate(updatedPost.getDate());
-            post.setDue(updatedPost.getDue());
-            post.setCapacity(updatedPost.getCapacity());
-            post.setMember(updatedPost.getMember());
-            post.setLevel(updatedPost.getLevel());
-            post.setBook(updatedPost.getBook());
+
+            // 기본 필드 업데이트
+            if (updatedPost.getCreater() != null) {
+                post.setCreater(updatedPost.getCreater());
+            }
+            if (updatedPost.getDate() != null) {
+                post.setDate(updatedPost.getDate());
+            }
+            if (updatedPost.getDue() != null) {
+                post.setDue(updatedPost.getDue());
+            }
+            if (updatedPost.getCapacity() > 0) {
+                post.setCapacity(updatedPost.getCapacity());
+            }
+            if (updatedPost.getMember() != null) {
+                post.setMember(updatedPost.getMember());
+            }
+            if (updatedPost.getLevel() != null) {
+                post.setLevel(updatedPost.getLevel());
+            }
+            if (updatedPost.getBook() != null) {
+                post.setBook(updatedPost.getBook());
+            }
+
+            // 새로운 필드 업데이트
+            if (updatedPost.getDuration() != null) {
+                post.setDuration(updatedPost.getDuration());
+            }
+            if (updatedPost.getDescription() != null) {
+                post.setDescription(updatedPost.getDescription());
+            }
+            if (updatedPost.getTags() != null) {
+                post.setTags(updatedPost.getTags());
+            }
+            if (updatedPost.getRecruit() != null) {
+                post.setRecruit(updatedPost.getRecruit());
+            }
+
             // Meet 링크는 수정하지 않음 (v2.1에서 동기화 추가)
             return postRepository.save(post);
         }

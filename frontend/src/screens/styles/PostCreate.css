@@ -467,3 +467,103 @@
   transform: none;
   box-shadow: none;
 }
+
+/* Textarea */
+.form-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-textarea:focus {
+  border-color: #1a73e8;
+}
+
+/* Tags Section */
+.tags-section {
+  width: 100%;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.tag-editable button {
+  background: none;
+  border: none;
+  color: #3730a3;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.tag-editable button:hover {
+  color: #dc2626;
+}
+
+.tag-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.tag-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.tag-input:focus {
+  border-color: #1a73e8;
+}
+
+.tag-add-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag-add-btn:hover {
+  background: #1557b0;
+}
+
+.tag-add-btn:active {
+  transform: scale(0.95);
+}

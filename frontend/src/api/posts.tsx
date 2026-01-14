@@ -20,6 +20,11 @@ export interface Post {
   meetLink?: string; // Google Meet 링크
   calendarEventId?: string; // Calendar 이벤트 ID
   meetError?: string; // Meet 생성 실패 시 에러 메시지
+  // 추가 필드
+  duration?: number; // 진행 시간 (분)
+  description?: string; // 설명
+  tags?: string[]; // 태그 리스트
+  recruit?: boolean; // 모집 중 여부 (기본값: true)
 }
 
 // 모든 포스트 조회

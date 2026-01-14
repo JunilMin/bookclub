@@ -67,10 +67,12 @@ async function fetchBookInfo(isbn: string): Promise<{ author: string; genre: str
 }
 
 // Generate placeholder avatar
-function generateAvatar(name: string): string {
+function generateAvatar(name: string | null | undefined): string {
+  // Handle null, undefined, or empty string
+  const safeName = name && name.trim() ? name.trim() : 'U'; // Default to 'U' for Unknown
   const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
-  const colorIndex = name.charCodeAt(0) % colors.length;
-  const initial = name.charAt(0).toUpperCase();
+  const colorIndex = safeName.charCodeAt(0) % colors.length;
+  const initial = safeName.charAt(0).toUpperCase();
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
     <rect width="40" height="40" fill="${colors[colorIndex]}" rx="20"/>
     <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="white" font-family="Arial" font-size="18" font-weight="bold">${initial}</text>
@@ -83,7 +85,7 @@ function generateAvatar(name: string): string {
 function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: { author: string; genre: string; cover: string }): Room {
   const now = new Date();
   const dueDate = new Date(post.due);
-  const duration = 60; // minutes
+  const duration = post.duration || 60; // Use post duration or default 60 minutes
   const endDate = new Date(dueDate.getTime() + duration * 60 * 1000);
 
   // Determine status: past (ended), live (in progress), upcoming (not started)
@@ -110,7 +112,7 @@ function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: {
   return {
     id: post.id,
     title: `${post.book} Discussion`,
-    host: post.creater,
+    host: post.creater || 'Unknown',
     hostAvatar: generateAvatar(post.creater),
     book: {
       title: post.book,
@@ -120,17 +122,18 @@ function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: {
       isbn: post.isbn || ''
     },
     dueISO: post.due,
-    duration: 60,
+    duration: post.duration || 60,
     participants: post.member?.length || 0,
     maxParticipants: post.capacity,
     level: post.level,
-    description: `Join us for an engaging discussion about "${post.book}". Share your insights and connect with fellow readers.`,
-    tags,
+    description: post.description || `Join us for an engaging discussion about "${post.book}". Share your insights and connect with fellow readers.`,
+    tags: post.tags && post.tags.length > 0 ? post.tags : tags,
     status,
     isJoined: currentUsername ? post.member?.includes(currentUsername) || post.creater === currentUsername : false,
     isMyRoom: currentUsername ? post.creater === currentUsername : false,
     meetLink: post.meetLink,
-    calendarEventId: post.calendarEventId
+    calendarEventId: post.calendarEventId,
+    recruit: post.recruit !== undefined ? post.recruit : true // 기본값 true
   };
 }
 
@@ -506,11 +509,14 @@ const Board: React.FC = () => {
                 {/* Cover */}
                 <div className="room-card-cover">
                   <img
-                    src={room.book.cover}
+                    src={room.book.cover || `https://via.placeholder.com/300x400?text=${encodeURIComponent(room.book.title)}`}
                     alt={room.book.title}
                     loading="lazy"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://via.placeholder.com/300x400?text=${encodeURIComponent(room.book.title)}`;
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.includes('via.placeholder.com')) {
+                        target.src = `https://via.placeholder.com/300x400?text=${encodeURIComponent(room.book.title)}`;
+                      }
                     }}
                   />
                   <span className={`room-status-badge ${room.status}`}>
@@ -557,7 +563,7 @@ const Board: React.FC = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (room.isJoined || room.isMyRoom) {
-                        navigate(`/meeting/${room.id}`, { state: { meetLink: room.meetLink, room } });
+                        setSelectedRoom(room);
                       } else if (room.status !== 'past') {
                         handleJoin(room.id);
                       }
@@ -587,6 +593,7 @@ const Board: React.FC = () => {
           onClose={() => setSelectedRoom(null)}
           onJoin={handleJoin}
           onDelete={handleDelete}
+          onUpdate={fetchPosts}
           isProcessing={isProcessing}
         />
       )}

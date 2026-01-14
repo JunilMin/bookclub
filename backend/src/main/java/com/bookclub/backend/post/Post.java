@@ -32,5 +32,11 @@ public class Post {
   private String meetLink;           // Google Meet 링크
   private String calendarEventId;    // Calendar 이벤트 ID (수정/삭제용)
   private String meetError;          // Meet 생성 실패 시 에러 메시지
+
+  // 추가 필드
+  private Integer duration;          // 진행 시간 (분)
+  private String description;        // 설명
+  private List<String> tags;         // 태그 리스트
+  private Boolean recruit = true;    // 모집 중 여부 (기본값: true)
 }
 

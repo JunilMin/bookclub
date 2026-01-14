@@ -24,6 +24,9 @@ interface PostCreateForm {
   roomVisibility: RoomVisibility;
   aiSummary: boolean;
   aiModerator: boolean;
+  description: string;
+  tags: string[];
+  newTag: string;
 }
 
 const PostCreate: React.FC = () => {
@@ -48,6 +51,9 @@ const PostCreate: React.FC = () => {
     roomVisibility: 'public',
     aiSummary: false,
     aiModerator: false,
+    description: '',
+    tags: [],
+    newTag: '',
   });
 
   const [bookSearch, setBookSearch] = useState('');
@@ -130,9 +136,36 @@ const PostCreate: React.FC = () => {
   }, [form.bookLanguage]);
 
   const handleBookSelect = (book: BookSearchResult) => {
-    setForm(prev => ({ ...prev, selectedBook: book }));
+    // Auto-populate tags from book categories
+    const autoTags = book.categories && book.categories.length > 0
+      ? book.categories.slice(0, 5) // Limit to 5 categories
+      : [];
+
+    setForm(prev => ({
+      ...prev,
+      selectedBook: book,
+      description: book.description || '',
+      tags: autoTags,
+    }));
     setBookSearch(book.title);
     setShowResults(false);
+  };
+
+  const handleAddTag = () => {
+    if (form.newTag.trim() && !form.tags.includes(form.newTag.trim())) {
+      setForm(prev => ({
+        ...prev,
+        tags: [...prev.tags, prev.newTag.trim()],
+        newTag: '',
+      }));
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setForm(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -158,10 +191,10 @@ const PostCreate: React.FC = () => {
     // 날짜와 시간 합치기
     const dueDateTime = new Date(`${form.date}T${form.time}`);
 
-    // Discussion length 계산 (향후 Meet 이벤트 시간 설정에 사용 예정)
-    // const length = form.discussionLength === 'custom'
-    //   ? form.customLength
-    //   : parseInt(form.discussionLength);
+    // Discussion length 계산
+    const duration = form.discussionLength === 'custom'
+      ? form.customLength
+      : parseInt(form.discussionLength);
 
     const newPost: Partial<Post> = {
       creater: user.username,
@@ -172,6 +205,9 @@ const PostCreate: React.FC = () => {
       level: form.level,
       book: form.selectedBook.title,
       isbn: form.selectedBook.isbn,
+      duration: duration,
+      description: form.description.trim() || undefined,
+      tags: form.tags.length > 0 ? form.tags : undefined,
     };
 
     try {
@@ -442,6 +478,51 @@ const PostCreate: React.FC = () => {
               >
                 {t('post_create_invite_only')}
               </button>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="form-group">
+            <label>{t('post_create_description')}</label>
+            <textarea
+              className="form-textarea"
+              rows={4}
+              placeholder={t('post_create_description_placeholder')}
+              value={form.description}
+              onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+            />
+          </div>
+
+          {/* Tags */}
+          <div className="form-group">
+            <label>{t('post_create_tags')}</label>
+            <div className="tags-section">
+              {form.tags.length > 0 && (
+                <div className="tags-list">
+                  {form.tags.map((tag, index) => (
+                    <span key={index} className="tag tag-editable">
+                      {tag}
+                      <button type="button" onClick={() => handleRemoveTag(tag)}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="tag-input-group">
+                <input
+                  type="text"
+                  className="tag-input"
+                  placeholder={t('post_create_add_tag')}
+                  value={form.newTag}
+                  onChange={(e) => setForm(prev => ({ ...prev, newTag: e.target.value }))}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTag();
+                    }
+                  }}
+                />
+                <button type="button" className="tag-add-btn" onClick={handleAddTag}>+</button>
+              </div>
             </div>
           </div>
 
