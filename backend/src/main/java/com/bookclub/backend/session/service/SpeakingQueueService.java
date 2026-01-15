@@ -26,18 +26,18 @@ public class SpeakingQueueService {
         return speakingQueueRepository.save(queue);
     }
 
-    public SpeakingQueue raiseHand(String sessionId, String odUserId, String username, String photoUrl) {
+    public SpeakingQueue raiseHand(String sessionId, String userId, String username, String photoUrl) {
         SpeakingQueue queue = getOrCreateQueue(sessionId);
 
         // Find participant
         SessionParticipant participant = queue.getParticipants().stream()
-                .filter(p -> p.getOdUserId().equals(odUserId))
+                .filter(p -> p.getUserId().equals(userId))
                 .findFirst()
                 .orElse(null);
 
         if (participant == null) {
             // Add as new participant
-            participant = new SessionParticipant(odUserId, username, photoUrl, false);
+            participant = new SessionParticipant(userId, username, photoUrl, false);
             queue.getParticipants().add(participant);
         }
 
@@ -47,16 +47,16 @@ public class SpeakingQueueService {
         if (participant.isHasRaisedHand()) {
             // Add to queue if not already present
             boolean alreadyInQueue = queue.getQueue().stream()
-                    .anyMatch(q -> q.getOdUserId().equals(odUserId));
+                    .anyMatch(q -> q.getUserId().equals(userId));
 
             if (!alreadyInQueue) {
                 int position = queue.getQueue().size() + 1;
-                QueuedParticipant queued = new QueuedParticipant(odUserId, username, photoUrl, position);
+                QueuedParticipant queued = new QueuedParticipant(userId, username, photoUrl, position);
                 queue.getQueue().add(queued);
             }
         } else {
             // Remove from queue
-            queue.getQueue().removeIf(q -> q.getOdUserId().equals(odUserId));
+            queue.getQueue().removeIf(q -> q.getUserId().equals(userId));
             // Recalculate positions
             for (int i = 0; i < queue.getQueue().size(); i++) {
                 queue.getQueue().get(i).setPosition(i + 1);
@@ -77,14 +77,14 @@ public class SpeakingQueueService {
             // Update hand status for previous speaker
             if (queue.getCurrentSpeaker() != null) {
                 queue.getParticipants().stream()
-                        .filter(p -> p.getOdUserId().equals(queue.getCurrentSpeaker().getOdUserId()))
+                        .filter(p -> p.getUserId().equals(queue.getCurrentSpeaker().getUserId()))
                         .findFirst()
                         .ifPresent(p -> p.setHasRaisedHand(false));
             }
 
             // Set new speaker
             CurrentSpeaker speaker = new CurrentSpeaker(
-                    next.getOdUserId(),
+                    next.getUserId(),
                     next.getUsername(),
                     next.getPhotoUrl(),
                     DEFAULT_SPEAKING_TIME
@@ -93,7 +93,7 @@ public class SpeakingQueueService {
 
             // Update hand status for new speaker
             queue.getParticipants().stream()
-                    .filter(p -> p.getOdUserId().equals(next.getOdUserId()))
+                    .filter(p -> p.getUserId().equals(next.getUserId()))
                     .findFirst()
                     .ifPresent(p -> p.setHasRaisedHand(false));
 
@@ -106,35 +106,35 @@ public class SpeakingQueueService {
         return speakingQueueRepository.save(queue);
     }
 
-    public SpeakingQueue addParticipant(String sessionId, String odUserId, String username, String photoUrl, boolean isHost) {
+    public SpeakingQueue addParticipant(String sessionId, String userId, String username, String photoUrl, boolean isHost) {
         SpeakingQueue queue = getOrCreateQueue(sessionId);
 
         boolean exists = queue.getParticipants().stream()
-                .anyMatch(p -> p.getOdUserId().equals(odUserId));
+                .anyMatch(p -> p.getUserId().equals(userId));
 
         if (!exists) {
-            SessionParticipant participant = new SessionParticipant(odUserId, username, photoUrl, isHost);
+            SessionParticipant participant = new SessionParticipant(userId, username, photoUrl, isHost);
             queue.getParticipants().add(participant);
             return speakingQueueRepository.save(queue);
         }
 
         // Update online status if participant exists
         queue.getParticipants().stream()
-                .filter(p -> p.getOdUserId().equals(odUserId))
+                .filter(p -> p.getUserId().equals(userId))
                 .findFirst()
                 .ifPresent(p -> p.setOnline(true));
 
         return speakingQueueRepository.save(queue);
     }
 
-    public SpeakingQueue removeFromQueue(String sessionId, String odUserId) {
+    public SpeakingQueue removeFromQueue(String sessionId, String userId) {
         SpeakingQueue queue = getOrCreateQueue(sessionId);
 
-        queue.getQueue().removeIf(q -> q.getOdUserId().equals(odUserId));
+        queue.getQueue().removeIf(q -> q.getUserId().equals(userId));
 
         // Update hand status
         queue.getParticipants().stream()
-                .filter(p -> p.getOdUserId().equals(odUserId))
+                .filter(p -> p.getUserId().equals(userId))
                 .findFirst()
                 .ifPresent(p -> p.setHasRaisedHand(false));
 
@@ -146,11 +146,11 @@ public class SpeakingQueueService {
         return speakingQueueRepository.save(queue);
     }
 
-    public SpeakingQueue setParticipantOffline(String sessionId, String odUserId) {
+    public SpeakingQueue setParticipantOffline(String sessionId, String userId) {
         SpeakingQueue queue = getOrCreateQueue(sessionId);
 
         queue.getParticipants().stream()
-                .filter(p -> p.getOdUserId().equals(odUserId))
+                .filter(p -> p.getUserId().equals(userId))
                 .findFirst()
                 .ifPresent(p -> p.setOnline(false));
 

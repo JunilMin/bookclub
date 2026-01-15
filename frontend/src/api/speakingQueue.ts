@@ -15,7 +15,7 @@ export const getQueue = async (sessionId: string, token: string): Promise<Speaki
  */
 export const raiseHand = async (
   sessionId: string,
-  odUserId: string,
+  userId: string,
   username: string,
   photoUrl: string,
   token: string
@@ -23,7 +23,7 @@ export const raiseHand = async (
   setAccessToken(token);
   const message: QueueActionMessage = {
     action: 'RAISE_HAND',
-    odUserId,
+    userId,
     username,
     photoUrl,
   };
@@ -45,13 +45,13 @@ export const nextSpeaker = async (sessionId: string, token: string): Promise<Spe
  */
 export const removeFromQueue = async (
   sessionId: string,
-  odUserId: string,
+  userId: string,
   token: string
 ): Promise<SpeakingQueue> => {
   setAccessToken(token);
   const message: QueueActionMessage = {
     action: 'REMOVE',
-    odUserId,
+    userId,
     username: '',
     photoUrl: '',
   };

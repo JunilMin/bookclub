@@ -36,14 +36,14 @@ public class SpeakingQueue {
     @Setter
     @NoArgsConstructor
     public static class CurrentSpeaker {
-        private String odUserId;
+        private String userId;  // User ObjectId
         private String username;
         private String photoUrl;
         private LocalDateTime startedAt;
         private int speakingTimeSeconds;  // Max speaking time in seconds
 
-        public CurrentSpeaker(String odUserId, String username, String photoUrl, int speakingTimeSeconds) {
-            this.odUserId = odUserId;
+        public CurrentSpeaker(String userId, String username, String photoUrl, int speakingTimeSeconds) {
+            this.userId = userId;
             this.username = username;
             this.photoUrl = photoUrl;
             this.startedAt = LocalDateTime.now();
@@ -55,14 +55,14 @@ public class SpeakingQueue {
     @Setter
     @NoArgsConstructor
     public static class QueuedParticipant {
-        private String odUserId;
+        private String userId;  // User ObjectId
         private String username;
         private String photoUrl;
         private LocalDateTime queuedAt;
         private int position;
 
-        public QueuedParticipant(String odUserId, String username, String photoUrl, int position) {
-            this.odUserId = odUserId;
+        public QueuedParticipant(String userId, String username, String photoUrl, int position) {
+            this.userId = userId;
             this.username = username;
             this.photoUrl = photoUrl;
             this.queuedAt = LocalDateTime.now();
@@ -74,7 +74,7 @@ public class SpeakingQueue {
     @Setter
     @NoArgsConstructor
     public static class SessionParticipant {
-        private String odUserId;
+        private String userId;  // User ObjectId
         private String username;
         private String photoUrl;
         private boolean isHost;
@@ -82,8 +82,8 @@ public class SpeakingQueue {
         private boolean isOnline;
         private LocalDateTime joinedAt;
 
-        public SessionParticipant(String odUserId, String username, String photoUrl, boolean isHost) {
-            this.odUserId = odUserId;
+        public SessionParticipant(String userId, String username, String photoUrl, boolean isHost) {
+            this.userId = userId;
             this.username = username;
             this.photoUrl = photoUrl;
             this.isHost = isHost;

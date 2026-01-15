@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward } from 'react-icons/fi';
 import { getAllPosts, Post, joinBookMeeting, deletePost } from '../api/posts';
+import { getUserById } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import RoomModal, { Room } from '../components/RoomModal';
 import Footer from '../components/Footer';
@@ -82,7 +83,12 @@ function generateAvatar(name: string | null | undefined): string {
 }
 
 // Convert Post to Room
-function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: { author: string; genre: string; cover: string }): Room {
+function postToRoom(
+  post: Post,
+  currentUserId: string | undefined,
+  hostUsername: string,
+  bookInfo: { author: string; genre: string; cover: string }
+): Room {
   const now = new Date();
   const dueDate = new Date(post.due);
   const duration = post.duration || 60; // Use post duration or default 60 minutes
@@ -112,8 +118,8 @@ function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: {
   return {
     id: post.id,
     title: `${post.book} Discussion`,
-    host: post.creater || 'Unknown',
-    hostAvatar: generateAvatar(post.creater),
+    host: hostUsername || 'Unknown',
+    hostAvatar: generateAvatar(hostUsername),
     book: {
       title: post.book,
       author: bookInfo.author,
@@ -123,14 +129,14 @@ function postToRoom(post: Post, currentUsername: string | undefined, bookInfo: {
     },
     dueISO: post.due,
     duration: post.duration || 60,
-    participants: post.member?.length || 0,
+    participants: post.memberIds?.length || 0,
     maxParticipants: post.capacity,
     level: post.level,
     description: post.description || `Join us for an engaging discussion about "${post.book}". Share your insights and connect with fellow readers.`,
     tags: post.tags && post.tags.length > 0 ? post.tags : tags,
     status,
-    isJoined: currentUsername ? post.member?.includes(currentUsername) || post.creater === currentUsername : false,
-    isMyRoom: currentUsername ? post.creater === currentUsername : false,
+    isJoined: currentUserId ? (post.memberIds?.includes(currentUserId) || post.createrId === currentUserId) : false,
+    isMyRoom: currentUserId ? post.createrId === currentUserId : false,
     meetLink: post.meetLink,
     calendarEventId: post.calendarEventId,
     recruit: post.recruit !== undefined ? post.recruit : true // 기본값 true
@@ -215,7 +221,19 @@ const Board: React.FC = () => {
     const convertPostsToRooms = async () => {
       const roomPromises = posts.map(async (post) => {
         const bookInfo = await fetchBookInfo(post.isbn || '');
-        return postToRoom(post, user?.username, bookInfo);
+
+        // Fetch host username by createrId
+        let hostUsername = 'Unknown';
+        if (post.createrId && accessToken) {
+          try {
+            const hostUser = await getUserById(post.createrId, accessToken);
+            hostUsername = hostUser.username;
+          } catch (error) {
+            console.error('Failed to fetch host username:', error);
+          }
+        }
+
+        return postToRoom(post, user?.id, hostUsername, bookInfo);
       });
 
       const convertedRooms = await Promise.all(roomPromises);
@@ -227,7 +245,7 @@ const Board: React.FC = () => {
     } else {
       setRooms([]);
     }
-  }, [posts, user?.username]);
+  }, [posts, user?.id, accessToken]);
 
   // Get unique genres from rooms
   const genres = useMemo(() => {
@@ -295,11 +313,11 @@ const Board: React.FC = () => {
   };
 
   const handleJoin = useCallback(async (roomId: string) => {
-    if (!accessToken || !user?.username) return;
+    if (!accessToken || !user?.id) return;
 
     setIsProcessing(true);
     try {
-      await joinBookMeeting(roomId, user.username, accessToken);
+      await joinBookMeeting(roomId, user.id, accessToken);
       await fetchPosts();
       setSelectedRoom(null);
     } catch (err) {
@@ -308,7 +326,7 @@ const Board: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [accessToken, user?.username, fetchPosts, t]);
+  }, [accessToken, user?.id, fetchPosts, t]);
 
   const handleDelete = useCallback(async (roomId: string) => {
     if (!accessToken) return;

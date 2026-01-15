@@ -52,9 +52,9 @@ public class SessionService {
         }
         Post post = postOpt.get();
 
-        // 4. 권한 검증: member에 username이 포함되어 있거나 creater여야 함
-        boolean isMember = post.getMember() != null && post.getMember().contains(user.getUsername());
-        boolean isCreator = post.getCreater() != null && post.getCreater().equals(user.getUsername());
+        // 4. 권한 검증: member에 userId가 포함되어 있거나 creater여야 함
+        boolean isMember = post.getMemberIds() != null && post.getMemberIds().contains(user.getId());
+        boolean isCreator = post.getCreaterId() != null && post.getCreaterId().equals(user.getId());
 
         if (!isMember && !isCreator) {
             throw new ForbiddenException("You are not a participant of this meeting");
@@ -111,8 +111,8 @@ public class SessionService {
         Post post = postOpt.get();
 
         // 5. 권한 검증
-        boolean isMember = post.getMember() != null && post.getMember().contains(user.getUsername());
-        boolean isCreator = post.getCreater() != null && post.getCreater().equals(user.getUsername());
+        boolean isMember = post.getMemberIds() != null && post.getMemberIds().contains(user.getId());
+        boolean isCreator = post.getCreaterId() != null && post.getCreaterId().equals(user.getId());
 
         if (!isMember && !isCreator) {
             throw new ForbiddenException("You are not a participant of this meeting");
@@ -126,8 +126,8 @@ public class SessionService {
             post.getDue(),
             post.getLevel(),
             post.getCapacity(),
-            post.getMember() != null ? post.getMember().size() : 0,
-            post.getCreater()
+            post.getMemberIds() != null ? post.getMemberIds().size() : 0,
+            post.getCreaterId()
         );
 
         return new GetSessionResponse(

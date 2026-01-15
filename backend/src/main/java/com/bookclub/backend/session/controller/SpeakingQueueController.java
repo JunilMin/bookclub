@@ -45,7 +45,7 @@ public class SpeakingQueueController {
             @RequestBody QueueActionMessage message) {
         SpeakingQueue queue = speakingQueueService.raiseHand(
                 sessionId,
-                message.getOdUserId(),
+                message.getUserId(),
                 message.getUsername(),
                 message.getPhotoUrl()
         );
@@ -68,7 +68,7 @@ public class SpeakingQueueController {
     public ResponseEntity<SpeakingQueue> removeFromQueue(
             @PathVariable String sessionId,
             @RequestBody QueueActionMessage message) {
-        SpeakingQueue queue = speakingQueueService.removeFromQueue(sessionId, message.getOdUserId());
+        SpeakingQueue queue = speakingQueueService.removeFromQueue(sessionId, message.getUserId());
         return ResponseEntity.ok(queue);
     }
 
@@ -85,14 +85,14 @@ public class SpeakingQueueController {
             case "RAISE_HAND":
                 return speakingQueueService.raiseHand(
                         sessionId,
-                        message.getOdUserId(),
+                        message.getUserId(),
                         message.getUsername(),
                         message.getPhotoUrl()
                 );
             case "NEXT_SPEAKER":
                 return speakingQueueService.nextSpeaker(sessionId);
             case "REMOVE":
-                return speakingQueueService.removeFromQueue(sessionId, message.getOdUserId());
+                return speakingQueueService.removeFromQueue(sessionId, message.getUserId());
             default:
                 return speakingQueueService.getOrCreateQueue(sessionId);
         }
@@ -108,14 +108,14 @@ public class SpeakingQueueController {
             PresenceMessage message) {
 
         logger.info("=== Presence received: sessionId={}, action={}, userId={}, username={} ===",
-                sessionId, message.getAction(), message.getOdUserId(), message.getUsername());
+                sessionId, message.getAction(), message.getUserId(), message.getUsername());
 
         SpeakingQueue updatedQueue = null;
 
         if ("JOIN".equals(message.getAction())) {
             updatedQueue = speakingQueueService.addParticipant(
                     sessionId,
-                    message.getOdUserId(),
+                    message.getUserId(),
                     message.getUsername(),
                     message.getPhotoUrl(),
                     false
@@ -123,7 +123,7 @@ public class SpeakingQueueController {
             logger.info("User {} added to session {}. Total participants: {}",
                     message.getUsername(), sessionId, updatedQueue.getParticipants().size());
         } else if ("LEAVE".equals(message.getAction())) {
-            updatedQueue = speakingQueueService.setParticipantOffline(sessionId, message.getOdUserId());
+            updatedQueue = speakingQueueService.setParticipantOffline(sessionId, message.getUserId());
             logger.info("User {} left session {}.", message.getUsername(), sessionId);
         }
 

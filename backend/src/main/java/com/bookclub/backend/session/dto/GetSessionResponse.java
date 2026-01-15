@@ -30,6 +30,6 @@ public class GetSessionResponse {
         private String level;
         private int capacity;
         private int memberCount;
-        private String creater;
+        private String createrId;
     }
 }

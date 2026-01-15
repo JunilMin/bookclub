@@ -11,8 +11,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class PresenceMessage {
     private String action;  // "JOIN", "LEAVE", "CURSOR_MOVE"
-    private String odUserId;
-    private String username;
+    private String userId;      // User ObjectId
+    private String username;    // Username (for display)
     private String photoUrl;
     private CursorPosition cursorPosition;
 

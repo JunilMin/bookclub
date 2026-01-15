@@ -34,19 +34,19 @@ public class SessionNoteService {
         return sessionNoteRepository.save(note);
     }
 
-    public SessionNote updateNote(String sessionId, String content, String username) {
+    public SessionNote updateNote(String sessionId, String content, String userId) {
         SessionNote note = getOrCreateNote(sessionId);
         note.setContent(content);
-        note.setLastEditedBy(username);
+        note.setLastEditedById(userId);
         note.setUpdatedAt(LocalDateTime.now());
         note.setVersion(note.getVersion() + 1);
         return sessionNoteRepository.save(note);
     }
 
-    public SessionNote updateTitle(String sessionId, String title, String username) {
+    public SessionNote updateTitle(String sessionId, String title, String userId) {
         SessionNote note = getOrCreateNote(sessionId);
         note.setTitle(title);
-        note.setLastEditedBy(username);
+        note.setLastEditedById(userId);
         note.setUpdatedAt(LocalDateTime.now());
         return sessionNoteRepository.save(note);
     }

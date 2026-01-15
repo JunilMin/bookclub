@@ -196,4 +196,77 @@ public class UserService {
 
         return userRepository.save(user);
     }
+
+    // ===== userId (String) 기반 메서드들 =====
+
+    /**
+     * userId (String)로 사용자 조회
+     */
+    public Optional<User> getUserByIdString(String userId) {
+        return userRepository.findById(new ObjectId(userId));
+    }
+
+    /**
+     * 생성한 북미팅 추가 (userId 기반)
+     */
+    public User addCreatedBookMeetingById(String userId, String postId) {
+        User user = userRepository.findById(new ObjectId(userId))
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        if (user.getCreatedBookMeetings() == null) {
+            user.setCreatedBookMeetings(new ArrayList<>());
+        }
+
+        if (!user.getCreatedBookMeetings().contains(postId)) {
+            user.getCreatedBookMeetings().add(postId);
+        }
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 생성한 북미팅 제거 (userId 기반)
+     */
+    public User removeCreatedBookMeetingById(String userId, String postId) {
+        User user = userRepository.findById(new ObjectId(userId))
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        if (user.getCreatedBookMeetings() != null) {
+            user.getCreatedBookMeetings().remove(postId);
+        }
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 참여한 북미팅 추가 (userId 기반)
+     */
+    public User addParticipatedBookMeetingById(String userId, String postId) {
+        User user = userRepository.findById(new ObjectId(userId))
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        if (user.getParticipatedBookMeetings() == null) {
+            user.setParticipatedBookMeetings(new ArrayList<>());
+        }
+
+        if (!user.getParticipatedBookMeetings().contains(postId)) {
+            user.getParticipatedBookMeetings().add(postId);
+        }
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 참여한 북미팅 제거 (userId 기반)
+     */
+    public User removeParticipatedBookMeetingById(String userId, String postId) {
+        User user = userRepository.findById(new ObjectId(userId))
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        if (user.getParticipatedBookMeetings() != null) {
+            user.getParticipatedBookMeetings().remove(postId);
+        }
+
+        return userRepository.save(user);
+    }
 }

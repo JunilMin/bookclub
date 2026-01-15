@@ -197,11 +197,11 @@ const PostCreate: React.FC = () => {
       : parseInt(form.discussionLength);
 
     const newPost: Partial<Post> = {
-      creater: user.username,
+      createrId: user.id!, // User ObjectId
       date: new Date().toISOString().slice(0, -5),
       due: dueDateTime.toISOString().slice(0, -5),
       capacity: form.capacity,
-      member: [user.id!], // 생성자의 ObjectId를 기본 멤버로 추가
+      memberIds: [user.id!], // 생성자의 ObjectId를 기본 멤버로 추가
       level: form.level,
       book: form.selectedBook.title,
       isbn: form.selectedBook.isbn,

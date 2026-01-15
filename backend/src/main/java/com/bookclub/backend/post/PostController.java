@@ -104,9 +104,9 @@ public class PostController {
     @PostMapping("/{id}/join")
     public ResponseEntity<Post> joinBookMeeting(
             @PathVariable String id,
-            @RequestParam String username) {
+            @RequestParam String userId) {
         try {
-            Post post = postService.joinBookMeeting(id, username);
+            Post post = postService.joinBookMeeting(id, userId);
             return ResponseEntity.ok(post);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
@@ -119,9 +119,9 @@ public class PostController {
     @PostMapping("/{id}/leave")
     public ResponseEntity<Post> leaveBookMeeting(
             @PathVariable String id,
-            @RequestParam String username) {
+            @RequestParam String userId) {
         try {
-            Post post = postService.leaveBookMeeting(id, username);
+            Post post = postService.leaveBookMeeting(id, userId);
             return ResponseEntity.ok(post);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();

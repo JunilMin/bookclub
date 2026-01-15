@@ -7,11 +7,12 @@ export interface SessionNote {
   version: number;
   createdAt: string;
   updatedAt: string;
-  lastEditedBy: string;
+  lastEditedById: string;
 }
 
 export interface NoteUpdateMessage {
   content: string;
+  userId: string;
   username: string;
   uid: string;
   timestamp: number;
@@ -19,7 +20,7 @@ export interface NoteUpdateMessage {
 
 // Speaking Queue Types
 export interface CurrentSpeaker {
-  odUserId: string;
+  userId: string;
   username: string;
   photoUrl: string;
   startedAt: string;
@@ -27,7 +28,7 @@ export interface CurrentSpeaker {
 }
 
 export interface QueuedParticipant {
-  odUserId: string;
+  userId: string;
   username: string;
   photoUrl: string;
   queuedAt: string;
@@ -35,7 +36,7 @@ export interface QueuedParticipant {
 }
 
 export interface SessionParticipant {
-  odUserId: string;
+  userId: string;
   username: string;
   photoUrl: string;
   isHost: boolean;
@@ -54,7 +55,7 @@ export interface SpeakingQueue {
 
 export interface QueueActionMessage {
   action: 'RAISE_HAND' | 'NEXT_SPEAKER' | 'REMOVE';
-  odUserId: string;
+  userId: string;
   username: string;
   photoUrl: string;
 }
@@ -68,7 +69,7 @@ export interface CursorPosition {
 
 export interface PresenceMessage {
   action: 'JOIN' | 'LEAVE' | 'CURSOR_MOVE';
-  odUserId: string;
+  userId: string;
   username: string;
   photoUrl: string;
   cursorPosition?: CursorPosition;

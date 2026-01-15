@@ -11,7 +11,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class QueueActionMessage {
     private String action;  // "RAISE_HAND", "NEXT_SPEAKER", "REMOVE"
-    private String odUserId;
-    private String username;
+    private String userId;      // User ObjectId
+    private String username;    // Username (for display)
     private String photoUrl;
 }

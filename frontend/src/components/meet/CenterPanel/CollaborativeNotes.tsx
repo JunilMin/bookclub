@@ -88,7 +88,7 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     }
 
     try {
-      await updateNoteTitle(docId, tempTitle.trim(), username, accessToken);
+      await updateNoteTitle(docId, tempTitle.trim(), userId, username, accessToken);
       setTitle(tempTitle.trim());
       setIsEditingTitle(false);
     } catch (error) {

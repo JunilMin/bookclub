@@ -28,7 +28,7 @@ public class SessionNote {
 
     private LocalDateTime updatedAt;
 
-    private String lastEditedBy;  // Username of last editor
+    private String lastEditedById;  // User ObjectId of last editor
 
     public SessionNote(String sessionId) {
         this.sessionId = sessionId;

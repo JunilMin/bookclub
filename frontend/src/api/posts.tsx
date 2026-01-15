@@ -8,11 +8,11 @@ export interface ObjectId {
 
 export interface Post {
   id: string; // 서버에서 자동 생성되는 ID
-  creater: string; // 생성자 username
+  createrId: string; // 생성자 User ObjectId
   date: string; // ISO 형식의 날짜 문자열
   due: string; // ISO 형식의 날짜 문자열
   capacity: number;
-  member: string[]; // 참여자 username 리스트
+  memberIds: string[]; // 참여자 User ObjectId 리스트
   level: 'low' | 'moderate' | 'high';
   book: string;
   isbn?: string; // 책 ISBN
@@ -67,19 +67,19 @@ export const deletePost = async (id: string, token: string): Promise<string> => 
 };
 
 // 북미팅 참여
-export const joinBookMeeting = async (postId: string, username: string, token: string): Promise<Post> => {
+export const joinBookMeeting = async (postId: string, userId: string, token: string): Promise<Post> => {
   setAccessToken(token);
   const response = await axiosInstance.post(`/posts/${postId}/join`, null, {
-    params: { username },
+    params: { userId },
   });
   return response.data;
 };
 
 // 북미팅 참여 취소
-export const leaveBookMeeting = async (postId: string, username: string, token: string): Promise<Post> => {
+export const leaveBookMeeting = async (postId: string, userId: string, token: string): Promise<Post> => {
   setAccessToken(token);
   const response = await axiosInstance.post(`/posts/${postId}/leave`, null, {
-    params: { username },
+    params: { userId },
   });
   return response.data;
 };

@@ -17,7 +17,7 @@ interface ModeratorControlsProps {
   onOpenMeet: () => void;
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
-  onRemoveFromQueue: (odUserId: string) => void;
+  onRemoveFromQueue: (userId: string) => void;
 }
 
 const ModeratorControls: React.FC<ModeratorControlsProps> = ({
@@ -140,7 +140,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
         {queue?.queue && queue.queue.length > 0 ? (
           <ul className="queue-list">
             {queue.queue.map((participant, index) => (
-              <li key={participant.odUserId} className="queue-item">
+              <li key={participant.userId} className="queue-item">
                 <span className="queue-position">{index + 1}</span>
                 {participant.photoUrl ? (
                   <img
@@ -157,7 +157,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                 {isHost && (
                   <button
                     className="queue-remove-btn"
-                    onClick={() => onRemoveFromQueue(participant.odUserId)}
+                    onClick={() => onRemoveFromQueue(participant.userId)}
                   >
                     <FiX size={14} />
                   </button>
@@ -180,7 +180,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
         </div>
         <ul className="participants-list">
           {queue?.participants?.map((participant) => (
-            <li key={participant.odUserId} className="participant-item">
+            <li key={participant.userId} className="participant-item">
               {participant.photoUrl ? (
                 <img
                   src={participant.photoUrl}

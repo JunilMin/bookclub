@@ -16,7 +16,7 @@ export interface PostInfo {
   level: string;
   capacity: number;
   memberCount: number;
-  creater: string;
+  createrId: string;
 }
 
 export interface GetSessionResponse {

@@ -44,9 +44,10 @@ public class PostService {
      * @param googleAccessToken 사용자의 Google OAuth Access Token (Calendar scope 필요, 없으면 Meet 링크 생성 안 함)
      */
     public Post createPost(Post post, String googleAccessToken) {
-        // 작성자 정보 설정
-        Optional<User> user = userService.getUserByUsername(post.getCreater());
-        user.ifPresent(u -> post.setCreater(u.getUsername()));
+        // createrId가 설정되어 있는지 확인 (이미 userId가 설정되어 있어야 함)
+        if (post.getCreaterId() == null || post.getCreaterId().isEmpty()) {
+            throw new RuntimeException("CreaterId is required");
+        }
 
         // 생성 시간 설정
         if (post.getDate() == null) {
@@ -83,8 +84,8 @@ public class PostService {
         Post savedPost = postRepository.save(post);
 
         // 생성자의 createdBookMeetings에 추가
-        if (savedPost.getCreater() != null) {
-            userService.addCreatedBookMeeting(savedPost.getCreater(), savedPost.getId());
+        if (savedPost.getCreaterId() != null) {
+            userService.addCreatedBookMeetingById(savedPost.getCreaterId(), savedPost.getId());
         }
 
         return savedPost;
@@ -100,8 +101,8 @@ public class PostService {
             Post post = existingPost.get();
 
             // 기본 필드 업데이트
-            if (updatedPost.getCreater() != null) {
-                post.setCreater(updatedPost.getCreater());
+            if (updatedPost.getCreaterId() != null) {
+                post.setCreaterId(updatedPost.getCreaterId());
             }
             if (updatedPost.getDate() != null) {
                 post.setDate(updatedPost.getDate());
@@ -112,8 +113,8 @@ public class PostService {
             if (updatedPost.getCapacity() > 0) {
                 post.setCapacity(updatedPost.getCapacity());
             }
-            if (updatedPost.getMember() != null) {
-                post.setMember(updatedPost.getMember());
+            if (updatedPost.getMemberIds() != null) {
+                post.setMemberIds(updatedPost.getMemberIds());
             }
             if (updatedPost.getLevel() != null) {
                 post.setLevel(updatedPost.getLevel());
@@ -150,8 +151,8 @@ public class PostService {
         // 삭제 전에 생성자의 createdBookMeetings에서 제거
         Optional<Post> post = postRepository.findById(id);
         post.ifPresent(p -> {
-            if (p.getCreater() != null) {
-                userService.removeCreatedBookMeeting(p.getCreater(), id);
+            if (p.getCreaterId() != null) {
+                userService.removeCreatedBookMeetingById(p.getCreaterId(), id);
             }
             // TODO (v2.1): Calendar 이벤트 삭제
             // if (p.getCalendarEventId() != null) {
@@ -165,28 +166,28 @@ public class PostService {
     /**
      * 북미팅 참여
      */
-    public Post joinBookMeeting(String postId, String username) {
+    public Post joinBookMeeting(String postId, String userId) {
         Post post = postRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("게시물을 찾을 수 없습니다."));
 
         // 이미 참여 중인지 확인
-        if (post.getMember() != null && post.getMember().contains(username)) {
+        if (post.getMemberIds() != null && post.getMemberIds().contains(userId)) {
             throw new RuntimeException("이미 참여 중인 북미팅입니다.");
         }
 
         // 정원 확인
-        if (post.getMember() != null && post.getMember().size() >= post.getCapacity()) {
+        if (post.getMemberIds() != null && post.getMemberIds().size() >= post.getCapacity()) {
             throw new RuntimeException("정원이 가득 찼습니다.");
         }
 
         // 멤버 리스트에 추가
-        if (post.getMember() == null) {
-            post.setMember(new java.util.ArrayList<>());
+        if (post.getMemberIds() == null) {
+            post.setMemberIds(new java.util.ArrayList<>());
         }
-        post.getMember().add(username);
+        post.getMemberIds().add(userId);
 
         // 사용자의 participatedBookMeetings에 추가
-        userService.addParticipatedBookMeeting(username, postId);
+        userService.addParticipatedBookMeetingById(userId, postId);
 
         return postRepository.save(post);
     }
@@ -194,20 +195,20 @@ public class PostService {
     /**
      * 북미팅 참여 취소
      */
-    public Post leaveBookMeeting(String postId, String username) {
+    public Post leaveBookMeeting(String postId, String userId) {
         Post post = postRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("게시물을 찾을 수 없습니다."));
 
         // 참여 중인지 확인
-        if (post.getMember() == null || !post.getMember().contains(username)) {
+        if (post.getMemberIds() == null || !post.getMemberIds().contains(userId)) {
             throw new RuntimeException("참여 중이 아닌 북미팅입니다.");
         }
 
         // 멤버 리스트에서 제거
-        post.getMember().remove(username);
+        post.getMemberIds().remove(userId);
 
         // 사용자의 participatedBookMeetings에서 제거
-        userService.removeParticipatedBookMeeting(username, postId);
+        userService.removeParticipatedBookMeetingById(userId, postId);
 
         return postRepository.save(post);
     }

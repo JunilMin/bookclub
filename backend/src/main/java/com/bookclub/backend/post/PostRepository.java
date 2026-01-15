@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PostRepository extends MongoRepository<Post, String> {
-  List<Post> findByCreater(String creater);
+  List<Post> findByCreaterId(String createrId);
   Optional<Post> findById(String id);
-  List<Post> findByUsername(String username);
 }

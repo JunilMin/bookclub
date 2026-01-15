@@ -76,7 +76,7 @@ public class SessionNoteController {
         SessionNote note = sessionNoteService.updateNote(
                 sessionId,
                 message.getContent(),
-                message.getUsername()
+                message.getUserId()
         );
         return ResponseEntity.ok(note);
     }
@@ -89,13 +89,13 @@ public class SessionNoteController {
             @PathVariable String sessionId,
             @RequestBody Map<String, String> payload) {
         String title = payload.get("title");
-        String username = payload.get("username");
+        String userId = payload.get("userId");
 
         if (title == null || title.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        SessionNote note = sessionNoteService.updateTitle(sessionId, title, username);
+        SessionNote note = sessionNoteService.updateTitle(sessionId, title, userId);
         return ResponseEntity.ok(note);
     }
 
@@ -119,7 +119,7 @@ public class SessionNoteController {
         }
 
         // Save to database
-        sessionNoteService.updateNote(sessionId, message.getContent(), message.getUsername());
+        sessionNoteService.updateNote(sessionId, message.getContent(), message.getUserId());
 
         return message;
     }

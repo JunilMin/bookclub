@@ -11,6 +11,7 @@ import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
+import { getUserById } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
@@ -38,6 +39,7 @@ const MeetRoom: React.FC = () => {
 
   // State (note 상태 제거 - CollaborativeNotes가 자체 관리)
   const [session, setSession] = useState<GetSessionResponse | null>(null);
+  const [hostUsername, setHostUsername] = useState<string>('');
   const [initialNoteContent, setInitialNoteContent] = useState<any>(null);
   const [initialNoteTitle, setInitialNoteTitle] = useState<string>('');
   const [queue, setQueue] = useState<SpeakingQueue | null>(null);
@@ -85,6 +87,30 @@ const MeetRoom: React.FC = () => {
         ]);
 
         setSession(sessionData);
+
+        console.log('Session data:', {
+          sessionId: sessionData.sessionId,
+          postId: sessionData.post.id,
+          createrId: sessionData.post.createrId,
+          book: sessionData.post.book,
+        });
+
+        // Fetch host username from createrId
+        if (sessionData.post.createrId) {
+          console.log('Fetching host username for createrId:', sessionData.post.createrId);
+          try {
+            const hostUser = await getUserById(sessionData.post.createrId, accessToken);
+            console.log('Host user fetched:', hostUser);
+            setHostUsername(hostUser.username);
+          } catch (error) {
+            console.error('Failed to fetch host username:', error);
+            setHostUsername('Unknown');
+          }
+        } else {
+          console.error('No createrId in session data!');
+          setHostUsername('No Host Info');
+        }
+
         // 초기 노트 내용 설정 (CollaborativeNotes에 전달)
         if (noteData?.content) {
           try {
@@ -99,6 +125,13 @@ const MeetRoom: React.FC = () => {
         }
         setQueue(queueData);
         setRecording(recordingData);
+
+        console.log('Initial data loaded:', {
+          sessionId: sessionData.sessionId,
+          participants: queueData?.participants?.length || 0,
+          userId: user?.id,
+          username: user?.username,
+        });
       } catch (err: any) {
         console.error('Failed to fetch session data:', err);
         if (err.response?.status === 403) {
@@ -123,6 +156,10 @@ const MeetRoom: React.FC = () => {
     // Subscribe to queue updates
     const unsubQueue = subscribe(`/topic/session/${sessionId}/queue`, (message) => {
       const queueUpdate: SpeakingQueue = JSON.parse(message.body);
+      console.log('Queue updated:', {
+        participants: queueUpdate.participants?.length || 0,
+        queue: queueUpdate.queue?.length || 0,
+      });
       setQueue(queueUpdate);
     });
 
@@ -131,22 +168,29 @@ const MeetRoom: React.FC = () => {
       const presenceUpdate: PresenceMessage = JSON.parse(message.body);
       setPresence(prev => {
         if (presenceUpdate.action === 'JOIN') {
-          return [...prev.filter(p => p.odUserId !== presenceUpdate.odUserId), presenceUpdate];
+          return [...prev.filter(p => p.userId !== presenceUpdate.userId), presenceUpdate];
         } else if (presenceUpdate.action === 'LEAVE') {
-          return prev.filter(p => p.odUserId !== presenceUpdate.odUserId);
+          return prev.filter(p => p.userId !== presenceUpdate.userId);
         }
         return prev;
       });
     });
 
     // Send join presence
-    if (user) {
+    if (user && user.id) {
+      console.log('Sending JOIN presence:', {
+        sessionId,
+        userId: user.id,
+        username: user.username,
+      });
       send(`/app/session/${sessionId}/presence`, {
         action: 'JOIN',
-        odUserId: user.uid,
+        userId: user.id,
         username: user.username,
         photoUrl: user.photoUrl || '',
       });
+    } else {
+      console.error('Cannot send JOIN presence: user.id is missing', user);
     }
 
     return () => {
@@ -156,7 +200,7 @@ const MeetRoom: React.FC = () => {
       if (user) {
         send(`/app/session/${sessionId}/presence`, {
           action: 'LEAVE',
-          odUserId: user.uid,
+          userId: user.id,
           username: user.username,
           photoUrl: user.photoUrl || '',
         });
@@ -166,9 +210,12 @@ const MeetRoom: React.FC = () => {
 
   // Handlers
   const handleRaiseHand = useCallback(async () => {
-    if (!sessionId || !accessToken || !user) return;
+    if (!sessionId || !accessToken || !user || !user.id) {
+      console.error('Cannot raise hand: missing required data', { sessionId, hasToken: !!accessToken, userId: user?.id });
+      return;
+    }
     try {
-      const result = await raiseHand(sessionId, user.uid, user.username, user.photoUrl || '', accessToken);
+      const result = await raiseHand(sessionId, user.id, user.username, user.photoUrl || '', accessToken);
       setQueue(result);
     } catch (err) {
       console.error('Failed to raise hand:', err);
@@ -185,10 +232,10 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken]);
 
-  const handleRemoveFromQueue = useCallback(async (odUserId: string) => {
+  const handleRemoveFromQueue = useCallback(async (userId: string) => {
     if (!sessionId || !accessToken) return;
     try {
-      const result = await removeFromQueue(sessionId, odUserId, accessToken);
+      const result = await removeFromQueue(sessionId, userId, accessToken);
       setQueue(result);
     } catch (err) {
       console.error('Failed to remove from queue:', err);
@@ -321,10 +368,10 @@ const MeetRoom: React.FC = () => {
   }, [session]);
 
   // Check if current user is host
-  const isHost = user?.username === session?.post?.creater;
+  const isHost = user?.id === session?.post?.createrId;
 
   // Check if current user has raised hand
-  const hasRaisedHand = queue?.participants?.find(p => p.odUserId === user?.uid)?.hasRaisedHand || false;
+  const hasRaisedHand = queue?.participants?.find(p => p.userId === user?.id)?.hasRaisedHand || false;
 
   // Loading state (wait for both auth and session data)
   if (isLoading || isLoadingState) {
@@ -366,7 +413,7 @@ const MeetRoom: React.FC = () => {
           <div className="meetroom-title-section">
             <h1 className="meetroom-title">{session.post.book}</h1>
             <span className="meetroom-subtitle">
-              {t('browse_modal_host')}: {session.post.creater}
+              {t('browse_modal_host')}: {hostUsername || 'Loading...'}
             </span>
           </div>
         </div>
@@ -415,7 +462,7 @@ const MeetRoom: React.FC = () => {
             <CollaborativeNotes
               ref={notesRef}
               docId={sessionId}
-              userId={user.uid}
+              userId={user.id!}
               username={user.username || 'Anonymous'}
               initialContent={initialNoteContent}
               initialTitle={initialNoteTitle}

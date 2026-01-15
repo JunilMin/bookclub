@@ -169,7 +169,7 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
   };
 
   const handleLeave = async () => {
-    if (!accessToken || !user) {
+    if (!accessToken || !user?.id) {
       alert(t('login_required') || 'Please login first');
       return;
     }
@@ -180,7 +180,7 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
 
     setIsLeaving(true);
     try {
-      await leaveBookMeeting(room.id, user.username, accessToken);
+      await leaveBookMeeting(room.id, user.id, accessToken);
       alert(t('browse_modal_leave_success') || 'Successfully left the room');
       onClose();
       if (onUpdate) onUpdate();

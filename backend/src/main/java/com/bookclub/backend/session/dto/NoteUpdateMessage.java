@@ -11,7 +11,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class NoteUpdateMessage {
     private String content;
-    private String username;
-    private String uid;
+    private String userId;      // User ObjectId (used for DB)
+    private String username;    // Username (used for display)
+    private String uid;         // Firebase UID
     private long timestamp;
 }

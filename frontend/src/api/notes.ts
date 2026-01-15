@@ -16,12 +16,14 @@ export const getNotes = async (sessionId: string, token: string): Promise<Sessio
 export const updateNotes = async (
   sessionId: string,
   content: string,
+  userId: string,
   username: string,
   token: string
 ): Promise<SessionNote> => {
   setAccessToken(token);
   const message: NoteUpdateMessage = {
     content,
+    userId,
     username,
     uid: '',
     timestamp: Date.now(),
@@ -36,12 +38,14 @@ export const updateNotes = async (
 export const updateNoteTitle = async (
   sessionId: string,
   title: string,
+  userId: string,
   username: string,
   token: string
 ): Promise<SessionNote> => {
   setAccessToken(token);
   const response = await axiosInstance.put(`/sessions/${sessionId}/notes/title`, {
     title,
+    userId,
     username,
   });
   return response.data;
