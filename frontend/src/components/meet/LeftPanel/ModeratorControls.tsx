@@ -5,6 +5,7 @@ import {
   FiInfo,
   FiX,
   FiUser,
+  FiClock,
 } from 'react-icons/fi';
 import { SpeakingQueue } from '../../../types/meetRoom';
 import '../styles/LeftPanel.css';
@@ -32,6 +33,24 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
 }) => {
   const { t } = useTranslation();
   const [speakerTime, setSpeakerTime] = useState('0:00');
+
+  // Format duration in seconds to mm:ss
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Format time to HH:MM:SS
+  const formatTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
 
   // Real-time speaker time update
   useEffect(() => {
@@ -203,6 +222,32 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* Speaking Log */}
+      <div className="speaking-log-section">
+        <div className="speaking-log-header">
+          <h3>
+            <FiClock size={14} />
+            {t('meet_speaking_log') || 'Speaking Log'} ({queue?.speakingHistory?.length || 0})
+          </h3>
+        </div>
+        {queue?.speakingHistory && queue.speakingHistory.length > 0 ? (
+          <ul className="speaking-log-list">
+            {queue.speakingHistory.map((entry, index) => (
+              <li key={`${entry.userId}-${entry.startTime}-${index}`} className="speaking-log-item">
+                <div className="log-time">{formatTime(entry.startTime)}</div>
+                <div className="log-details">
+                  <span className="log-username">{entry.username}</span>
+                  <span className="log-duration">{formatDuration(entry.durationSeconds)}</span>
+                  <span className="log-count">#{entry.speakCount}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="speaking-log-empty">{t('meet_log_empty') || 'No speaking history yet'}</p>
+        )}
       </div>
     </div>
   );

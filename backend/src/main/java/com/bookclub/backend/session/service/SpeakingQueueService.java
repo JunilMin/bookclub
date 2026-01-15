@@ -6,6 +6,7 @@ import com.bookclub.backend.session.repository.SpeakingQueueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -69,18 +70,37 @@ public class SpeakingQueueService {
     public SpeakingQueue nextSpeaker(String sessionId) {
         SpeakingQueue queue = getOrCreateQueue(sessionId);
 
+        // Add previous speaker to history
+        if (queue.getCurrentSpeaker() != null) {
+            CurrentSpeaker prevSpeaker = queue.getCurrentSpeaker();
+            LocalDateTime endTime = LocalDateTime.now();
+
+            // Calculate speak count for this user
+            long speakCount = queue.getSpeakingHistory().stream()
+                    .filter(h -> h.getUserId().equals(prevSpeaker.getUserId()))
+                    .count() + 1;  // +1 for current speaking session
+
+            // Add to history
+            SpeakingQueue.SpeakingHistoryEntry historyEntry = new SpeakingQueue.SpeakingHistoryEntry(
+                    prevSpeaker.getUserId(),
+                    prevSpeaker.getUsername(),
+                    prevSpeaker.getStartedAt(),
+                    endTime,
+                    (int) speakCount
+            );
+            queue.getSpeakingHistory().add(0, historyEntry);  // Add to beginning (stack)
+
+            // Update hand status for previous speaker
+            queue.getParticipants().stream()
+                    .filter(p -> p.getUserId().equals(prevSpeaker.getUserId()))
+                    .findFirst()
+                    .ifPresent(p -> p.setHasRaisedHand(false));
+        }
+
         if (queue.getQueue().isEmpty()) {
             queue.setCurrentSpeaker(null);
         } else {
             QueuedParticipant next = queue.getQueue().remove(0);
-
-            // Update hand status for previous speaker
-            if (queue.getCurrentSpeaker() != null) {
-                queue.getParticipants().stream()
-                        .filter(p -> p.getUserId().equals(queue.getCurrentSpeaker().getUserId()))
-                        .findFirst()
-                        .ifPresent(p -> p.setHasRaisedHand(false));
-            }
 
             // Set new speaker
             CurrentSpeaker speaker = new CurrentSpeaker(

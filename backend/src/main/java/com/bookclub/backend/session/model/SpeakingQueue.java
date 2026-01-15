@@ -26,10 +26,13 @@ public class SpeakingQueue {
 
     private List<SessionParticipant> participants = new ArrayList<>();
 
+    private List<SpeakingHistoryEntry> speakingHistory = new ArrayList<>();
+
     public SpeakingQueue(String sessionId) {
         this.sessionId = sessionId;
         this.queue = new ArrayList<>();
         this.participants = new ArrayList<>();
+        this.speakingHistory = new ArrayList<>();
     }
 
     @Getter
@@ -90,6 +93,27 @@ public class SpeakingQueue {
             this.hasRaisedHand = false;
             this.isOnline = true;
             this.joinedAt = LocalDateTime.now();
+        }
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class SpeakingHistoryEntry {
+        private String userId;  // User ObjectId
+        private String username;
+        private LocalDateTime startTime;
+        private LocalDateTime endTime;
+        private long durationSeconds;
+        private int speakCount;  // 해당 사용자의 누적 발언 횟수
+
+        public SpeakingHistoryEntry(String userId, String username, LocalDateTime startTime, LocalDateTime endTime, int speakCount) {
+            this.userId = userId;
+            this.username = username;
+            this.startTime = startTime;
+            this.endTime = endTime;
+            this.durationSeconds = java.time.Duration.between(startTime, endTime).getSeconds();
+            this.speakCount = speakCount;
         }
     }
 }

@@ -45,12 +45,22 @@ export interface SessionParticipant {
   joinedAt: string;
 }
 
+export interface SpeakingHistoryEntry {
+  userId: string;
+  username: string;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  speakCount: number;
+}
+
 export interface SpeakingQueue {
   id: string;
   sessionId: string;
   currentSpeaker: CurrentSpeaker | null;
   queue: QueuedParticipant[];
   participants: SessionParticipant[];
+  speakingHistory: SpeakingHistoryEntry[];
 }
 
 export interface QueueActionMessage {
