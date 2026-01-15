@@ -9,7 +9,7 @@ import {
 } from 'react-icons/fi';
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
-import { getQueue, raiseHand, nextSpeaker, removeFromQueue } from '../api/speakingQueue';
+import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
@@ -242,6 +242,26 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken]);
 
+  const handleAddParticipantToQueue = useCallback(async (userId: string, username: string, photoUrl: string) => {
+    if (!sessionId || !accessToken) return;
+    try {
+      const result = await addParticipantToQueue(sessionId, userId, username, photoUrl, accessToken);
+      setQueue(result);
+    } catch (err) {
+      console.error('Failed to add participant to queue:', err);
+    }
+  }, [sessionId, accessToken]);
+
+  const handleReorderQueue = useCallback(async (userIds: string[]) => {
+    if (!sessionId || !accessToken) return;
+    try {
+      const result = await reorderQueue(sessionId, userIds, accessToken);
+      setQueue(result);
+    } catch (err) {
+      console.error('Failed to reorder queue:', err);
+    }
+  }, [sessionId, accessToken]);
+
   const handleToggleRecording = useCallback(async () => {
     if (!sessionId || !accessToken) return;
     try {
@@ -453,6 +473,8 @@ const MeetRoom: React.FC = () => {
             onRaiseHand={handleRaiseHand}
             onNextSpeaker={handleNextSpeaker}
             onRemoveFromQueue={handleRemoveFromQueue}
+            onAddParticipantToQueue={handleAddParticipantToQueue}
+            onReorderQueue={handleReorderQueue}
           />
         </aside>
 

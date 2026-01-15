@@ -58,3 +58,37 @@ export const removeFromQueue = async (
   const response = await axiosInstance.post(`/sessions/${sessionId}/queue/remove`, message);
   return response.data;
 };
+
+/**
+ * Add participant to queue (host only)
+ */
+export const addParticipantToQueue = async (
+  sessionId: string,
+  userId: string,
+  username: string,
+  photoUrl: string,
+  token: string
+): Promise<SpeakingQueue> => {
+  setAccessToken(token);
+  const message: QueueActionMessage = {
+    action: 'ADD_PARTICIPANT',
+    userId,
+    username,
+    photoUrl,
+  };
+  const response = await axiosInstance.post(`/sessions/${sessionId}/queue/add-participant`, message);
+  return response.data;
+};
+
+/**
+ * Reorder queue (host only)
+ */
+export const reorderQueue = async (
+  sessionId: string,
+  userIds: string[],
+  token: string
+): Promise<SpeakingQueue> => {
+  setAccessToken(token);
+  const response = await axiosInstance.put(`/sessions/${sessionId}/queue/reorder`, { userIds });
+  return response.data;
+};

@@ -2,6 +2,7 @@ package com.bookclub.backend.session.controller;
 
 import com.bookclub.backend.session.dto.PresenceMessage;
 import com.bookclub.backend.session.dto.QueueActionMessage;
+import com.bookclub.backend.session.dto.ReorderQueueRequest;
 import com.bookclub.backend.session.model.SpeakingQueue;
 import com.bookclub.backend.session.service.SpeakingQueueService;
 import org.slf4j.Logger;
@@ -69,6 +70,41 @@ public class SpeakingQueueController {
             @PathVariable String sessionId,
             @RequestBody QueueActionMessage message) {
         SpeakingQueue queue = speakingQueueService.removeFromQueue(sessionId, message.getUserId());
+        return ResponseEntity.ok(queue);
+    }
+
+    /**
+     * REST: Add participant to queue (host only)
+     */
+    @PostMapping("/{sessionId}/queue/add-participant")
+    public ResponseEntity<SpeakingQueue> addParticipantToQueue(
+            @PathVariable String sessionId,
+            @RequestBody QueueActionMessage message) {
+        SpeakingQueue queue = speakingQueueService.addParticipantToQueueByHost(
+                sessionId,
+                message.getUserId(),
+                message.getUsername(),
+                message.getPhotoUrl()
+        );
+
+        // Broadcast to WebSocket
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
+        return ResponseEntity.ok(queue);
+    }
+
+    /**
+     * REST: Reorder queue (host only)
+     */
+    @PutMapping("/{sessionId}/queue/reorder")
+    public ResponseEntity<SpeakingQueue> reorderQueue(
+            @PathVariable String sessionId,
+            @RequestBody ReorderQueueRequest request) {
+        SpeakingQueue queue = speakingQueueService.reorderQueue(sessionId, request.getUserIds());
+
+        // Broadcast to WebSocket
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
         return ResponseEntity.ok(queue);
     }
 

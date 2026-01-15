@@ -176,4 +176,61 @@ public class SpeakingQueueService {
 
         return speakingQueueRepository.save(queue);
     }
+
+    public SpeakingQueue addParticipantToQueueByHost(String sessionId, String userId, String username, String photoUrl) {
+        SpeakingQueue queue = getOrCreateQueue(sessionId);
+
+        // Find participant
+        SessionParticipant participant = queue.getParticipants().stream()
+                .filter(p -> p.getUserId().equals(userId))
+                .findFirst()
+                .orElse(null);
+
+        if (participant == null) {
+            // Add as new participant
+            participant = new SessionParticipant(userId, username, photoUrl, false);
+            queue.getParticipants().add(participant);
+        }
+
+        // Set hand raised to true
+        participant.setHasRaisedHand(true);
+
+        // Add to queue if not already present
+        boolean alreadyInQueue = queue.getQueue().stream()
+                .anyMatch(q -> q.getUserId().equals(userId));
+
+        if (!alreadyInQueue) {
+            int position = queue.getQueue().size() + 1;
+            QueuedParticipant queued = new QueuedParticipant(userId, username, photoUrl, position);
+            queue.getQueue().add(queued);
+        }
+
+        return speakingQueueRepository.save(queue);
+    }
+
+    public SpeakingQueue reorderQueue(String sessionId, java.util.List<String> userIds) {
+        SpeakingQueue queue = getOrCreateQueue(sessionId);
+
+        // Create a map of userId to QueuedParticipant for fast lookup
+        java.util.Map<String, QueuedParticipant> participantMap = new java.util.HashMap<>();
+        for (QueuedParticipant qp : queue.getQueue()) {
+            participantMap.put(qp.getUserId(), qp);
+        }
+
+        // Build new queue in the order specified by userIds
+        java.util.List<QueuedParticipant> newQueue = new java.util.ArrayList<>();
+        for (int i = 0; i < userIds.size(); i++) {
+            String userId = userIds.get(i);
+            QueuedParticipant qp = participantMap.get(userId);
+            if (qp != null) {
+                qp.setPosition(i + 1);
+                newQueue.add(qp);
+            }
+        }
+
+        // Replace queue with reordered queue
+        queue.setQueue(newQueue);
+
+        return speakingQueueRepository.save(queue);
+    }
 }

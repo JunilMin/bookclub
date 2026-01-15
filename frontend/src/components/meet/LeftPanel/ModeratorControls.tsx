@@ -6,8 +6,27 @@ import {
   FiX,
   FiUser,
   FiClock,
+  FiPlus,
+  FiMove,
 } from 'react-icons/fi';
-import { SpeakingQueue } from '../../../types/meetRoom';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { SpeakingQueue, QueuedParticipant } from '../../../types/meetRoom';
 import '../styles/LeftPanel.css';
 
 interface ModeratorControlsProps {
@@ -19,7 +38,78 @@ interface ModeratorControlsProps {
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
   onRemoveFromQueue: (userId: string) => void;
+  onAddParticipantToQueue: (userId: string, username: string, photoUrl: string) => void;
+  onReorderQueue: (userIds: string[]) => void;
 }
+
+// Sortable Queue Item Component
+interface SortableQueueItemProps {
+  participant: QueuedParticipant;
+  index: number;
+  isHost: boolean;
+  onRemove: (userId: string) => void;
+}
+
+const SortableQueueItem: React.FC<SortableQueueItemProps> = ({
+  participant,
+  index,
+  isHost,
+  onRemove,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: participant.userId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="queue-item"
+    >
+      <span className="queue-position">{index + 1}</span>
+      {participant.photoUrl ? (
+        <img
+          src={participant.photoUrl}
+          alt={participant.username}
+          className="queue-avatar"
+        />
+      ) : (
+        <div className="queue-avatar-placeholder">
+          <FiUser size={14} />
+        </div>
+      )}
+      <span className="queue-name">{participant.username}</span>
+      {isHost && (
+        <>
+          <button
+            className="queue-drag-handle"
+            {...attributes}
+            {...listeners}
+          >
+            <FiMove size={14} />
+          </button>
+          <button
+            className="queue-remove-btn"
+            onClick={() => onRemove(participant.userId)}
+          >
+            <FiX size={14} />
+          </button>
+        </>
+      )}
+    </li>
+  );
+};
 
 const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   meetLink,
@@ -30,9 +120,36 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   onRaiseHand,
   onNextSpeaker,
   onRemoveFromQueue,
+  onAddParticipantToQueue,
+  onReorderQueue,
 }) => {
   const { t } = useTranslation();
   const [speakerTime, setSpeakerTime] = useState('0:00');
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id && queue?.queue) {
+      const oldIndex = queue.queue.findIndex((p) => p.userId === active.id);
+      const newIndex = queue.queue.findIndex((p) => p.userId === over.id);
+
+      const reorderedQueue = arrayMove(queue.queue, oldIndex, newIndex);
+      const userIds = reorderedQueue.map((p) => p.userId);
+      onReorderQueue(userIds);
+    }
+  };
+
+  const handleAddToQueue = (userId: string, username: string, photoUrl: string) => {
+    onAddParticipantToQueue(userId, username, photoUrl);
+  };
 
   // Format duration in seconds to mm:ss
   const formatDuration = (seconds: number): string => {
@@ -157,33 +274,28 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
           )}
         </div>
         {queue?.queue && queue.queue.length > 0 ? (
-          <ul className="queue-list">
-            {queue.queue.map((participant, index) => (
-              <li key={participant.userId} className="queue-item">
-                <span className="queue-position">{index + 1}</span>
-                {participant.photoUrl ? (
-                  <img
-                    src={participant.photoUrl}
-                    alt={participant.username}
-                    className="queue-avatar"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={queue.queue.map((p) => p.userId)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="queue-list">
+                {queue.queue.map((participant, index) => (
+                  <SortableQueueItem
+                    key={participant.userId}
+                    participant={participant}
+                    index={index}
+                    isHost={isHost}
+                    onRemove={onRemoveFromQueue}
                   />
-                ) : (
-                  <div className="queue-avatar-placeholder">
-                    <FiUser size={14} />
-                  </div>
-                )}
-                <span className="queue-name">{participant.username}</span>
-                {isHost && (
-                  <button
-                    className="queue-remove-btn"
-                    onClick={() => onRemoveFromQueue(participant.userId)}
-                  >
-                    <FiX size={14} />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         ) : (
           <p className="queue-empty">{t('meet_queue_empty') || 'No one in queue'}</p>
         )}
@@ -198,29 +310,45 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
           </h3>
         </div>
         <ul className="participants-list">
-          {queue?.participants?.map((participant) => (
-            <li key={participant.userId} className="participant-item">
-              {participant.photoUrl ? (
-                <img
-                  src={participant.photoUrl}
-                  alt={participant.username}
-                  className="participant-avatar"
-                />
-              ) : (
-                <div className="participant-avatar-placeholder">
-                  <FiUser size={14} />
-                </div>
-              )}
-              <span className="participant-name">{participant.username}</span>
-              {participant.isHost && (
-                <span className="host-badge">{t('meet_host') || 'Host'}</span>
-              )}
-              {participant.hasRaisedHand && (
-                <span className="hand-indicator">✋</span>
-              )}
-              <span className={`online-status ${participant.isOnline ? 'online' : 'offline'}`}></span>
-            </li>
-          ))}
+          {queue?.participants?.map((participant) => {
+            // Check if participant is already in queue or is current speaker
+            const isInQueue = queue.queue?.some((q) => q.userId === participant.userId) || false;
+            const isCurrentSpeaker = queue.currentSpeaker?.userId === participant.userId;
+            const canAddToQueue = isHost && !isInQueue && !isCurrentSpeaker && !participant.hasRaisedHand;
+
+            return (
+              <li key={participant.userId} className="participant-item">
+                {participant.photoUrl ? (
+                  <img
+                    src={participant.photoUrl}
+                    alt={participant.username}
+                    className="participant-avatar"
+                  />
+                ) : (
+                  <div className="participant-avatar-placeholder">
+                    <FiUser size={14} />
+                  </div>
+                )}
+                <span className="participant-name">{participant.username}</span>
+                {participant.isHost && (
+                  <span className="host-badge">{t('meet_host') || 'Host'}</span>
+                )}
+                {participant.hasRaisedHand && (
+                  <span className="hand-indicator">✋</span>
+                )}
+                {canAddToQueue && (
+                  <button
+                    className="add-to-queue-btn"
+                    onClick={() => handleAddToQueue(participant.userId, participant.username, participant.photoUrl)}
+                    title={t('meet_add_to_queue') || 'Add to queue'}
+                  >
+                    <FiPlus size={14} />
+                  </button>
+                )}
+                <span className={`online-status ${participant.isOnline ? 'online' : 'offline'}`}></span>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
