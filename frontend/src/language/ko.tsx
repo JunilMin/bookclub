@@ -328,6 +328,8 @@ const ko = {
   meet_queue_empty: '대기열에 아무도 없습니다',
   meet_participants: '참가자',
   meet_host: '호스트',
+  meet_moderator: '사회자',
+  meet_delegate_moderator: '사회자 위임',
   meet_add_to_queue: '대기열에 추가',
   meet_speaking_log: '발언 로그',
   meet_log_empty: '아직 발언 기록이 없습니다',

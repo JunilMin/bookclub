@@ -24,6 +24,7 @@ interface CollaborativeNotesProps {
   docId: string;
   userId: string;
   username: string;
+  photoUrl?: string;
   initialContent?: any;
   initialTitle?: string;
 }
@@ -36,6 +37,7 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
   docId,
   userId,
   username,
+  photoUrl = '',
   initialContent,
   initialTitle = 'Discussion Notes',
 }, ref) => {
@@ -66,6 +68,7 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     docId,
     userId,
     username,
+    photoUrl,
     initialContent,
     placeholder: t('meet_notes_placeholder') || 'Start taking notes...',
   });
@@ -151,7 +154,7 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     </button>
   );
 
-  // === Remote Users Display ===
+  // === Remote Users Display (includes self) ===
   const RemoteUserAvatars = useMemo(() => {
     if (remoteUsers.length === 0) return null;
 
@@ -164,7 +167,14 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
             title={user.username}
             style={{ borderColor: user.color }}
           >
-            <FiUser size={12} />
+            {user.photoUrl ? (
+              <img
+                src={user.photoUrl}
+                alt={user.username}
+              />
+            ) : (
+              <FiUser size={12} />
+            )}
           </div>
         ))}
         {remoteUsers.length > 4 && (

@@ -20,6 +20,8 @@ public class SpeakingQueue {
 
     private String sessionId;
 
+    private String moderatorId;  // Current moderator's userId (can be delegated)
+
     private CurrentSpeaker currentSpeaker;
 
     private List<QueuedParticipant> queue = new ArrayList<>();
@@ -30,6 +32,14 @@ public class SpeakingQueue {
 
     public SpeakingQueue(String sessionId) {
         this.sessionId = sessionId;
+        this.queue = new ArrayList<>();
+        this.participants = new ArrayList<>();
+        this.speakingHistory = new ArrayList<>();
+    }
+
+    public SpeakingQueue(String sessionId, String moderatorId) {
+        this.sessionId = sessionId;
+        this.moderatorId = moderatorId;
         this.queue = new ArrayList<>();
         this.participants = new ArrayList<>();
         this.speakingHistory = new ArrayList<>();

@@ -328,6 +328,8 @@ const en = {
   meet_queue_empty: 'No one in queue',
   meet_participants: 'Participants',
   meet_host: 'Host',
+  meet_moderator: 'Moderator',
+  meet_delegate_moderator: 'Delegate moderator',
   meet_add_to_queue: 'Add to queue',
   meet_speaking_log: 'Speaking Log',
   meet_log_empty: 'No speaking history yet',

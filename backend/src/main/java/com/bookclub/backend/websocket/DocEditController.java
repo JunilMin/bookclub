@@ -81,6 +81,7 @@ public class DocEditController {
     /**
      * 사용자 입장
      * presence 목록에 추가 후 전체 사용자 목록 broadcast
+     * 같은 userId로 재입장 시 기존 세션 제거 (새로고침 대응)
      */
     @MessageMapping("/docs/{docId}/join")
     public void handleJoin(
@@ -91,12 +92,25 @@ public class DocEditController {
         String userId = (String) joinMessage.get("userId");
         String username = (String) joinMessage.get("username");
         String clientId = (String) joinMessage.get("clientId");
+        String photoUrl = (String) joinMessage.getOrDefault("photoUrl", "");
 
         logger.info("User joined doc {}: userId={}, username={}, clientId={}", docId, userId, username, clientId);
 
-        // Add to presence
-        documentUsers.computeIfAbsent(docId, k -> new ConcurrentHashMap<>())
-                .put(clientId, new UserInfo(userId, username, clientId, System.currentTimeMillis()));
+        ConcurrentHashMap<String, UserInfo> users = documentUsers.computeIfAbsent(docId, k -> new ConcurrentHashMap<>());
+
+        // Remove any existing sessions for the same userId (handles refresh case)
+        List<String> oldClientIds = users.entrySet().stream()
+                .filter(e -> e.getValue().getUserId().equals(userId) && !e.getKey().equals(clientId))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        for (String oldClientId : oldClientIds) {
+            users.remove(oldClientId);
+            logger.info("Removed stale session for userId={}, oldClientId={}", userId, oldClientId);
+        }
+
+        // Add new session
+        users.put(clientId, new UserInfo(userId, username, clientId, photoUrl, System.currentTimeMillis()));
 
         // Broadcast updated user list
         broadcastUserList(docId);
@@ -157,15 +171,21 @@ public class DocEditController {
         private final String userId;
         private final String username;
         private final String clientId;
+        private final String photoUrl;
         private final long joinedAt;
         private String color;
 
-        public UserInfo(String userId, String username, String clientId, long joinedAt) {
+        public UserInfo(String userId, String username, String clientId, String photoUrl, long joinedAt) {
             this.userId = userId;
             this.username = username;
             this.clientId = clientId;
+            this.photoUrl = photoUrl != null ? photoUrl : "";
             this.joinedAt = joinedAt;
             this.color = generateColor(userId);
+        }
+
+        public String getUserId() {
+            return userId;
         }
 
         private String generateColor(String userId) {
@@ -186,6 +206,7 @@ public class DocEditController {
                     "userId", userId,
                     "username", username,
                     "clientId", clientId,
+                    "photoUrl", photoUrl,
                     "joinedAt", joinedAt,
                     "color", color
             );

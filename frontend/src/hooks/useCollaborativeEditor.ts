@@ -46,6 +46,7 @@ interface UseCollaborativeEditorOptions {
   docId: string;
   userId: string;
   username: string;
+  photoUrl?: string;
   initialContent?: any;
   placeholder?: string;
   onSyncStatusChange?: (isSyncing: boolean) => void;
@@ -67,6 +68,7 @@ export function useCollaborativeEditor({
   docId,
   userId,
   username,
+  photoUrl = '',
   initialContent,
   placeholder = 'Start taking notes...',
   onSyncStatusChange,
@@ -314,6 +316,7 @@ export function useCollaborativeEditor({
       docId,
       userId,
       username,
+      photoUrl,
       clientId: clientIdRef.current,
       timestamp: Date.now(),
     });
@@ -338,12 +341,11 @@ export function useCollaborativeEditor({
       }
     });
 
-    // Users 목록 구독
+    // Users 목록 구독 (자기 자신 포함)
     const unsubUsers = subscribe(TOPICS.RECEIVE_USERS(docId), (message) => {
       try {
         const data = JSON.parse(message.body);
         const users: RemoteUser[] = data.users
-          .filter((u: any) => u.userId !== userId)
           .map((u: any) => ({
             ...u,
             lastSeen: u.joinedAt,
@@ -363,6 +365,7 @@ export function useCollaborativeEditor({
         docId,
         userId,
         username,
+        photoUrl,
         clientId: clientIdRef.current,
         timestamp: Date.now(),
       });
@@ -371,7 +374,7 @@ export function useCollaborativeEditor({
       unsubPresence();
       unsubUsers();
     };
-  }, [isConnected, docId, userId, username, subscribe, send, applyRemoteSteps, handleRemotePresence, onUsersChange]);
+  }, [isConnected, docId, userId, username, photoUrl, subscribe, send, applyRemoteSteps, handleRemotePresence, onUsersChange]);
 
   // === 정리 ===
   useEffect(() => {
@@ -382,6 +385,30 @@ export function useCollaborativeEditor({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  // === Handle beforeunload (refresh/close) ===
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Send leave message synchronously before page unloads
+      if (isConnected) {
+        send(TOPICS.SEND_LEAVE(docId), {
+          type: 'leave',
+          docId,
+          userId,
+          username,
+          photoUrl,
+          clientId: clientIdRef.current,
+          timestamp: Date.now(),
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isConnected, docId, userId, username, photoUrl, send]);
 
   // === Cleanup on unmount ===
   useEffect(() => {

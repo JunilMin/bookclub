@@ -423,6 +423,7 @@ public class SpeakingQueue {
     @Id
     private String id;
     private String sessionId;
+    private String moderatorId;          // 현재 사회자의 userId (위임 가능)
 
     // 현재 발언자
     private CurrentSpeaker currentSpeaker;
@@ -470,6 +471,8 @@ public class SpeakingQueue {
 | 다음 발언자 | queue에서 첫 번째를 currentSpeaker로 이동 | 모더레이터만 |
 | 대기열에서 제거 | 특정 참여자를 queue에서 제거 | 모더레이터만 |
 | 발언 시간 표시 | currentSpeaker.startedAt 기준 실시간 카운터 | 모든 참여자 |
+| 사회자 위임 | 다른 참여자에게 사회자 권한 이전 | 모더레이터만 |
+| 사회자 표시 | 참여자 목록에서 현재 사회자 옆에 배지 표시 | 자동 |
 
 #### WebSocket 실시간 동기화
 
@@ -487,11 +490,32 @@ WebSocket broadcast → /topic/session/{sessionId}/queue
 모든 클라이언트의 queue 상태 동기화
 ```
 
+#### 사회자 위임 흐름
+
+```
+현재 사회자: 참가자 목록에서 위임 버튼 클릭
+    ↓
+POST /api/sessions/{sessionId}/queue/delegate-moderator
+    ↓
+SpeakingQueueService.delegateModerator()
+  - 대상이 참가자인지 검증
+  - queue.moderatorId = newModeratorId
+    ↓
+WebSocket broadcast → /topic/session/{sessionId}/queue
+    ↓
+모든 클라이언트:
+  - isHost 재계산 (queue.moderatorId 기준)
+  - 참가자 목록에 사회자 배지 업데이트
+  - 이전 사회자: 권한 UI 숨김
+  - 새 사회자: 권한 UI 표시
+```
+
 #### API 엔드포인트
 - `GET /api/sessions/{sessionId}/queue` - 대기열 조회
 - `POST /api/sessions/{sessionId}/queue/raise-hand` - 손 들기/내리기
 - `POST /api/sessions/{sessionId}/queue/next-speaker` - 다음 발언자 (모더레이터만)
 - `POST /api/sessions/{sessionId}/queue/remove` - 대기열에서 제거 (모더레이터만)
+- `POST /api/sessions/{sessionId}/queue/delegate-moderator` - 사회자 위임 (모더레이터만)
 
 **주요 파일**
 - `backend/src/main/java/com/bookclub/backend/session/model/SpeakingQueue.java` - 모델
@@ -554,10 +578,12 @@ public class SessionNote {
 |------|------|
 | 리치 텍스트 편집 | Bold, Italic, Heading, List, Quote, Code 등 |
 | 실시간 동시 편집 | 여러 사용자가 동시 편집, 충돌 자동 해결 |
-| Presence 표시 | 활성 편집자 아바타 표시 (최대 4명 + 더보기) |
+| Presence 표시 | 활성 편집자 아바타 표시 (자기 자신 포함, 최대 4명 + 더보기) |
+| 프로필 사진 표시 | presence-avatars에 사용자 photoUrl 표시 (없으면 기본 아이콘) |
 | 자동 저장 | 2초 debounce 후 MongoDB에 저장 |
 | 연결 상태 표시 | WiFi 아이콘으로 WebSocket 연결 상태 표시 |
 | 동기화 상태 | "Syncing..." / "Synced" 표시 |
+| 새로고침 대응 | 같은 userId로 재접속 시 기존 세션 자동 정리 (중복 방지) |
 
 #### WebSocket Topics
 
@@ -932,9 +958,16 @@ public class Post {
 
 ### 협업 노트 고도화 (v2.1)
 - ✅ Op-based CRDT 실시간 동기화 - 완료
+- ✅ Presence 아바타에 프로필 사진 표시 - 완료
+- ✅ 자기 자신 포함 편집자 카운트 - 완료
+- ✅ 새로고침 시 중복 세션 방지 - 완료
 - ❌ 원격 커서 시각화 (Tiptap Collaboration Cursor)
 - ❌ 버전 히스토리 (되돌리기)
 - ❌ 댓글/스레드 기능
+
+### 발언 대기열 고도화 (v1.6)
+- ✅ 사회자 위임 기능 - 완료
+- ✅ 사회자 배지 표시 - 완료
 
 ---
 
@@ -1063,6 +1096,7 @@ google.api.key=your-google-api-key
 | `Disconnected` 반복 | WebSocketAuthInterceptor 인증 실패 | 로그아웃 후 재로그인 |
 | 노트가 동기화 안됨 | WebSocket 연결 끊김 | 새로고침 또는 재접속 |
 | Step apply failed | 충돌 발생 | 자동 해결 실패 시 페이지 새로고침 |
+| 새로고침 시 편집자 수 증가 | 이전 세션 미정리 | 자동 처리됨 (같은 userId 세션 정리) |
 
 ### OpenAI API 관련
 
@@ -1091,11 +1125,15 @@ google.api.key=your-google-api-key
 1. **발언 순서 제어**
    - "Next Speaker" 클릭 → 대기열 첫 번째를 현재 발언자로 이동
    - 발언자 우측 X 버튼 → 대기열에서 제거
-2. **녹음 관리** (우측 패널)
+2. **사회자 위임**
+   - 참가자 목록에서 위임할 사용자 옆의 위임 버튼(체크 아이콘) 클릭
+   - 해당 사용자에게 모든 사회자 권한 이전
+   - 위임된 사용자 옆에 "사회자/Moderator" 배지 표시
+3. **녹음 관리** (우측 패널)
    - "Start Recording" 클릭 → 녹음 상태 표시 (실제 녹음은 미구현)
-3. **AI 요약 생성** (우측 패널)
+4. **AI 요약 생성** (우측 패널)
    - "Generate AI Summary" 클릭 → GPT-4o-mini가 노트 분석
    - 2-5초 대기 → 요약 결과 표시
    - "Insert to Notes" 클릭 → 협업 노트 끝에 자동 삽입
-4. **세션 종료**
+5. **세션 종료**
    - 좌상단 "← Back" 클릭 → Board로 복귀

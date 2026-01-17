@@ -9,7 +9,7 @@ import {
 } from 'react-icons/fi';
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
-import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue } from '../api/speakingQueue';
+import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
@@ -387,8 +387,21 @@ const MeetRoom: React.FC = () => {
     }
   }, [session]);
 
-  // Check if current user is host
-  const isHost = user?.id === session?.post?.createrId;
+  const handleDelegateModerator = useCallback(async (newModeratorId: string) => {
+    if (!sessionId || !accessToken) return;
+    try {
+      const result = await delegateModerator(sessionId, newModeratorId, accessToken);
+      setQueue(result);
+    } catch (err) {
+      console.error('Failed to delegate moderator:', err);
+    }
+  }, [sessionId, accessToken]);
+
+  // Check if current user is moderator (host)
+  // Use queue.moderatorId if available, otherwise fall back to post creator
+  const isHost = queue?.moderatorId
+    ? user?.id === queue.moderatorId
+    : user?.id === session?.post?.createrId;
 
   // Check if current user has raised hand
   const hasRaisedHand = queue?.participants?.find(p => p.userId === user?.id)?.hasRaisedHand || false;
@@ -468,6 +481,7 @@ const MeetRoom: React.FC = () => {
             meetLink={session.meetLink}
             queue={queue}
             isHost={isHost}
+            currentUserId={user?.id || ''}
             hasRaisedHand={hasRaisedHand}
             onOpenMeet={handleOpenMeet}
             onRaiseHand={handleRaiseHand}
@@ -475,6 +489,7 @@ const MeetRoom: React.FC = () => {
             onRemoveFromQueue={handleRemoveFromQueue}
             onAddParticipantToQueue={handleAddParticipantToQueue}
             onReorderQueue={handleReorderQueue}
+            onDelegateModerator={handleDelegateModerator}
           />
         </aside>
 
@@ -486,6 +501,7 @@ const MeetRoom: React.FC = () => {
               docId={sessionId}
               userId={user.id!}
               username={user.username || 'Anonymous'}
+              photoUrl={user.photoUrl || ''}
               initialContent={initialNoteContent}
               initialTitle={initialNoteTitle}
             />

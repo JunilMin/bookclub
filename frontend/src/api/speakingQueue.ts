@@ -92,3 +92,22 @@ export const reorderQueue = async (
   const response = await axiosInstance.put(`/sessions/${sessionId}/queue/reorder`, { userIds });
   return response.data;
 };
+
+/**
+ * Delegate moderator role to another participant (moderator only)
+ */
+export const delegateModerator = async (
+  sessionId: string,
+  newModeratorId: string,
+  token: string
+): Promise<SpeakingQueue> => {
+  setAccessToken(token);
+  const message: QueueActionMessage = {
+    action: 'RAISE_HAND', // Action doesn't matter for this endpoint
+    userId: newModeratorId,
+    username: '',
+    photoUrl: '',
+  };
+  const response = await axiosInstance.post(`/sessions/${sessionId}/queue/delegate-moderator`, message);
+  return response.data;
+};

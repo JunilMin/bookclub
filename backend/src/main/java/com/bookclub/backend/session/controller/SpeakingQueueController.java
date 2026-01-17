@@ -109,6 +109,27 @@ public class SpeakingQueueController {
     }
 
     /**
+     * REST: Delegate moderator role to another participant (moderator only)
+     */
+    @PostMapping("/{sessionId}/queue/delegate-moderator")
+    public ResponseEntity<SpeakingQueue> delegateModerator(
+            @PathVariable String sessionId,
+            @RequestBody QueueActionMessage message) {
+        try {
+            SpeakingQueue queue = speakingQueueService.delegateModerator(sessionId, message.getUserId());
+
+            // Broadcast to WebSocket
+            logger.info("Broadcasting moderator change to /topic/session/{}/queue - new moderator: {}",
+                    sessionId, message.getUserId());
+            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
+            return ResponseEntity.ok(queue);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
      * WebSocket: Handle queue actions
      */
     @MessageMapping("/session/{sessionId}/queue")

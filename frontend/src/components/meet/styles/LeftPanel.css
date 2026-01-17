@@ -395,6 +395,15 @@
   font-weight: 600;
 }
 
+.moderator-badge {
+  padding: 2px 8px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .hand-indicator {
   font-size: 14px;
 }
@@ -526,6 +535,27 @@
 
 .add-to-queue-btn:hover {
   background: #059669;
+  transform: scale(1.1);
+}
+
+/* Delegate Moderator Button */
+.delegate-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 4px;
+}
+
+.delegate-btn:hover {
+  background: #d97706;
   transform: scale(1.1);
 }
 

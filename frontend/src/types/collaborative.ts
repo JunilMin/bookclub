@@ -222,6 +222,7 @@ export interface RemoteUser {
   username: string;
   clientId: string;
   color: string;
+  photoUrl?: string;
   cursor?: { anchor: number; head: number };
   selection?: { from: number; to: number };
   activeBlockId?: string;

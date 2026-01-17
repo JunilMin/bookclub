@@ -57,6 +57,7 @@ export interface SpeakingHistoryEntry {
 export interface SpeakingQueue {
   id: string;
   sessionId: string;
+  moderatorId: string | null;  // Current moderator's userId (can be delegated)
   currentSpeaker: CurrentSpeaker | null;
   queue: QueuedParticipant[];
   participants: SessionParticipant[];

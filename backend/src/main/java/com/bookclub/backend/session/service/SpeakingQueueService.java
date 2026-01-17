@@ -1,5 +1,9 @@
 package com.bookclub.backend.session.service;
 
+import com.bookclub.backend.post.Post;
+import com.bookclub.backend.post.PostRepository;
+import com.bookclub.backend.session.Session;
+import com.bookclub.backend.session.SessionRepository;
 import com.bookclub.backend.session.model.SpeakingQueue;
 import com.bookclub.backend.session.model.SpeakingQueue.*;
 import com.bookclub.backend.session.repository.SpeakingQueueRepository;
@@ -15,6 +19,12 @@ public class SpeakingQueueService {
     @Autowired
     private SpeakingQueueRepository speakingQueueRepository;
 
+    @Autowired
+    private SessionRepository sessionRepository;
+
+    @Autowired
+    private PostRepository postRepository;
+
     private static final int DEFAULT_SPEAKING_TIME = 180; // 3 minutes
 
     public SpeakingQueue getOrCreateQueue(String sessionId) {
@@ -23,7 +33,17 @@ public class SpeakingQueueService {
             return queueOpt.get();
         }
 
-        SpeakingQueue queue = new SpeakingQueue(sessionId);
+        // Get the creator ID from the session's post to set as initial moderator
+        String moderatorId = null;
+        Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
+        if (sessionOpt.isPresent()) {
+            Optional<Post> postOpt = postRepository.findById(sessionOpt.get().getPostId());
+            if (postOpt.isPresent()) {
+                moderatorId = postOpt.get().getCreaterId();
+            }
+        }
+
+        SpeakingQueue queue = new SpeakingQueue(sessionId, moderatorId);
         return speakingQueueRepository.save(queue);
     }
 
@@ -232,5 +252,36 @@ public class SpeakingQueueService {
         queue.setQueue(newQueue);
 
         return speakingQueueRepository.save(queue);
+    }
+
+    /**
+     * Delegate moderator role to another participant
+     * @param sessionId The session ID
+     * @param newModeratorId The userId of the new moderator
+     * @return Updated SpeakingQueue
+     */
+    public SpeakingQueue delegateModerator(String sessionId, String newModeratorId) {
+        SpeakingQueue queue = getOrCreateQueue(sessionId);
+
+        // Verify the new moderator is a participant
+        boolean isParticipant = queue.getParticipants().stream()
+                .anyMatch(p -> p.getUserId().equals(newModeratorId));
+
+        if (!isParticipant) {
+            throw new IllegalArgumentException("New moderator must be a participant in the session");
+        }
+
+        // Update moderatorId
+        queue.setModeratorId(newModeratorId);
+
+        return speakingQueueRepository.save(queue);
+    }
+
+    /**
+     * Get the current moderator ID for a session
+     */
+    public String getModeratorId(String sessionId) {
+        SpeakingQueue queue = getOrCreateQueue(sessionId);
+        return queue.getModeratorId();
     }
 }

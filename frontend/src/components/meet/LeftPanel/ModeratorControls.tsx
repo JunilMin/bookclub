@@ -8,6 +8,7 @@ import {
   FiClock,
   FiPlus,
   FiMove,
+  FiUserCheck,
 } from 'react-icons/fi';
 import {
   DndContext,
@@ -33,6 +34,7 @@ interface ModeratorControlsProps {
   meetLink: string | null;
   queue: SpeakingQueue | null;
   isHost: boolean;
+  currentUserId: string;
   hasRaisedHand: boolean;
   onOpenMeet: () => void;
   onRaiseHand: () => void;
@@ -40,6 +42,7 @@ interface ModeratorControlsProps {
   onRemoveFromQueue: (userId: string) => void;
   onAddParticipantToQueue: (userId: string, username: string, photoUrl: string) => void;
   onReorderQueue: (userIds: string[]) => void;
+  onDelegateModerator: (newModeratorId: string) => void;
 }
 
 // Sortable Queue Item Component
@@ -115,6 +118,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   meetLink,
   queue,
   isHost,
+  currentUserId,
   hasRaisedHand,
   onOpenMeet,
   onRaiseHand,
@@ -122,6 +126,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   onRemoveFromQueue,
   onAddParticipantToQueue,
   onReorderQueue,
+  onDelegateModerator,
 }) => {
   const { t } = useTranslation();
   const [speakerTime, setSpeakerTime] = useState('0:00');
@@ -315,6 +320,10 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
             const isInQueue = queue.queue?.some((q) => q.userId === participant.userId) || false;
             const isCurrentSpeaker = queue.currentSpeaker?.userId === participant.userId;
             const canAddToQueue = isHost && !isInQueue && !isCurrentSpeaker && !participant.hasRaisedHand;
+            // Check if participant is the current moderator
+            const isModerator = queue.moderatorId === participant.userId;
+            // Can delegate to this participant (not self, not already moderator)
+            const canDelegate = isHost && !isModerator && participant.userId !== currentUserId;
 
             return (
               <li key={participant.userId} className="participant-item">
@@ -330,8 +339,8 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                   </div>
                 )}
                 <span className="participant-name">{participant.username}</span>
-                {participant.isHost && (
-                  <span className="host-badge">{t('meet_host') || 'Host'}</span>
+                {isModerator && (
+                  <span className="moderator-badge">{t('meet_moderator') || 'Moderator'}</span>
                 )}
                 {participant.hasRaisedHand && (
                   <span className="hand-indicator">✋</span>
@@ -343,6 +352,15 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                     title={t('meet_add_to_queue') || 'Add to queue'}
                   >
                     <FiPlus size={14} />
+                  </button>
+                )}
+                {canDelegate && (
+                  <button
+                    className="delegate-btn"
+                    onClick={() => onDelegateModerator(participant.userId)}
+                    title={t('meet_delegate_moderator') || 'Delegate moderator'}
+                  >
+                    <FiUserCheck size={14} />
                   </button>
                 )}
                 <span className={`online-status ${participant.isOnline ? 'online' : 'offline'}`}></span>
