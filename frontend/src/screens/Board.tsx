@@ -204,7 +204,8 @@ const Board: React.FC = () => {
     setError(null);
 
     try {
-      const data = await getAllPosts(accessToken);
+      // Pass userId to filter out posts where user is blocked
+      const data = await getAllPosts(accessToken, user?.id);
       setPosts(data);
 
       // Fetch room statuses for all posts
@@ -219,7 +220,7 @@ const Board: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, t]);
+  }, [accessToken, user?.id, t]);
 
   // Initial load
   useEffect(() => {

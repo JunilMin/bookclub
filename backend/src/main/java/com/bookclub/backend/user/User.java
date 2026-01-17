@@ -26,6 +26,7 @@ public class User {
   private int absent;
   private List<String> friends;
   private int late;
+  private int kicked;  // 강퇴 당한 횟수
   private List<String> createdBookMeetings;      // 내가 생성한 북미팅 ID 리스트
   private List<String> participatedBookMeetings; // 참여한 북미팅 ID 리스트 (지난/현재 모두)
   private String photoUrl;                        // Google 프로필 사진 URL

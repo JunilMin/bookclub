@@ -1,9 +1,13 @@
 package com.bookclub.backend.post;
 
+import com.bookclub.backend.session.dto.KickEventMessage;
+import com.bookclub.backend.user.User;
+import com.bookclub.backend.user.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,11 +21,21 @@ public class PostController {
     @Autowired
     private PostService postService;
 
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
     /**
-     * 모든 게시물 조회
+     * 모든 게시물 조회 (강퇴된 사용자에게는 해당 게시물 미표시)
+     * @param userId 현재 사용자 ID (선택적)
      */
     @GetMapping
-    public List<Post> getAllPosts() {
+    public List<Post> getAllPosts(@RequestParam(required = false) String userId) {
+        if (userId != null && !userId.isEmpty()) {
+            return postService.getAllPostsExcludingBlocked(userId);
+        }
         return postService.getAllPosts();
     }
 
@@ -125,6 +139,68 @@ public class PostController {
             return ResponseEntity.ok(post);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 멤버 강퇴 (방장만 가능)
+     * @param id 게시물 ID
+     * @param targetUserId 강퇴할 유저 ID
+     * @param requesterId 요청자 ID (방장)
+     * @param sessionId 세션 ID (WebSocket 브로드캐스트용, 선택)
+     */
+    @PostMapping("/{id}/kick")
+    public ResponseEntity<?> kickMember(
+            @PathVariable String id,
+            @RequestParam String targetUserId,
+            @RequestParam String requesterId,
+            @RequestParam(required = false) String sessionId) {
+        try {
+            // 강퇴 전에 유저 정보 조회 (username 얻기 위해)
+            String kickedUsername = "Unknown";
+            try {
+                Optional<User> targetUser = userService.getUserByIdString(targetUserId);
+                if (targetUser.isPresent()) {
+                    kickedUsername = targetUser.get().getUsername();
+                }
+            } catch (Exception e) {
+                // username 조회 실패해도 강퇴는 진행
+            }
+
+            Post post = postService.kickMember(id, targetUserId, requesterId);
+
+            // WebSocket으로 강퇴 이벤트 브로드캐스트 (sessionId가 있는 경우)
+            if (sessionId != null && !sessionId.isEmpty()) {
+                KickEventMessage kickEvent = new KickEventMessage(
+                        targetUserId,
+                        kickedUsername,
+                        "Kicked by room creator"
+                );
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/kick", kickEvent);
+            }
+
+            return ResponseEntity.ok(post);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * 강퇴 유저 복구 (방장만 가능)
+     * @param id 게시물 ID
+     * @param targetUserId 복구할 유저 ID
+     * @param requesterId 요청자 ID (방장)
+     */
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<?> restoreMember(
+            @PathVariable String id,
+            @RequestParam String targetUserId,
+            @RequestParam String requesterId) {
+        try {
+            Post post = postService.restoreMember(id, targetUserId, requesterId);
+            return ResponseEntity.ok(post);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 }

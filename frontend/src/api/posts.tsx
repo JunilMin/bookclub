@@ -25,12 +25,15 @@ export interface Post {
   description?: string; // 설명
   tags?: string[]; // 태그 리스트
   recruit?: boolean; // 모집 중 여부 (기본값: true)
+  // 강퇴 관련 필드
+  blockedIds?: string[]; // 강퇴된 User ObjectId 리스트
 }
 
-// 모든 포스트 조회
-export const getAllPosts = async (token: string): Promise<Post[]> => {
+// 모든 포스트 조회 (userId 전달 시 강퇴된 게시물 제외)
+export const getAllPosts = async (token: string, userId?: string): Promise<Post[]> => {
   setAccessToken(token);
-  const response = await axiosInstance.get('/posts');
+  const params = userId ? { userId } : {};
+  const response = await axiosInstance.get('/posts', { params });
   return response.data;
 };
 
@@ -80,6 +83,39 @@ export const leaveBookMeeting = async (postId: string, userId: string, token: st
   setAccessToken(token);
   const response = await axiosInstance.post(`/posts/${postId}/leave`, null, {
     params: { userId },
+  });
+  return response.data;
+};
+
+// 멤버 강퇴 (방장만 가능)
+export const kickMember = async (
+  postId: string,
+  targetUserId: string,
+  requesterId: string,
+  token: string,
+  sessionId?: string  // WebSocket 브로드캐스트용
+): Promise<Post> => {
+  setAccessToken(token);
+  const params: Record<string, string> = { targetUserId, requesterId };
+  if (sessionId) {
+    params.sessionId = sessionId;
+  }
+  const response = await axiosInstance.post(`/posts/${postId}/kick`, null, {
+    params,
+  });
+  return response.data;
+};
+
+// 강퇴 유저 복구 (방장만 가능)
+export const restoreMember = async (
+  postId: string,
+  targetUserId: string,
+  requesterId: string,
+  token: string
+): Promise<Post> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/posts/${postId}/restore`, null, {
+    params: { targetUserId, requesterId },
   });
   return response.data;
 };

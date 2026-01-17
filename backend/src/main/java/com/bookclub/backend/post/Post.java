@@ -37,5 +37,8 @@ public class Post {
   private String description;        // 설명
   private List<String> tags;         // 태그 리스트
   private Boolean recruit = true;    // 모집 중 여부 (기본값: true)
+
+  // 강퇴 관련 필드
+  private List<String> blockedIds;   // 강퇴된 User ObjectId 리스트
 }
 

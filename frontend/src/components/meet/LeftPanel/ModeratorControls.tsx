@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FiVideo,
@@ -9,6 +9,10 @@ import {
   FiPlus,
   FiMove,
   FiUserCheck,
+  FiUserX,
+  FiMoreVertical,
+  FiRotateCcw,
+  FiSlash,
 } from 'react-icons/fi';
 import {
   DndContext,
@@ -30,12 +34,20 @@ import { CSS } from '@dnd-kit/utilities';
 import { SpeakingQueue, QueuedParticipant } from '../../../types/meetRoom';
 import '../styles/LeftPanel.css';
 
+// 강퇴된 유저 정보
+export interface BlockedUser {
+  userId: string;
+  username: string;
+}
+
 interface ModeratorControlsProps {
   meetLink: string | null;
   queue: SpeakingQueue | null;
   isHost: boolean;
+  isCreator: boolean;  // 방 생성자 여부 (강퇴 권한)
   currentUserId: string;
   hasRaisedHand: boolean;
+  blockedUsers?: BlockedUser[];  // 강퇴된 유저 목록
   onOpenMeet: () => void;
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
@@ -43,6 +55,8 @@ interface ModeratorControlsProps {
   onAddParticipantToQueue: (userId: string, username: string, photoUrl: string) => void;
   onReorderQueue: (userIds: string[]) => void;
   onDelegateModerator: (newModeratorId: string) => void;
+  onKickParticipant?: (userId: string) => void;  // 강퇴 핸들러
+  onRestoreParticipant?: (userId: string) => void;  // 복구 핸들러
 }
 
 // Sortable Queue Item Component
@@ -118,8 +132,10 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   meetLink,
   queue,
   isHost,
+  isCreator,
   currentUserId,
   hasRaisedHand,
+  blockedUsers,
   onOpenMeet,
   onRaiseHand,
   onNextSpeaker,
@@ -127,9 +143,32 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   onAddParticipantToQueue,
   onReorderQueue,
   onDelegateModerator,
+  onKickParticipant,
+  onRestoreParticipant,
 }) => {
   const { t } = useTranslation();
   const [speakerTime, setSpeakerTime] = useState('0:00');
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdownId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleKick = (userId: string) => {
+    if (onKickParticipant) {
+      onKickParticipant(userId);
+    }
+    setOpenDropdownId(null);
+  };
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -307,7 +346,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
       </div>
 
       {/* Participants - only show online participants */}
-      <div className="participants-section">
+      <div className="participants-section" ref={dropdownRef}>
         <div className="participants-header">
           <h3>
             <FiUser size={14} />
@@ -324,6 +363,9 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
             const isModerator = queue.moderatorId === participant.userId;
             // Can delegate to this participant (not self, not already moderator)
             const canDelegate = isHost && !isModerator && participant.userId !== currentUserId;
+            // Can kick: creator only, not self
+            const canKick = isCreator && participant.userId !== currentUserId;
+            const isDropdownOpen = openDropdownId === participant.userId;
 
             return (
               <li key={participant.userId} className="participant-item">
@@ -364,6 +406,36 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                   </button>
                 )}
                 <span className={`online-status ${participant.isOnline ? 'online' : 'offline'}`}></span>
+
+                {/* More options dropdown (for creator) */}
+                {canKick && (
+                  <div className="participant-more-wrapper">
+                    <button
+                      className="participant-more-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenDropdownId(isDropdownOpen ? null : participant.userId);
+                      }}
+                      title={t('meet_more_options') || 'More options'}
+                    >
+                      <FiMoreVertical size={14} />
+                    </button>
+                    {isDropdownOpen && (
+                      <div className="participant-dropdown">
+                        <button
+                          className="participant-dropdown-item kick"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleKick(participant.userId);
+                          }}
+                        >
+                          <FiUserX size={14} />
+                          <span>{t('meet_kick_participant') || 'Kick'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
@@ -395,6 +467,36 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
           <p className="speaking-log-empty">{t('meet_log_empty') || 'No speaking history yet'}</p>
         )}
       </div>
+
+      {/* Kicked Users Section - Only visible to room creator */}
+      {isCreator && blockedUsers && blockedUsers.length > 0 && (
+        <div className="kicked-users-section">
+          <div className="kicked-users-header">
+            <h3>
+              <FiSlash size={14} />
+              {t('meet_kicked_users') || 'Kicked Users'} ({blockedUsers.length})
+            </h3>
+          </div>
+          <ul className="kicked-users-list">
+            {blockedUsers.map((blockedUser) => (
+              <li key={blockedUser.userId} className="kicked-user-item">
+                <div className="kicked-user-avatar-placeholder">
+                  <FiUserX size={14} />
+                </div>
+                <span className="kicked-user-name">{blockedUser.username}</span>
+                <button
+                  className="restore-btn"
+                  onClick={() => onRestoreParticipant?.(blockedUser.userId)}
+                  title={t('meet_restore_user') || 'Restore user'}
+                >
+                  <FiRotateCcw size={14} />
+                  <span>{t('meet_restore') || 'Restore'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

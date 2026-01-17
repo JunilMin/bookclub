@@ -12,6 +12,7 @@ export interface User {
   friends?: string[];
   posts?:[];
   late?: number;
+  kicked?: number;  // 강퇴 당한 횟수
   createdBookMeetings?: string[];      // 내가 생성한 북미팅 ID 리스트
   participatedBookMeetings?: string[]; // 참여한 북미팅 ID 리스트 (지난/현재 모두)
   isEmailVerified?: boolean; // 이메일 인증 여부

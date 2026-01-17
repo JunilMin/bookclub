@@ -82,6 +82,7 @@ public class UserService {
         user.setRating(0);
         user.setAbsent(0);
         user.setLate(0);
+        user.setKicked(0);
         user.setCreatedBookMeetings(new ArrayList<>());
         user.setParticipatedBookMeetings(new ArrayList<>());
         user.setPhotoUrl(user.getPhotoUrl()); // Google 프로필 사진 URL (null 허용)
@@ -265,6 +266,32 @@ public class UserService {
 
         if (user.getParticipatedBookMeetings() != null) {
             user.getParticipatedBookMeetings().remove(postId);
+        }
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 강퇴 횟수 증가 (userId 기반)
+     */
+    public User incrementKickedCount(String userId) {
+        User user = userRepository.findById(new ObjectId(userId))
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        user.setKicked(user.getKicked() + 1);
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 강퇴 횟수 감소 (userId 기반) - 복구 시 사용
+     */
+    public User decrementKickedCount(String userId) {
+        User user = userRepository.findById(new ObjectId(userId))
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        if (user.getKicked() > 0) {
+            user.setKicked(user.getKicked() - 1);
         }
 
         return userRepository.save(user);

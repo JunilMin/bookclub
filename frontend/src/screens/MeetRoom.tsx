@@ -12,6 +12,8 @@ import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
+import { kickMember, restoreMember, getPostById } from '../api/posts';
+import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
@@ -47,6 +49,10 @@ const MeetRoom: React.FC = () => {
   const [_presence, setPresence] = useState<PresenceMessage[]>([]);
   const [isLoadingState, setIsLoadingState] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+
+  // WebSocket에서 queue 업데이트를 받았는지 추적 (race condition 방지)
+  const hasReceivedWebSocketQueue = useRef(false);
 
   // WebSocket (발언 대기열, presence용 - 노트는 CollaborativeNotes에서 별도 처리)
   const { isConnected, subscribe, send } = useWebSocket(sessionId || '');
@@ -111,6 +117,23 @@ const MeetRoom: React.FC = () => {
           setHostUsername('No Host Info');
         }
 
+        // Fetch blocked users info
+        if (sessionData.post.blockedIds && sessionData.post.blockedIds.length > 0) {
+          const blockedUserPromises = sessionData.post.blockedIds.map(async (userId: string) => {
+            try {
+              const userInfo = await getUserById(userId, accessToken);
+              return { userId, username: userInfo.username };
+            } catch (error) {
+              console.error('Failed to fetch blocked user info:', error);
+              return { userId, username: 'Unknown User' };
+            }
+          });
+          const blockedUserInfos = await Promise.all(blockedUserPromises);
+          setBlockedUsers(blockedUserInfos);
+        } else {
+          setBlockedUsers([]);
+        }
+
         // 초기 노트 내용 설정 (CollaborativeNotes에 전달)
         if (noteData?.content) {
           try {
@@ -123,7 +146,14 @@ const MeetRoom: React.FC = () => {
         if (noteData?.title) {
           setInitialNoteTitle(noteData.title);
         }
-        setQueue(queueData);
+
+        // WebSocket에서 이미 최신 queue를 받았으면 API 응답은 무시 (race condition 방지)
+        if (!hasReceivedWebSocketQueue.current) {
+          setQueue(queueData);
+          console.log('Queue set from API (WebSocket not yet received)');
+        } else {
+          console.log('Queue from API ignored (WebSocket already received newer data)');
+        }
         setRecording(recordingData);
 
         console.log('Initial data loaded:', {
@@ -158,6 +188,9 @@ const MeetRoom: React.FC = () => {
       username: user?.username,
     });
 
+    // Reset flag when sessionId changes or component remounts
+    hasReceivedWebSocketQueue.current = false;
+
     if (!isConnected || !sessionId || !user?.id) {
       console.log('Skipping effect: conditions not met', {
         isConnected,
@@ -170,12 +203,14 @@ const MeetRoom: React.FC = () => {
     // Subscribe to queue updates
     const unsubQueue = subscribe(`/topic/session/${sessionId}/queue`, (message) => {
       const queueUpdate: SpeakingQueue = JSON.parse(message.body);
-      console.log('Queue updated:', {
+      console.log('Queue updated via WebSocket:', {
         participants: queueUpdate.participants?.length || 0,
         participantsOnline: queueUpdate.participants?.filter(p => p.isOnline).length || 0,
         queue: queueUpdate.queue?.length || 0,
         participantsData: queueUpdate.participants,
       });
+      // WebSocket에서 받은 데이터가 가장 최신이므로 항상 적용
+      hasReceivedWebSocketQueue.current = true;
       setQueue(queueUpdate);
     });
 
@@ -190,6 +225,18 @@ const MeetRoom: React.FC = () => {
         }
         return prev;
       });
+    });
+
+    // Subscribe to kick events
+    const unsubKick = subscribe(`/topic/session/${sessionId}/kick`, (message) => {
+      const kickEvent = JSON.parse(message.body);
+      console.log('Kick event received:', kickEvent);
+
+      // If current user was kicked, redirect to board with alert
+      if (kickEvent.kickedUserId === user.id) {
+        alert(t('meet_you_were_kicked') || 'You have been removed from this meeting.');
+        navigate('/board');
+      }
     });
 
     // Send JOIN message (DocEditController pattern - dedicated endpoint)
@@ -212,6 +259,7 @@ const MeetRoom: React.FC = () => {
     return () => {
       unsubQueue();
       unsubPresence();
+      unsubKick();
       // Send LEAVE message (DocEditController pattern - dedicated endpoint)
       console.log('=== Sending Session LEAVE ===', {
         sessionId,
@@ -228,7 +276,7 @@ const MeetRoom: React.FC = () => {
         console.error('Failed to send Session LEAVE:', err);
       }
     };
-  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, subscribe, send]);
+  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, subscribe, send, navigate, t]);
 
   // Handle beforeunload (tab close/refresh) - send leave message
   useEffect(() => {
@@ -470,11 +518,61 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken]);
 
+  const handleKickParticipant = useCallback(async (targetUserId: string) => {
+    if (!session?.post?.id || !accessToken || !user?.id || !sessionId) return;
+
+    const confirmed = window.confirm(t('meet_kick_confirm') || 'Are you sure you want to kick this participant?');
+    if (!confirmed) return;
+
+    try {
+      await kickMember(session.post.id, targetUserId, user.id, accessToken, sessionId);
+      // Remove from local queue state and add to blocked users
+      setQueue((prevQueue) => {
+        if (!prevQueue) return prevQueue;
+        // Find the kicked participant to get username
+        const kickedParticipant = prevQueue.participants.find(p => p.userId === targetUserId);
+        if (kickedParticipant) {
+          setBlockedUsers((prevBlocked) => [
+            ...prevBlocked,
+            { userId: targetUserId, username: kickedParticipant.username }
+          ]);
+        }
+        return {
+          ...prevQueue,
+          participants: prevQueue.participants.filter(p => p.userId !== targetUserId),
+          queue: prevQueue.queue.filter(q => q.userId !== targetUserId),
+        };
+      });
+    } catch (err) {
+      console.error('Failed to kick participant:', err);
+      alert(t('meet_kick_error') || 'Failed to kick participant');
+    }
+  }, [session?.post?.id, accessToken, user?.id, sessionId, t]);
+
+  const handleRestoreParticipant = useCallback(async (targetUserId: string) => {
+    if (!session?.post?.id || !accessToken || !user?.id) return;
+
+    const confirmed = window.confirm(t('meet_restore_confirm') || 'Are you sure you want to restore this participant?');
+    if (!confirmed) return;
+
+    try {
+      await restoreMember(session.post.id, targetUserId, user.id, accessToken);
+      // Remove from blocked users list
+      setBlockedUsers((prevBlocked) => prevBlocked.filter(u => u.userId !== targetUserId));
+    } catch (err) {
+      console.error('Failed to restore participant:', err);
+      alert(t('meet_restore_error') || 'Failed to restore participant');
+    }
+  }, [session?.post?.id, accessToken, user?.id, t]);
+
   // Check if current user is moderator (host)
   // Use queue.moderatorId if available, otherwise fall back to post creator
   const isHost = queue?.moderatorId
     ? user?.id === queue.moderatorId
     : user?.id === session?.post?.createrId;
+
+  // Check if current user is the room creator (has kick permission)
+  const isCreator = user?.id === session?.post?.createrId;
 
   // Check if current user has raised hand
   const hasRaisedHand = queue?.participants?.find(p => p.userId === user?.id)?.hasRaisedHand || false;
@@ -554,8 +652,10 @@ const MeetRoom: React.FC = () => {
             meetLink={session.meetLink}
             queue={queue}
             isHost={isHost}
+            isCreator={isCreator}
             currentUserId={user?.id || ''}
             hasRaisedHand={hasRaisedHand}
+            blockedUsers={blockedUsers}
             onOpenMeet={handleOpenMeet}
             onRaiseHand={handleRaiseHand}
             onNextSpeaker={handleNextSpeaker}
@@ -563,6 +663,8 @@ const MeetRoom: React.FC = () => {
             onAddParticipantToQueue={handleAddParticipantToQueue}
             onReorderQueue={handleReorderQueue}
             onDelegateModerator={handleDelegateModerator}
+            onKickParticipant={handleKickParticipant}
+            onRestoreParticipant={handleRestoreParticipant}
           />
         </aside>
 

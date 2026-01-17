@@ -212,4 +212,111 @@ public class PostService {
 
         return postRepository.save(post);
     }
+
+    /**
+     * 멤버 강퇴 (방장만 가능)
+     * - memberIds에서 제거
+     * - blockedIds에 추가
+     */
+    public Post kickMember(String postId, String targetUserId, String requesterId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new RuntimeException("게시물을 찾을 수 없습니다."));
+
+        // 권한 확인: 요청자가 방 생성자인지
+        if (!post.getCreaterId().equals(requesterId)) {
+            throw new RuntimeException("강퇴 권한이 없습니다.");
+        }
+
+        // 자기 자신 강퇴 방지
+        if (targetUserId.equals(requesterId)) {
+            throw new RuntimeException("자기 자신을 강퇴할 수 없습니다.");
+        }
+
+        // 멤버인지 확인
+        if (post.getMemberIds() == null || !post.getMemberIds().contains(targetUserId)) {
+            throw new RuntimeException("해당 유저는 멤버가 아닙니다.");
+        }
+
+        // memberIds에서 제거
+        post.getMemberIds().remove(targetUserId);
+
+        // blockedIds에 추가
+        if (post.getBlockedIds() == null) {
+            post.setBlockedIds(new java.util.ArrayList<>());
+        }
+        if (!post.getBlockedIds().contains(targetUserId)) {
+            post.getBlockedIds().add(targetUserId);
+        }
+
+        // 사용자의 participatedBookMeetings에서 제거
+        userService.removeParticipatedBookMeetingById(targetUserId, postId);
+
+        // 사용자의 강퇴 횟수 증가
+        userService.incrementKickedCount(targetUserId);
+
+        return postRepository.save(post);
+    }
+
+    /**
+     * 특정 유저에게 보이지 않는 게시물 제외하고 조회
+     */
+    public List<Post> getAllPostsExcludingBlocked(String userId) {
+        List<Post> allPosts = postRepository.findAll();
+        if (userId == null || userId.isEmpty()) {
+            return allPosts;
+        }
+        return allPosts.stream()
+            .filter(post -> post.getBlockedIds() == null || !post.getBlockedIds().contains(userId))
+            .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * 강퇴 유저 복구 (방장만 가능)
+     * - blockedIds에서 제거
+     * - memberIds에 추가
+     * - kicked 횟수 감소
+     */
+    public Post restoreMember(String postId, String targetUserId, String requesterId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new RuntimeException("게시물을 찾을 수 없습니다."));
+
+        // 권한 확인: 요청자가 방 생성자인지
+        if (!post.getCreaterId().equals(requesterId)) {
+            throw new RuntimeException("복구 권한이 없습니다.");
+        }
+
+        // blockedIds에 있는지 확인
+        if (post.getBlockedIds() == null || !post.getBlockedIds().contains(targetUserId)) {
+            throw new RuntimeException("해당 유저는 강퇴 목록에 없습니다.");
+        }
+
+        // blockedIds에서 제거
+        post.getBlockedIds().remove(targetUserId);
+
+        // memberIds에 추가
+        if (post.getMemberIds() == null) {
+            post.setMemberIds(new java.util.ArrayList<>());
+        }
+        if (!post.getMemberIds().contains(targetUserId)) {
+            post.getMemberIds().add(targetUserId);
+        }
+
+        // 사용자의 participatedBookMeetings에 추가
+        userService.addParticipatedBookMeetingById(targetUserId, postId);
+
+        // 사용자의 강퇴 횟수 감소
+        userService.decrementKickedCount(targetUserId);
+
+        return postRepository.save(post);
+    }
+
+    /**
+     * 강퇴된 유저 목록 조회
+     */
+    public List<String> getBlockedUserIds(String postId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new RuntimeException("게시물을 찾을 수 없습니다."));
+
+        return post.getBlockedIds() != null ? post.getBlockedIds() : new java.util.ArrayList<>();
+    }
 }
