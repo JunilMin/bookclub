@@ -440,6 +440,11 @@
   color: white;
 }
 
+.room-status-badge.waiting {
+  background: rgba(245, 158, 11, 0.9);
+  color: white;
+}
+
 .live-dot {
   width: 8px;
   height: 8px;
@@ -568,6 +573,15 @@
 
 .room-card-btn.past:hover:not(:disabled) {
   background: #6b7280;
+}
+
+.room-card-btn.waiting {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.room-card-btn.waiting:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706, #b45309);
 }
 
 .room-card-btn.joined {

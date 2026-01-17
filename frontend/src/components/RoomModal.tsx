@@ -27,7 +27,8 @@ export interface Room {
   level: 'low' | 'moderate' | 'high';
   description: string;
   tags: string[];
-  status: 'live' | 'upcoming' | 'past';
+  status: 'live' | 'upcoming' | 'past' | 'waiting';
+  activeParticipants: number; // 현재 세션에 참가 중인 인원
   isJoined: boolean;
   isMyRoom: boolean;
   meetLink?: string | null;
@@ -321,6 +322,11 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
             {room.status === 'past' && (
               <span className="room-badge room-badge-past">
                 {t('browse_modal_status_past')}
+              </span>
+            )}
+            {room.status === 'waiting' && (
+              <span className="room-badge room-badge-waiting">
+                {t('browse_modal_status_waiting')}
               </span>
             )}
             {room.isMyRoom && (
@@ -619,7 +625,7 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
                   ? t('browse_card_ended')
                   : room.recruit === false
                     ? t('browse_modal_recruitment_closed')
-                    : room.status === 'live'
+                    : (room.status === 'live' || room.status === 'waiting')
                       ? t('browse_card_join_now')
                       : t('browse_card_reserve')
               )}

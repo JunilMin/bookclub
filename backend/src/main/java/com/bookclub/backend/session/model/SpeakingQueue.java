@@ -1,5 +1,6 @@
 package com.bookclub.backend.session.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -90,10 +91,17 @@ public class SpeakingQueue {
         private String userId;  // User ObjectId
         private String username;
         private String photoUrl;
+
+        @JsonProperty("isHost")
         private boolean isHost;
+
         private boolean hasRaisedHand;
+
+        @JsonProperty("isOnline")
         private boolean isOnline;
+
         private LocalDateTime joinedAt;
+        private LocalDateTime lastHeartbeat;  // For stale session detection
 
         public SessionParticipant(String userId, String username, String photoUrl, boolean isHost) {
             this.userId = userId;
@@ -103,6 +111,7 @@ public class SpeakingQueue {
             this.hasRaisedHand = false;
             this.isOnline = true;
             this.joinedAt = LocalDateTime.now();
+            this.lastHeartbeat = LocalDateTime.now();
         }
     }
 

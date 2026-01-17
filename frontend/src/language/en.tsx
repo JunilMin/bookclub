@@ -204,6 +204,7 @@ const en = {
   browse_filter_all_genres: 'All Genres',
   browse_filter_all_status: 'All Status',
   browse_filter_live: 'Live Now',
+  browse_filter_waiting: 'Waiting',
   browse_filter_upcoming: 'Upcoming',
   browse_filter_past: 'Past',
   browse_sort_latest: 'Latest',
@@ -215,6 +216,7 @@ const en = {
   browse_tab_joined: 'Joined',
 
   browse_card_live: 'Live',
+  browse_card_waiting: 'Waiting',
   browse_card_upcoming: 'Upcoming',
   browse_card_past: 'Ended',
   browse_card_ended: 'Ended',
@@ -226,6 +228,7 @@ const en = {
   browse_card_my_room: 'My Room',
 
   browse_modal_status_live: 'Live Now',
+  browse_modal_status_waiting: 'Waiting',
   browse_modal_status_past: 'Ended',
   browse_modal_status_my_room: 'My Room',
   browse_modal_status_joined: 'Joined',

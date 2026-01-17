@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward } from 'react-icons/fi';
 import { getAllPosts, Post, joinBookMeeting, deletePost } from '../api/posts';
 import { getUserById } from '../api/user';
+import { getRoomStatuses, RoomStatus } from '../api/sessions';
 import { useAuth } from '../AuthContext/AuthContext';
 import RoomModal, { Room } from '../components/RoomModal';
 import Footer from '../components/Footer';
@@ -87,19 +88,26 @@ function postToRoom(
   post: Post,
   currentUserId: string | undefined,
   hostUsername: string,
-  bookInfo: { author: string; genre: string; cover: string }
+  bookInfo: { author: string; genre: string; cover: string },
+  activeParticipants: number = 0
 ): Room {
   const now = new Date();
   const dueDate = new Date(post.due);
   const duration = post.duration || 60; // Use post duration or default 60 minutes
   const endDate = new Date(dueDate.getTime() + duration * 60 * 1000);
 
-  // Determine status: past (ended), live (in progress), upcoming (not started)
-  let status: 'live' | 'upcoming' | 'past';
-  if (now > endDate) {
+  // Determine status based on active participants and time
+  // 1. live (진행중): 1+ participants in session, regardless of time
+  // 2. past (종료됨): end time passed AND no participants
+  // 3. waiting (대기중): start time passed AND no participants AND end time not passed
+  // 4. upcoming (예정됨): start time not passed AND no participants
+  let status: 'live' | 'upcoming' | 'past' | 'waiting';
+  if (activeParticipants > 0) {
+    status = 'live';
+  } else if (now > endDate) {
     status = 'past';
   } else if (now >= dueDate) {
-    status = 'live';
+    status = 'waiting';
   } else {
     status = 'upcoming';
   }
@@ -135,6 +143,7 @@ function postToRoom(
     description: post.description || `Join us for an engaging discussion about "${post.book}". Share your insights and connect with fellow readers.`,
     tags: post.tags && post.tags.length > 0 ? post.tags : tags,
     status,
+    activeParticipants,
     isJoined: currentUserId ? (post.memberIds?.includes(currentUserId) || post.createrId === currentUserId) : false,
     isMyRoom: currentUserId ? post.createrId === currentUserId : false,
     meetLink: post.meetLink,
@@ -144,7 +153,7 @@ function postToRoom(
 }
 
 type TabType = 'all' | 'my' | 'joined';
-type StatusFilter = 'all' | 'live' | 'upcoming' | 'past';
+type StatusFilter = 'all' | 'live' | 'upcoming' | 'past' | 'waiting';
 type SortBy = 'latest' | 'mostPopular' | 'startingSoon';
 
 const REFRESH_INTERVAL = 30000;
@@ -159,6 +168,7 @@ const Board: React.FC = () => {
   // Data state
   const [posts, setPosts] = useState<Post[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomStatuses, setRoomStatuses] = useState<Record<string, RoomStatus>>({});
   const [isLoading, setIsLoading] = useState(true); // Start with loading true
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -183,7 +193,7 @@ const Board: React.FC = () => {
     }
   }, [searchParams]);
 
-  // Fetch posts
+  // Fetch posts and room statuses
   const fetchPosts = useCallback(async () => {
     if (!accessToken) {
       setIsLoading(false);
@@ -196,6 +206,13 @@ const Board: React.FC = () => {
     try {
       const data = await getAllPosts(accessToken);
       setPosts(data);
+
+      // Fetch room statuses for all posts
+      if (data.length > 0) {
+        const postIds = data.map((post: Post) => post.id);
+        const statuses = await getRoomStatuses(postIds, accessToken);
+        setRoomStatuses(statuses);
+      }
     } catch (err) {
       console.error('Error fetching posts:', err);
       setError(t('browse_error'));
@@ -233,7 +250,10 @@ const Board: React.FC = () => {
           }
         }
 
-        return postToRoom(post, user?.id, hostUsername, bookInfo);
+        // Get active participants from roomStatuses
+        const activeParticipants = roomStatuses[post.id]?.activeParticipants || 0;
+
+        return postToRoom(post, user?.id, hostUsername, bookInfo, activeParticipants);
       });
 
       const convertedRooms = await Promise.all(roomPromises);
@@ -245,7 +265,7 @@ const Board: React.FC = () => {
     } else {
       setRooms([]);
     }
-  }, [posts, user?.id, accessToken]);
+  }, [posts, user?.id, accessToken, roomStatuses]);
 
   // Get unique genres from rooms
   const genres = useMemo(() => {
@@ -454,6 +474,7 @@ const Board: React.FC = () => {
             >
               <option value="all">{t('browse_filter_all_status')}</option>
               <option value="live">{t('browse_filter_live')}</option>
+              <option value="waiting">{t('browse_filter_waiting')}</option>
               <option value="upcoming">{t('browse_filter_upcoming')}</option>
               <option value="past">{t('browse_filter_past')}</option>
             </select>
@@ -541,9 +562,11 @@ const Board: React.FC = () => {
                     {room.status === 'live' && <span className="live-dot"></span>}
                     {room.status === 'live'
                       ? t('browse_card_live')
-                      : room.status === 'past'
-                        ? t('browse_card_past')
-                        : t('browse_card_upcoming')}
+                      : room.status === 'waiting'
+                        ? t('browse_card_waiting')
+                        : room.status === 'past'
+                          ? t('browse_card_past')
+                          : t('browse_card_upcoming')}
                   </span>
                   {room.isMyRoom && (
                     <span className="room-my-badge">{t('browse_card_my_room')}</span>
@@ -592,7 +615,7 @@ const Board: React.FC = () => {
                       ? t('browse_card_view_details')
                       : room.status === 'past'
                         ? t('browse_card_ended')
-                        : room.status === 'live'
+                        : room.status === 'live' || room.status === 'waiting'
                           ? t('browse_card_join_now')
                           : t('browse_card_reserve')
                     }

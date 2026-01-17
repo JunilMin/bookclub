@@ -306,16 +306,16 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
         )}
       </div>
 
-      {/* Participants */}
+      {/* Participants - only show online participants */}
       <div className="participants-section">
         <div className="participants-header">
           <h3>
             <FiUser size={14} />
-            {t('meet_participants') || 'Participants'} ({queue?.participants?.length || 0})
+            {t('meet_participants') || 'Participants'} ({queue?.participants?.filter(p => p.isOnline).length || 0})
           </h3>
         </div>
         <ul className="participants-list">
-          {queue?.participants?.map((participant) => {
+          {queue?.participants?.filter(p => p.isOnline).map((participant) => {
             // Check if participant is already in queue or is current speaker
             const isInQueue = queue.queue?.some((q) => q.userId === participant.userId) || false;
             const isCurrentSpeaker = queue.currentSpeaker?.userId === participant.userId;

@@ -149,21 +149,37 @@ const MeetRoom: React.FC = () => {
     fetchData();
   }, [sessionId, accessToken, navigate, t, isLoading]);
 
-  // Subscribe to WebSocket topics (Queue, Presence만 - Notes는 CollaborativeNotes에서 처리)
+  // Subscribe to WebSocket topics (Queue, Presence - DocEditController pattern)
   useEffect(() => {
-    if (!isConnected || !sessionId) return;
+    console.log('=== WebSocket Session Effect ===', {
+      isConnected,
+      sessionId,
+      userId: user?.id,
+      username: user?.username,
+    });
+
+    if (!isConnected || !sessionId || !user?.id) {
+      console.log('Skipping effect: conditions not met', {
+        isConnected,
+        hasSessionId: !!sessionId,
+        hasUserId: !!user?.id,
+      });
+      return;
+    }
 
     // Subscribe to queue updates
     const unsubQueue = subscribe(`/topic/session/${sessionId}/queue`, (message) => {
       const queueUpdate: SpeakingQueue = JSON.parse(message.body);
       console.log('Queue updated:', {
         participants: queueUpdate.participants?.length || 0,
+        participantsOnline: queueUpdate.participants?.filter(p => p.isOnline).length || 0,
         queue: queueUpdate.queue?.length || 0,
+        participantsData: queueUpdate.participants,
       });
       setQueue(queueUpdate);
     });
 
-    // Subscribe to presence updates (기존 방식 유지 - 발언 대기열용)
+    // Subscribe to presence updates (for backward compatibility)
     const unsubPresence = subscribe(`/topic/session/${sessionId}/presence`, (message) => {
       const presenceUpdate: PresenceMessage = JSON.parse(message.body);
       setPresence(prev => {
@@ -176,37 +192,94 @@ const MeetRoom: React.FC = () => {
       });
     });
 
-    // Send join presence
-    if (user && user.id) {
-      console.log('Sending JOIN presence:', {
-        sessionId,
-        userId: user.id,
-        username: user.username,
-      });
-      send(`/app/session/${sessionId}/presence`, {
-        action: 'JOIN',
+    // Send JOIN message (DocEditController pattern - dedicated endpoint)
+    console.log('=== Sending Session JOIN ===', {
+      sessionId,
+      userId: user.id,
+      username: user.username,
+    });
+    try {
+      send(`/app/session/${sessionId}/join`, {
         userId: user.id,
         username: user.username,
         photoUrl: user.photoUrl || '',
       });
-    } else {
-      console.error('Cannot send JOIN presence: user.id is missing', user);
+      console.log('Session JOIN sent successfully');
+    } catch (err) {
+      console.error('Failed to send Session JOIN:', err);
     }
 
     return () => {
       unsubQueue();
       unsubPresence();
-      // Send leave presence
-      if (user) {
-        send(`/app/session/${sessionId}/presence`, {
-          action: 'LEAVE',
+      // Send LEAVE message (DocEditController pattern - dedicated endpoint)
+      console.log('=== Sending Session LEAVE ===', {
+        sessionId,
+        userId: user.id,
+      });
+      try {
+        send(`/app/session/${sessionId}/leave`, {
           userId: user.id,
           username: user.username,
           photoUrl: user.photoUrl || '',
         });
+        console.log('Session LEAVE sent successfully');
+      } catch (err) {
+        console.error('Failed to send Session LEAVE:', err);
       }
     };
-  }, [isConnected, sessionId, subscribe, send, user]);
+  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, subscribe, send]);
+
+  // Handle beforeunload (tab close/refresh) - send leave message
+  useEffect(() => {
+    if (!isConnected || !sessionId || !user?.id) return;
+
+    const handleBeforeUnload = () => {
+      // Send leave message synchronously before page unloads
+      console.log('=== beforeunload: Sending Session LEAVE ===');
+      try {
+        send(`/app/session/${sessionId}/leave`, {
+          userId: user.id,
+          username: user.username,
+          photoUrl: user.photoUrl || '',
+        });
+      } catch (err) {
+        console.error('Failed to send leave on beforeunload:', err);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send]);
+
+  // Periodic heartbeat to keep presence alive (every 30 seconds)
+  useEffect(() => {
+    if (!isConnected || !sessionId || !user?.id) return;
+
+    const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+
+    const sendHeartbeat = () => {
+      send(`/app/session/${sessionId}/presence`, {
+        action: 'HEARTBEAT',
+        userId: user.id,
+        username: user.username,
+        photoUrl: user.photoUrl || '',
+      });
+    };
+
+    // Send initial heartbeat
+    sendHeartbeat();
+
+    // Set up interval
+    const intervalId = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send]);
 
   // Handlers
   const handleRaiseHand = useCallback(async () => {
@@ -465,7 +538,7 @@ const MeetRoom: React.FC = () => {
           )}
           <span className="meetroom-participants-badge">
             <FiUsers size={16} />
-            {queue?.participants?.length || 0}
+            {queue?.participants?.filter(p => p.isOnline).length || 0}
           </span>
           <span className="meetroom-connection-status" data-connected={isConnected}>
             {isConnected ? 'Connected' : 'Disconnected'}

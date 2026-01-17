@@ -50,3 +50,26 @@ export const getSession = async (sessionId: string, token: string): Promise<GetS
   const response = await axiosInstance.get(`/sessions/${sessionId}`);
   return response.data;
 };
+
+/**
+ * Room status 정보 (활성 참가자 수)
+ */
+export interface RoomStatus {
+  activeParticipants: number;
+  sessionId: string | null;
+}
+
+/**
+ * 여러 Post의 활성 참가자 수 조회
+ * GET /api/sessions/room-statuses?postIds=id1,id2,id3
+ */
+export const getRoomStatuses = async (
+  postIds: string[],
+  token: string
+): Promise<Record<string, RoomStatus>> => {
+  setAccessToken(token);
+  const response = await axiosInstance.get('/sessions/room-statuses', {
+    params: { postIds: postIds.join(',') },
+  });
+  return response.data;
+};

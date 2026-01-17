@@ -99,6 +99,11 @@
   color: #6b7280;
 }
 
+.room-badge-waiting {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
 /* Header Actions */
 .room-modal-header-actions {
   display: flex;

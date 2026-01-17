@@ -204,6 +204,7 @@ const ko = {
   browse_filter_all_genres: '모든 장르',
   browse_filter_all_status: '모든 상태',
   browse_filter_live: '진행 중',
+  browse_filter_waiting: '대기 중',
   browse_filter_upcoming: '예정됨',
   browse_filter_past: '종료됨',
   browse_sort_latest: '최신순',
@@ -215,6 +216,7 @@ const ko = {
   browse_tab_joined: '참여 중',
 
   browse_card_live: '진행 중',
+  browse_card_waiting: '대기 중',
   browse_card_upcoming: '예정됨',
   browse_card_past: '종료됨',
   browse_card_ended: '종료됨',
@@ -226,6 +228,7 @@ const ko = {
   browse_card_my_room: '내 토론방',
 
   browse_modal_status_live: '진행 중',
+  browse_modal_status_waiting: '대기 중',
   browse_modal_status_past: '종료됨',
   browse_modal_status_my_room: '내 토론방',
   browse_modal_status_joined: '참여 중',

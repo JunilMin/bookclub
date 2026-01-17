@@ -5,11 +5,13 @@ import com.bookclub.backend.session.dto.QueueActionMessage;
 import com.bookclub.backend.session.dto.ReorderQueueRequest;
 import com.bookclub.backend.session.model.SpeakingQueue;
 import com.bookclub.backend.session.service.SpeakingQueueService;
+import com.bookclub.backend.websocket.WebSocketSessionRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -27,6 +29,9 @@ public class SpeakingQueueController {
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private WebSocketSessionRegistry sessionRegistry;
 
     /**
      * REST: Get speaking queue
@@ -130,6 +135,60 @@ public class SpeakingQueueController {
     }
 
     /**
+     * WebSocket: Handle session join (similar to DocEditController pattern)
+     */
+    @MessageMapping("/session/{sessionId}/join")
+    public void handleSessionJoin(
+            @DestinationVariable String sessionId,
+            @Header("simpSessionId") String wsSessionId,
+            QueueActionMessage message) {
+
+        logger.info("=== Session JOIN received: sessionId={}, userId={}, username={}, wsSessionId={} ===",
+                sessionId, message.getUserId(), message.getUsername(), wsSessionId);
+
+        // Register in WebSocket session registry
+        sessionRegistry.registerMeetingSession(wsSessionId, sessionId);
+
+        // Add participant to queue
+        SpeakingQueue updatedQueue = speakingQueueService.addParticipant(
+                sessionId,
+                message.getUserId(),
+                message.getUsername(),
+                message.getPhotoUrl(),
+                false
+        );
+
+        logger.info("Participant added. Total: {}, Online: {}",
+                updatedQueue.getParticipants().size(),
+                updatedQueue.getParticipants().stream().filter(p -> p.isOnline()).count());
+
+        // Broadcast updated queue
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", updatedQueue);
+    }
+
+    /**
+     * WebSocket: Handle session leave
+     */
+    @MessageMapping("/session/{sessionId}/leave")
+    public void handleSessionLeave(
+            @DestinationVariable String sessionId,
+            @Header("simpSessionId") String wsSessionId,
+            QueueActionMessage message) {
+
+        logger.info("=== Session LEAVE received: sessionId={}, userId={}, wsSessionId={} ===",
+                sessionId, message.getUserId(), wsSessionId);
+
+        // Unregister from WebSocket session registry
+        sessionRegistry.unregisterMeetingSession(wsSessionId, sessionId);
+
+        // Set participant offline
+        SpeakingQueue updatedQueue = speakingQueueService.setParticipantOffline(sessionId, message.getUserId());
+
+        // Broadcast updated queue
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", updatedQueue);
+    }
+
+    /**
      * WebSocket: Handle queue actions
      */
     @MessageMapping("/session/{sessionId}/queue")
@@ -162,14 +221,18 @@ public class SpeakingQueueController {
     @SendTo("/topic/session/{sessionId}/presence")
     public PresenceMessage handlePresence(
             @DestinationVariable String sessionId,
+            @Header("simpSessionId") String wsSessionId,
             PresenceMessage message) {
 
-        logger.info("=== Presence received: sessionId={}, action={}, userId={}, username={} ===",
-                sessionId, message.getAction(), message.getUserId(), message.getUsername());
+        logger.info("=== Presence received: sessionId={}, action={}, userId={}, username={}, wsSessionId={} ===",
+                sessionId, message.getAction(), message.getUserId(), message.getUsername(), wsSessionId);
 
         SpeakingQueue updatedQueue = null;
 
         if ("JOIN".equals(message.getAction())) {
+            // Register this meeting session in the WebSocket session registry
+            sessionRegistry.registerMeetingSession(wsSessionId, sessionId);
+
             updatedQueue = speakingQueueService.addParticipant(
                     sessionId,
                     message.getUserId(),
@@ -180,8 +243,17 @@ public class SpeakingQueueController {
             logger.info("User {} added to session {}. Total participants: {}",
                     message.getUsername(), sessionId, updatedQueue.getParticipants().size());
         } else if ("LEAVE".equals(message.getAction())) {
+            // Unregister this meeting session from the WebSocket session registry
+            sessionRegistry.unregisterMeetingSession(wsSessionId, sessionId);
+
             updatedQueue = speakingQueueService.setParticipantOffline(sessionId, message.getUserId());
             logger.info("User {} left session {}.", message.getUsername(), sessionId);
+        } else if ("HEARTBEAT".equals(message.getAction())) {
+            // Update heartbeat timestamp for the user
+            speakingQueueService.updateHeartbeat(sessionId, message.getUserId());
+            logger.debug("Heartbeat received from user {} in session {}", message.getUserId(), sessionId);
+            // Don't broadcast heartbeats to reduce traffic
+            return message;
         }
 
         // Broadcast updated queue to all subscribers
@@ -191,5 +263,16 @@ public class SpeakingQueueController {
         }
 
         return message;
+    }
+
+    /**
+     * REST: Receive heartbeat (alternative to WebSocket heartbeat)
+     */
+    @PostMapping("/{sessionId}/heartbeat")
+    public ResponseEntity<Void> heartbeat(
+            @PathVariable String sessionId,
+            @RequestBody QueueActionMessage message) {
+        speakingQueueService.updateHeartbeat(sessionId, message.getUserId());
+        return ResponseEntity.ok().build();
     }
 }

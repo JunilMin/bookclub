@@ -5,12 +5,18 @@ import com.bookclub.backend.session.dto.ErrorResponse;
 import com.bookclub.backend.session.dto.GetSessionResponse;
 import com.bookclub.backend.session.dto.JoinSessionRequest;
 import com.bookclub.backend.session.dto.JoinSessionResponse;
+import com.bookclub.backend.session.service.SpeakingQueueService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -19,6 +25,12 @@ public class SessionController {
 
     @Autowired
     private SessionService sessionService;
+
+    @Autowired
+    private SessionRepository sessionRepository;
+
+    @Autowired
+    private SpeakingQueueService speakingQueueService;
 
     /**
      * 세션 참가 (없으면 생성, 있으면 재사용)
@@ -80,6 +92,50 @@ public class SessionController {
         } catch (SessionService.NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse(e.getMessage(), "NOT_FOUND"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("Internal server error: " + e.getMessage(), "SERVER_ERROR"));
+        }
+    }
+
+    /**
+     * 여러 Post의 활성 참가자 수 조회
+     * GET /api/sessions/room-statuses?postIds=id1,id2,id3
+     */
+    @GetMapping("/room-statuses")
+    public ResponseEntity<?> getRoomStatuses(
+            @RequestParam List<String> postIds,
+            HttpServletRequest httpRequest) {
+        try {
+            String token = extractToken(httpRequest);
+            if (token == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Authentication required", "UNAUTHORIZED"));
+            }
+
+            Map<String, Map<String, Object>> result = new HashMap<>();
+
+            for (String postId : postIds) {
+                Map<String, Object> status = new HashMap<>();
+
+                // Find session for this post
+                Optional<Session> sessionOpt = sessionRepository.findByPostIdAndStatus(postId, "live");
+
+                if (sessionOpt.isPresent()) {
+                    String sessionId = sessionOpt.get().getId();
+                    int activeParticipants = speakingQueueService.getOnlineParticipantCount(sessionId);
+                    status.put("activeParticipants", activeParticipants);
+                    status.put("sessionId", sessionId);
+                } else {
+                    status.put("activeParticipants", 0);
+                    status.put("sessionId", null);
+                }
+
+                result.put(postId, status);
+            }
+
+            return ResponseEntity.ok(result);
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("Internal server error: " + e.getMessage(), "SERVER_ERROR"));
