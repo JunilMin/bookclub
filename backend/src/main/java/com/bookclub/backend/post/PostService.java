@@ -92,13 +92,20 @@ public class PostService {
     }
 
     /**
-     * 게시물 업데이트
-     * (v2.1에서 Calendar 이벤트 동기화 추가 예정)
+     * 게시물 업데이트 (Google Calendar 동기화 포함)
+     * @param id 수정할 게시물 ID
+     * @param updatedPost 수정된 게시물 데이터
+     * @param googleAccessToken 사용자의 Google OAuth Access Token (Calendar 동기화용)
      */
-    public Post updatePost(String id, Post updatedPost) {
+    public Post updatePost(String id, Post updatedPost, String googleAccessToken) {
         Optional<Post> existingPost = postRepository.findById(id);
         if (existingPost.isPresent()) {
             Post post = existingPost.get();
+
+            // 시간/제목 변경 여부 확인 (Calendar 동기화 판단용)
+            boolean dueChanged = updatedPost.getDue() != null && !updatedPost.getDue().equals(post.getDue());
+            boolean bookChanged = updatedPost.getBook() != null && !updatedPost.getBook().equals(post.getBook());
+            boolean needsCalendarSync = dueChanged || bookChanged;
 
             // 기본 필드 업데이트
             if (updatedPost.getCreaterId() != null) {
@@ -137,30 +144,71 @@ public class PostService {
                 post.setRecruit(updatedPost.getRecruit());
             }
 
-            // Meet 링크는 수정하지 않음 (v2.1에서 동기화 추가)
+            // Google Calendar 이벤트 동기화 (시간 또는 제목 변경 시)
+            if (needsCalendarSync && post.getCalendarEventId() != null && googleAccessToken != null) {
+                try {
+                    boolean updated = googleCalendarService.updateEvent(
+                        post.getCalendarEventId(),
+                        post.getBook(),
+                        post.getDue(),
+                        post.getDue() != null ? post.getDue().plusHours(1) : null,
+                        googleAccessToken
+                    );
+                    if (!updated) {
+                        // Calendar 업데이트 실패 시 에러 기록 (Post는 저장)
+                        post.setMeetError("Failed to sync with Google Calendar");
+                    } else {
+                        post.setMeetError(null);
+                    }
+                } catch (Exception e) {
+                    post.setMeetError("Calendar sync error: " + e.getMessage());
+                }
+            }
+
             return postRepository.save(post);
         }
         return null;
     }
 
     /**
-     * 게시물 삭제
-     * (v2.1에서 Calendar 이벤트 삭제 추가 예정)
+     * 게시물 업데이트 (기존 메서드 - 하위 호환성 유지)
      */
-    public void deletePost(String id) {
+    public Post updatePost(String id, Post updatedPost) {
+        return updatePost(id, updatedPost, null);
+    }
+
+    /**
+     * 게시물 삭제 (Google Calendar 이벤트 삭제 포함)
+     * @param id 삭제할 게시물 ID
+     * @param googleAccessToken 사용자의 Google OAuth Access Token (Calendar 삭제용)
+     */
+    public void deletePost(String id, String googleAccessToken) {
         // 삭제 전에 생성자의 createdBookMeetings에서 제거
         Optional<Post> post = postRepository.findById(id);
         post.ifPresent(p -> {
             if (p.getCreaterId() != null) {
                 userService.removeCreatedBookMeetingById(p.getCreaterId(), id);
             }
-            // TODO (v2.1): Calendar 이벤트 삭제
-            // if (p.getCalendarEventId() != null) {
-            //     googleCalendarService.deleteEvent(p.getCalendarEventId());
-            // }
+
+            // Google Calendar 이벤트 삭제
+            if (p.getCalendarEventId() != null && googleAccessToken != null) {
+                try {
+                    googleCalendarService.deleteEvent(p.getCalendarEventId(), googleAccessToken);
+                } catch (Exception e) {
+                    // Calendar 삭제 실패해도 Post는 삭제 진행
+                    System.err.println("Failed to delete calendar event: " + e.getMessage());
+                }
+            }
         });
 
         postRepository.deleteById(id);
+    }
+
+    /**
+     * 게시물 삭제 (기존 메서드 - 하위 호환성 유지)
+     */
+    public void deletePost(String id) {
+        deletePost(id, null);
     }
 
     /**

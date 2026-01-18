@@ -200,12 +200,19 @@ public class GoogleCalendarService {
     }
 
     /**
-     * 캘린더 이벤트를 삭제합니다. (v2.1 예정)
+     * 캘린더 이벤트를 삭제합니다.
      * @param eventId 삭제할 이벤트 ID
      * @param accessToken 사용자의 Google OAuth Access Token
+     * @return 삭제 성공 여부
      */
     public boolean deleteEvent(String eventId, String accessToken) {
-        if (!initialized || eventId == null || accessToken == null) {
+        if (!initialized || eventId == null || eventId.isEmpty()) {
+            logger.warn("Cannot delete event: service not initialized or eventId is empty");
+            return false;
+        }
+
+        if (accessToken == null || accessToken.isEmpty()) {
+            logger.warn("Cannot delete event: accessToken is required");
             return false;
         }
 
@@ -215,7 +222,71 @@ public class GoogleCalendarService {
             logger.info("Calendar event deleted: {}", eventId);
             return true;
         } catch (IOException e) {
-            logger.error("Failed to delete calendar event: {}", e.getMessage());
+            logger.error("Failed to delete calendar event {}: {}", eventId, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 캘린더 이벤트를 수정합니다 (시간 변경).
+     * @param eventId 수정할 이벤트 ID
+     * @param title 새 이벤트 제목 (null이면 유지)
+     * @param startTime 새 시작 시간
+     * @param endTime 새 종료 시간 (null이면 시작 시간 + 1시간)
+     * @param accessToken 사용자의 Google OAuth Access Token
+     * @return 수정 성공 여부
+     */
+    public boolean updateEvent(String eventId, String title, LocalDateTime startTime, LocalDateTime endTime, String accessToken) {
+        if (!initialized || eventId == null || eventId.isEmpty()) {
+            logger.warn("Cannot update event: service not initialized or eventId is empty");
+            return false;
+        }
+
+        if (accessToken == null || accessToken.isEmpty()) {
+            logger.warn("Cannot update event: accessToken is required");
+            return false;
+        }
+
+        if (startTime == null) {
+            logger.warn("Cannot update event: startTime is required");
+            return false;
+        }
+
+        try {
+            Calendar calendarService = createCalendarService(accessToken);
+
+            // 기존 이벤트 가져오기
+            Event event = calendarService.events().get("primary", eventId).execute();
+
+            // 제목 업데이트 (제공된 경우)
+            if (title != null && !title.isEmpty()) {
+                event.setSummary("[BookClub] " + title);
+                event.setDescription("BookClub 독서 토론 모임: " + title);
+            }
+
+            // 종료 시간이 없으면 시작 시간 + 1시간
+            if (endTime == null) {
+                endTime = startTime.plusHours(1);
+            }
+
+            // 시작/종료 시간 업데이트
+            DateTime startDateTime = new DateTime(
+                java.util.Date.from(startTime.atZone(ZoneId.systemDefault()).toInstant())
+            );
+            DateTime endDateTime = new DateTime(
+                java.util.Date.from(endTime.atZone(ZoneId.systemDefault()).toInstant())
+            );
+
+            event.setStart(new EventDateTime().setDateTime(startDateTime).setTimeZone("Asia/Seoul"));
+            event.setEnd(new EventDateTime().setDateTime(endDateTime).setTimeZone("Asia/Seoul"));
+
+            // 이벤트 업데이트 API 호출
+            calendarService.events().update("primary", eventId, event).execute();
+            logger.info("Calendar event updated: {}", eventId);
+            return true;
+
+        } catch (IOException e) {
+            logger.error("Failed to update calendar event {}: {}", eventId, e.getMessage());
             return false;
         }
     }

@@ -83,12 +83,18 @@ public class PostController {
     }
 
     /**
-     * 게시물 업데이트
+     * 게시물 업데이트 (Google Calendar 동기화 포함)
+     * 시간(due) 또는 제목(book)이 변경되면 Google Calendar 이벤트도 업데이트됨
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Post> updatePost(@PathVariable String id, @RequestBody Post updatedPost) {
+    public ResponseEntity<Post> updatePost(
+            @PathVariable String id,
+            @RequestBody Post updatedPost,
+            HttpServletRequest request) {
         try {
-            Post updated = postService.updatePost(id, updatedPost);
+            // 쿠키에서 google_access_token 읽기
+            String googleAccessToken = getGoogleAccessTokenFromCookie(request);
+            Post updated = postService.updatePost(id, updatedPost, googleAccessToken);
             if (updated != null) {
                 return ResponseEntity.ok(updated);
             } else {
@@ -100,12 +106,14 @@ public class PostController {
     }
 
     /**
-     * 게시물 삭제
+     * 게시물 삭제 (Google Calendar 이벤트도 함께 삭제)
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePost(@PathVariable String id) {
+    public ResponseEntity<Void> deletePost(@PathVariable String id, HttpServletRequest request) {
         try {
-            postService.deletePost(id);
+            // 쿠키에서 google_access_token 읽기
+            String googleAccessToken = getGoogleAccessTokenFromCookie(request);
+            postService.deletePost(id, googleAccessToken);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
