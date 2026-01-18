@@ -364,6 +364,38 @@ const ko = {
   meet_how_it_works: '작동 방식',
   meet_how_it_works_desc: 'AI가 토론 노트를 분석하여 핵심 포인트, 인용문, 후속 질문이 포함된 요약을 생성합니다.',
   browse_modal_enter_meeting: '미팅 입장',
+
+  // Meeting Ended
+  meet_ended_title: '미팅 종료됨',
+  meet_ended_description: '이 미팅은 호스트에 의해 종료되었습니다.',
+  meet_end_button: '미팅 종료',
+  meet_you_were_kicked: '이 미팅에서 강퇴되었습니다.',
+  meet_kick_confirm: '이 참가자를 강퇴하시겠습니까?',
+  meet_kick_error: '참가자 강퇴에 실패했습니다',
+  meet_restore_confirm: '이 참가자를 복원하시겠습니까?',
+  meet_restore_error: '참가자 복원에 실패했습니다',
+  meeting_not_participant: '이 미팅의 참가자가 아닙니다',
+  meeting_load_error: '미팅을 불러오는데 실패했습니다',
+
+  // Endorsement (Post-meeting feedback)
+  endorsement_title: '참가자 평가하기',
+  endorsement_subtitle: '함께한 토론 참가자들의 좋았던 점을 선택해주세요. 선택하지 않아도 불이익이 없습니다.',
+  endorsement_loading: '참가자 불러오는 중...',
+  endorsement_no_participants: '평가할 다른 참가자가 없습니다',
+  endorsement_submitted: '제출됨',
+  endorsement_submit: '제출',
+  endorsement_submitting: '제출 중...',
+  endorsement_done: '완료',
+  endorsement_skip: '건너뛰기',
+  endorsement_category_engagement: '적극적 참여',
+  endorsement_category_communication: '명확한 의사소통',
+  endorsement_category_respect: '상호 존중',
+  endorsement_category_ruleAdherence: '규칙 준수',
+  endorsement_category_preparation: '충분한 준비',
+  endorsement_category_rematch: '다시 만나고 싶음',
+  endorsement_error_load_failed: '참가자를 불러오는데 실패했습니다',
+  endorsement_error_submit_failed: '평가 제출에 실패했습니다',
+  endorsement_error_already_submitted: '이미 이 참가자를 평가했습니다',
 };
 
 export default ko;

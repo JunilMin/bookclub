@@ -364,6 +364,38 @@ const en = {
   meet_how_it_works: 'How it works',
   meet_how_it_works_desc: 'The AI analyzes your discussion notes and generates a summary with key points, quotes, and follow-up questions.',
   browse_modal_enter_meeting: 'Enter Meeting',
+
+  // Meeting Ended
+  meet_ended_title: 'Meeting Ended',
+  meet_ended_description: 'This meeting has been ended by the host.',
+  meet_end_button: 'End Meeting',
+  meet_you_were_kicked: 'You have been removed from this meeting.',
+  meet_kick_confirm: 'Are you sure you want to kick this participant?',
+  meet_kick_error: 'Failed to kick participant',
+  meet_restore_confirm: 'Are you sure you want to restore this participant?',
+  meet_restore_error: 'Failed to restore participant',
+  meeting_not_participant: 'You are not a participant of this meeting',
+  meeting_load_error: 'Failed to load meeting',
+
+  // Endorsement (Post-meeting feedback)
+  endorsement_title: 'Rate Your Fellow Participants',
+  endorsement_subtitle: 'Share your appreciation for others in the discussion. No penalty for skipping.',
+  endorsement_loading: 'Loading participants...',
+  endorsement_no_participants: 'No other participants to endorse',
+  endorsement_submitted: 'Submitted',
+  endorsement_submit: 'Submit',
+  endorsement_submitting: 'Submitting...',
+  endorsement_done: 'Done',
+  endorsement_skip: 'Skip',
+  endorsement_category_engagement: 'Active Engagement',
+  endorsement_category_communication: 'Clear Communication',
+  endorsement_category_respect: 'Respectful',
+  endorsement_category_ruleAdherence: 'Followed Rules',
+  endorsement_category_preparation: 'Well Prepared',
+  endorsement_category_rematch: 'Would Meet Again',
+  endorsement_error_load_failed: 'Failed to load participants',
+  endorsement_error_submit_failed: 'Failed to submit endorsement',
+  endorsement_error_already_submitted: 'You have already endorsed this participant',
 };
 
 export default en;

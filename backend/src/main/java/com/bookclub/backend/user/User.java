@@ -38,6 +38,9 @@ public class User {
   // 신고 관련 집계 필드
   private ReportedStats reported;
 
+  // 평가(endorsement) 관련 집계 필드
+  private EndorsementStats endorsementStats;
+
   // 신고 통계 내부 클래스
   @Getter
   @Setter
@@ -62,6 +65,48 @@ public class User {
         this.reasonCounts = new HashMap<>();
       }
       this.reasonCounts.merge(reason, 1, Integer::sum);
+    }
+  }
+
+  // Endorsement 통계 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class EndorsementStats {
+    private int count = 0;                          // 총 받은 endorsement 횟수
+    private int points = 0;                         // 누적 점수
+    private Map<String, Integer> categoryCounts;    // 카테고리별 받은 횟수
+    private LocalDateTime lastEndorsedAt;           // 마지막 endorsement 받은 시간
+
+    public EndorsementStats(int count) {
+      this.count = count;
+      this.points = 0;
+      this.categoryCounts = new HashMap<>();
+    }
+
+    /**
+     * Increment the total endorsement count.
+     */
+    public void incrementCount() {
+      this.count++;
+      this.lastEndorsedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Add points to the total.
+     */
+    public void addPoints(int pointsToAdd) {
+      this.points += pointsToAdd;
+    }
+
+    /**
+     * Increment the count for a specific category.
+     */
+    public void incrementCategory(String category) {
+      if (this.categoryCounts == null) {
+        this.categoryCounts = new HashMap<>();
+      }
+      this.categoryCounts.merge(category, 1, Integer::sum);
     }
   }
 }

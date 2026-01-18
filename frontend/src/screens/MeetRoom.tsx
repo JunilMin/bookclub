@@ -18,6 +18,7 @@ import { getReportedUserIds } from '../api/reports';
 import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
 import ReportModal from '../components/meet/ReportModal';
 import EndMeetingModal from '../components/meet/EndMeetingModal';
+import EndorsementFeedbackModal from '../components/meet/EndorsementFeedbackModal';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
@@ -60,6 +61,7 @@ const MeetRoom: React.FC = () => {
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const [isMeetingEnded, setIsMeetingEnded] = useState(false);
   const [meetingEndedBy, setMeetingEndedBy] = useState<string | null>(null);
+  const [showEndorsementModal, setShowEndorsementModal] = useState(false);
 
   // WebSocket에서 queue 업데이트를 받았는지 추적 (race condition 방지)
   const hasReceivedWebSocketQueue = useRef(false);
@@ -270,6 +272,11 @@ const MeetRoom: React.FC = () => {
 
       setIsMeetingEnded(true);
       setMeetingEndedBy(endedEvent.endedBy);
+
+      // Show endorsement modal after a short delay
+      setTimeout(() => {
+        setShowEndorsementModal(true);
+      }, 500);
     });
 
     // Send JOIN message (DocEditController pattern - dedicated endpoint)
@@ -638,10 +645,16 @@ const MeetRoom: React.FC = () => {
     if (!session?.post?.id || !accessToken || !user?.id || !sessionId) return;
 
     await endMeeting(session.post.id, user.id, accessToken, sessionId);
-    // The WebSocket broadcast will handle notifying other users
-    // For the host, redirect immediately
-    navigate('/board');
-  }, [session?.post?.id, accessToken, user?.id, sessionId, navigate]);
+    // The WebSocket broadcast will notify other users
+    // For the host, set meeting ended state and show endorsement modal
+    setIsMeetingEnded(true);
+    setMeetingEndedBy(user.id);
+
+    // Show endorsement modal after a short delay
+    setTimeout(() => {
+      setShowEndorsementModal(true);
+    }, 500);
+  }, [session?.post?.id, accessToken, user?.id, sessionId]);
 
   // Check if current user is moderator (host)
   // Use queue.moderatorId if available, otherwise fall back to post creator
@@ -832,8 +845,19 @@ const MeetRoom: React.FC = () => {
         onConfirm={handleEndMeeting}
       />
 
-      {/* Meeting Ended Overlay */}
-      {isMeetingEnded && (
+      {/* Endorsement Feedback Modal (shown after meeting ends) */}
+      <EndorsementFeedbackModal
+        isOpen={showEndorsementModal}
+        onClose={() => {
+          setShowEndorsementModal(false);
+          // Navigate to board after closing endorsement modal
+          navigate('/board');
+        }}
+        sessionId={sessionId || ''}
+      />
+
+      {/* Meeting Ended Overlay (hidden when endorsement modal is open) */}
+      {isMeetingEnded && !showEndorsementModal && (
         <div className="meetroom-ended-overlay">
           <div className="meetroom-ended-content">
             <FiXCircle size={64} className="meetroom-ended-icon" />
