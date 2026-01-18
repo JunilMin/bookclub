@@ -97,12 +97,16 @@ function postToRoom(
   const endDate = new Date(dueDate.getTime() + duration * 60 * 1000);
 
   // Determine status based on active participants and time
+  // 0. past (종료됨): manually ended via End Meeting button (post.end.ended = true)
   // 1. live (진행중): 1+ participants in session, regardless of time
   // 2. past (종료됨): end time passed AND no participants
   // 3. waiting (대기중): start time passed AND no participants AND end time not passed
   // 4. upcoming (예정됨): start time not passed AND no participants
   let status: 'live' | 'upcoming' | 'past' | 'waiting';
-  if (activeParticipants > 0) {
+  if (post.end?.ended) {
+    // Manually ended meeting - always show as past
+    status = 'past';
+  } else if (activeParticipants > 0) {
     status = 'live';
   } else if (now > endDate) {
     status = 'past';

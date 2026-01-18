@@ -6,16 +6,18 @@ import {
   FiVideo,
   FiLoader,
   FiUsers,
+  FiXCircle,
 } from 'react-icons/fi';
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
-import { kickMember, restoreMember, getPostById } from '../api/posts';
+import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
 import { getReportedUserIds } from '../api/reports';
 import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
 import ReportModal from '../components/meet/ReportModal';
+import EndMeetingModal from '../components/meet/EndMeetingModal';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
@@ -55,6 +57,9 @@ const MeetRoom: React.FC = () => {
   const [reportedUserIds, setReportedUserIds] = useState<string[]>([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ userId: string; username: string } | null>(null);
+  const [isEndModalOpen, setIsEndModalOpen] = useState(false);
+  const [isMeetingEnded, setIsMeetingEnded] = useState(false);
+  const [meetingEndedBy, setMeetingEndedBy] = useState<string | null>(null);
 
   // WebSocket에서 queue 업데이트를 받았는지 추적 (race condition 방지)
   const hasReceivedWebSocketQueue = useRef(false);
@@ -103,11 +108,18 @@ const MeetRoom: React.FC = () => {
 
         setSession(sessionData);
 
+        // Check if meeting is already ended
+        if (sessionData.post.end?.ended) {
+          setIsMeetingEnded(true);
+          setMeetingEndedBy(sessionData.post.end.endedBy);
+        }
+
         console.log('Session data:', {
           sessionId: sessionData.sessionId,
           postId: sessionData.post.id,
           createrId: sessionData.post.createrId,
           book: sessionData.post.book,
+          end: sessionData.post.end,
         });
 
         // Fetch host username from createrId
@@ -177,6 +189,9 @@ const MeetRoom: React.FC = () => {
           setError(t('meeting_not_participant') || 'You are not a participant of this meeting');
         } else if (err.response?.status === 404) {
           setError(t('meeting_not_found') || 'Session not found');
+        } else if (err.response?.status === 410) {
+          // Meeting has ended - show ended state instead of error
+          setIsMeetingEnded(true);
         } else {
           setError(t('meeting_load_error') || 'Failed to load meeting');
         }
@@ -248,6 +263,15 @@ const MeetRoom: React.FC = () => {
       }
     });
 
+    // Subscribe to meeting ended events
+    const unsubEnded = subscribe(`/topic/session/${sessionId}/ended`, (message) => {
+      const endedEvent = JSON.parse(message.body);
+      console.log('Meeting ended event received:', endedEvent);
+
+      setIsMeetingEnded(true);
+      setMeetingEndedBy(endedEvent.endedBy);
+    });
+
     // Send JOIN message (DocEditController pattern - dedicated endpoint)
     console.log('=== Sending Session JOIN ===', {
       sessionId,
@@ -269,6 +293,7 @@ const MeetRoom: React.FC = () => {
       unsubQueue();
       unsubPresence();
       unsubKick();
+      unsubEnded();
       // Send LEAVE message (DocEditController pattern - dedicated endpoint)
       console.log('=== Sending Session LEAVE ===', {
         sessionId,
@@ -337,6 +362,31 @@ const MeetRoom: React.FC = () => {
       clearInterval(intervalId);
     };
   }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send]);
+
+  // Poll for meeting end state (fallback if WebSocket misses the event)
+  useEffect(() => {
+    if (!session?.post?.id || !accessToken || isMeetingEnded) return;
+
+    const POLL_INTERVAL = 5000; // 5 seconds
+
+    const checkMeetingEnd = async () => {
+      try {
+        const post = await getPostById(session.post.id, accessToken);
+        if (post.end?.ended) {
+          setIsMeetingEnded(true);
+          setMeetingEndedBy(post.end.endedBy || null);
+        }
+      } catch (err) {
+        console.error('Failed to check meeting end state:', err);
+      }
+    };
+
+    const intervalId = setInterval(checkMeetingEnd, POLL_INTERVAL);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [session?.post?.id, accessToken, isMeetingEnded]);
 
   // Handlers
   const handleRaiseHand = useCallback(async () => {
@@ -583,6 +633,16 @@ const MeetRoom: React.FC = () => {
     setReportedUserIds((prev) => [...prev, reportedUserId]);
   }, []);
 
+  // Handle end meeting
+  const handleEndMeeting = useCallback(async () => {
+    if (!session?.post?.id || !accessToken || !user?.id || !sessionId) return;
+
+    await endMeeting(session.post.id, user.id, accessToken, sessionId);
+    // The WebSocket broadcast will handle notifying other users
+    // For the host, redirect immediately
+    navigate('/board');
+  }, [session?.post?.id, accessToken, user?.id, sessionId, navigate]);
+
   // Check if current user is moderator (host)
   // Use queue.moderatorId if available, otherwise fall back to post creator
   const isHost = queue?.moderatorId
@@ -602,6 +662,30 @@ const MeetRoom: React.FC = () => {
         <div className="meetroom-loading">
           <FiLoader className="meetroom-loading-spinner" size={48} />
           <p>{t('loading') || 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Meeting ended state (entry blocked or meeting ended during session)
+  if (isMeetingEnded && !session) {
+    return (
+      <div className="meetroom-page">
+        <div className="meetroom-ended-overlay" style={{ position: 'relative', background: '#f8fafc' }}>
+          <div className="meetroom-ended-content">
+            <FiXCircle size={64} className="meetroom-ended-icon" />
+            <h2>{t('meet_ended_title') || 'Meeting Ended'}</h2>
+            <p>
+              {t('meet_ended_description') ||
+                'This meeting has been ended by the host.'}
+            </p>
+            <button
+              className="meetroom-ended-btn"
+              onClick={() => navigate('/board')}
+            >
+              {t('meeting_back_to_browse') || 'Back to Browse'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -659,6 +743,15 @@ const MeetRoom: React.FC = () => {
           <span className="meetroom-connection-status" data-connected={isConnected}>
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
+          {isCreator && (
+            <button
+              className="meetroom-end-btn"
+              onClick={() => setIsEndModalOpen(true)}
+            >
+              <FiXCircle size={16} />
+              {t('meet_end_button') || 'End Meeting'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -730,6 +823,33 @@ const MeetRoom: React.FC = () => {
           accessToken={accessToken || ''}
           onReportSuccess={handleReportSuccess}
         />
+      )}
+
+      {/* End Meeting Modal */}
+      <EndMeetingModal
+        isOpen={isEndModalOpen}
+        onClose={() => setIsEndModalOpen(false)}
+        onConfirm={handleEndMeeting}
+      />
+
+      {/* Meeting Ended Overlay */}
+      {isMeetingEnded && (
+        <div className="meetroom-ended-overlay">
+          <div className="meetroom-ended-content">
+            <FiXCircle size={64} className="meetroom-ended-icon" />
+            <h2>{t('meet_ended_title') || 'Meeting Ended'}</h2>
+            <p>
+              {t('meet_ended_description') ||
+                'This meeting has been ended by the host.'}
+            </p>
+            <button
+              className="meetroom-ended-btn"
+              onClick={() => navigate('/board')}
+            >
+              {t('meeting_back_to_browse') || 'Back to Browse'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

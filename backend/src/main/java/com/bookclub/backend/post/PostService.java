@@ -212,11 +212,47 @@ public class PostService {
     }
 
     /**
+     * 미팅 종료 (호스트만 가능)
+     * Idempotent: 이미 종료된 경우 동일한 응답 반환
+     * @param postId 종료할 게시물 ID
+     * @param requesterId 요청자 ID (호스트)
+     * @return 종료 상태가 업데이트된 Post
+     */
+    public Post endPost(String postId, String requesterId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new PostNotFoundException("게시물을 찾을 수 없습니다."));
+
+        // 권한 확인: 요청자가 방 생성자인지
+        if (!post.getCreaterId().equals(requesterId)) {
+            throw new UnauthorizedEndException("미팅 종료 권한이 없습니다.");
+        }
+
+        // Idempotent: 이미 종료된 경우 그대로 반환
+        if (post.getEnd() != null && post.getEnd().isEnded()) {
+            return post;
+        }
+
+        // 종료 상태 설정
+        Post.EndStatus endStatus = new Post.EndStatus();
+        endStatus.setEnded(true);
+        endStatus.setEndedAt(LocalDateTime.now());
+        endStatus.setEndedBy(requesterId);
+        post.setEnd(endStatus);
+
+        return postRepository.save(post);
+    }
+
+    /**
      * 북미팅 참여
      */
     public Post joinBookMeeting(String postId, String userId) {
         Post post = postRepository.findById(postId)
             .orElseThrow(() -> new RuntimeException("게시물을 찾을 수 없습니다."));
+
+        // 종료된 미팅인지 확인
+        if (post.isEnded()) {
+            throw new MeetingEndedException("이미 종료된 미팅입니다.");
+        }
 
         // 이미 참여 중인지 확인
         if (post.getMemberIds() != null && post.getMemberIds().contains(userId)) {
@@ -238,6 +274,25 @@ public class PostService {
         userService.addParticipatedBookMeetingById(userId, postId);
 
         return postRepository.save(post);
+    }
+
+    // Custom Exceptions
+    public static class PostNotFoundException extends RuntimeException {
+        public PostNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class UnauthorizedEndException extends RuntimeException {
+        public UnauthorizedEndException(String message) {
+            super(message);
+        }
+    }
+
+    public static class MeetingEndedException extends RuntimeException {
+        public MeetingEndedException(String message) {
+            super(message);
+        }
     }
 
     /**

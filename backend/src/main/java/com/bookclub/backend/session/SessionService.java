@@ -60,6 +60,11 @@ public class SessionService {
             throw new ForbiddenException("You are not a participant of this meeting");
         }
 
+        // 4.5. 종료된 미팅인지 확인
+        if (post.isEnded()) {
+            throw new MeetingEndedException("This meeting has ended");
+        }
+
         // 5. 기존 live 세션 찾기 또는 새로 생성
         Optional<Session> existingSession = sessionRepository.findByPostIdAndStatus(postId, "live");
         Session session;
@@ -130,6 +135,19 @@ public class SessionService {
             post.getCreaterId()
         );
 
+        // End 상태 추가
+        if (post.getEnd() != null) {
+            GetSessionResponse.EndInfo endInfo = new GetSessionResponse.EndInfo(
+                post.getEnd().isEnded(),
+                post.getEnd().getEndedAt(),
+                post.getEnd().getEndedBy()
+            );
+            postInfo.setEnd(endInfo);
+        }
+
+        // BlockedIds 추가
+        postInfo.setBlockedIds(post.getBlockedIds());
+
         return new GetSessionResponse(
             session.getId(),
             session.getStatus(),
@@ -169,6 +187,12 @@ public class SessionService {
 
     public static class NotFoundException extends Exception {
         public NotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class MeetingEndedException extends Exception {
+        public MeetingEndedException(String message) {
             super(message);
         }
     }

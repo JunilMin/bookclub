@@ -1,16 +1,20 @@
 package com.bookclub.backend.post;
 
+import com.bookclub.backend.post.dto.EndPostResponse;
 import com.bookclub.backend.session.dto.KickEventMessage;
+import com.bookclub.backend.session.dto.MeetingEndedMessage;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -124,14 +128,17 @@ public class PostController {
      * 북미팅 참여
      */
     @PostMapping("/{id}/join")
-    public ResponseEntity<Post> joinBookMeeting(
+    public ResponseEntity<?> joinBookMeeting(
             @PathVariable String id,
             @RequestParam String userId) {
         try {
             Post post = postService.joinBookMeeting(id, userId);
             return ResponseEntity.ok(post);
+        } catch (PostService.MeetingEndedException e) {
+            return ResponseEntity.status(HttpStatus.GONE)
+                .body(Map.of("code", "MEETING_ENDED", "message", e.getMessage()));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of("code", "BAD_REQUEST", "message", e.getMessage()));
         }
     }
 
@@ -209,6 +216,51 @@ public class PostController {
             return ResponseEntity.ok(post);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * 미팅 종료 (호스트만 가능)
+     * Idempotent: 이미 종료된 경우 동일한 응답 반환
+     * @param id 게시물 ID
+     * @param requesterId 요청자 ID (호스트)
+     * @param sessionId 세션 ID (WebSocket 브로드캐스트용, 선택)
+     */
+    @PostMapping("/{id}/end")
+    public ResponseEntity<?> endMeeting(
+            @PathVariable String id,
+            @RequestParam String requesterId,
+            @RequestParam(required = false) String sessionId) {
+        try {
+            Post post = postService.endPost(id, requesterId);
+
+            // WebSocket으로 미팅 종료 이벤트 브로드캐스트 (sessionId가 있는 경우)
+            if (sessionId != null && !sessionId.isEmpty() && post.getEnd() != null) {
+                MeetingEndedMessage endedMessage = new MeetingEndedMessage(
+                    post.getId(),
+                    post.getEnd().getEndedAt(),
+                    post.getEnd().getEndedBy()
+                );
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/ended", endedMessage);
+            }
+
+            EndPostResponse response = EndPostResponse.from(
+                post.getId(),
+                post.getEnd() != null && post.getEnd().isEnded(),
+                post.getEnd() != null ? post.getEnd().getEndedAt() : null,
+                post.getEnd() != null ? post.getEnd().getEndedBy() : null
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (PostService.PostNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("code", "POST_NOT_FOUND", "message", e.getMessage()));
+        } catch (PostService.UnauthorizedEndException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("code", "UNAUTHORIZED", "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("code", "BAD_REQUEST", "message", e.getMessage()));
         }
     }
 }

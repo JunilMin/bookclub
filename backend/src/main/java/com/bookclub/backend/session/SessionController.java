@@ -59,6 +59,9 @@ public class SessionController {
         } catch (SessionService.NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse(e.getMessage(), "NOT_FOUND"));
+        } catch (SessionService.MeetingEndedException e) {
+            return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ErrorResponse(e.getMessage(), "MEETING_ENDED"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("Internal server error: " + e.getMessage(), "SERVER_ERROR"));

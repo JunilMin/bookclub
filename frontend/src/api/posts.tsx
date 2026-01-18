@@ -6,6 +6,13 @@ export interface ObjectId {
   date: string;
 }
 
+// 미팅 종료 상태 인터페이스
+export interface EndStatus {
+  ended: boolean;
+  endedAt: string | null;
+  endedBy: string | null;
+}
+
 export interface Post {
   id: string; // 서버에서 자동 생성되는 ID
   createrId: string; // 생성자 User ObjectId
@@ -27,6 +34,16 @@ export interface Post {
   recruit?: boolean; // 모집 중 여부 (기본값: true)
   // 강퇴 관련 필드
   blockedIds?: string[]; // 강퇴된 User ObjectId 리스트
+  // 종료 상태 필드
+  end?: EndStatus;
+}
+
+// 미팅 종료 응답 인터페이스
+export interface EndPostResponse {
+  postId: string;
+  ended: boolean;
+  endedAt: string | null;
+  endedBy: string | null;
 }
 
 // 모든 포스트 조회 (userId 전달 시 강퇴된 게시물 제외)
@@ -116,6 +133,24 @@ export const restoreMember = async (
   setAccessToken(token);
   const response = await axiosInstance.post(`/posts/${postId}/restore`, null, {
     params: { targetUserId, requesterId },
+  });
+  return response.data;
+};
+
+// 미팅 종료 (호스트만 가능)
+export const endMeeting = async (
+  postId: string,
+  requesterId: string,
+  token: string,
+  sessionId?: string
+): Promise<EndPostResponse> => {
+  setAccessToken(token);
+  const params: Record<string, string> = { requesterId };
+  if (sessionId) {
+    params.sessionId = sessionId;
+  }
+  const response = await axiosInstance.post(`/posts/${postId}/end`, null, {
+    params,
   });
   return response.data;
 };

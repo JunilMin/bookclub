@@ -3,6 +3,7 @@ package com.bookclub.backend.post;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.AllArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.bson.types.ObjectId;
@@ -40,5 +41,34 @@ public class Post {
 
   // 강퇴 관련 필드
   private List<String> blockedIds;   // 강퇴된 User ObjectId 리스트
+
+  // 종료 상태 필드
+  private EndStatus end;
+
+  /**
+   * 미팅 종료 상태를 나타내는 내부 클래스
+   */
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class EndStatus {
+    private boolean ended = false;           // 종료 여부
+    private LocalDateTime endedAt = null;    // 종료 시각
+    private String endedBy = null;           // 종료한 사용자 ID
+  }
+
+  /**
+   * 미팅이 종료되었는지 확인
+   * end.ended == true 이거나 due 시간이 지났으면 종료로 간주
+   */
+  public boolean isEnded() {
+    if (end != null && end.isEnded()) {
+      return true;
+    }
+    // 기존 종료 로직: due 시간이 지났으면 종료 (선택적)
+    // 현재는 명시적 종료만 체크
+    return false;
+  }
 }
 
