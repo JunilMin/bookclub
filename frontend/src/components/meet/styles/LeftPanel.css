@@ -649,6 +649,24 @@
   background: #fef2f2;
 }
 
+.participant-dropdown-item.report {
+  color: #f59e0b;
+}
+
+.participant-dropdown-item.report:hover {
+  background: #fffbeb;
+}
+
+.participant-dropdown-item.report.disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.participant-dropdown-item.report.disabled:hover {
+  background: transparent;
+}
+
 /* Kicked Users Section */
 .kicked-users-section {
   background: #fef2f2;

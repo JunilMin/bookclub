@@ -13,6 +13,7 @@ import {
   FiMoreVertical,
   FiRotateCcw,
   FiSlash,
+  FiFlag,
 } from 'react-icons/fi';
 import {
   DndContext,
@@ -48,6 +49,7 @@ interface ModeratorControlsProps {
   currentUserId: string;
   hasRaisedHand: boolean;
   blockedUsers?: BlockedUser[];  // 강퇴된 유저 목록
+  reportedUserIds?: string[];    // 이미 신고한 유저 ID 목록
   onOpenMeet: () => void;
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
@@ -57,6 +59,7 @@ interface ModeratorControlsProps {
   onDelegateModerator: (newModeratorId: string) => void;
   onKickParticipant?: (userId: string) => void;  // 강퇴 핸들러
   onRestoreParticipant?: (userId: string) => void;  // 복구 핸들러
+  onReportParticipant?: (userId: string, username: string) => void;  // 신고 핸들러
 }
 
 // Sortable Queue Item Component
@@ -136,6 +139,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   currentUserId,
   hasRaisedHand,
   blockedUsers,
+  reportedUserIds,
   onOpenMeet,
   onRaiseHand,
   onNextSpeaker,
@@ -145,6 +149,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   onDelegateModerator,
   onKickParticipant,
   onRestoreParticipant,
+  onReportParticipant,
 }) => {
   const { t } = useTranslation();
   const [speakerTime, setSpeakerTime] = useState('0:00');
@@ -365,6 +370,9 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
             const canDelegate = isHost && !isModerator && participant.userId !== currentUserId;
             // Can kick: creator only, not self
             const canKick = isCreator && participant.userId !== currentUserId;
+            // Can report: anyone except self, and not already reported
+            const canReport = participant.userId !== currentUserId;
+            const alreadyReported = reportedUserIds?.includes(participant.userId) || false;
             const isDropdownOpen = openDropdownId === participant.userId;
 
             return (
@@ -407,8 +415,8 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                 )}
                 <span className={`online-status ${participant.isOnline ? 'online' : 'offline'}`}></span>
 
-                {/* More options dropdown (for creator) */}
-                {canKick && (
+                {/* More options dropdown (for creator or report) */}
+                {(canKick || canReport) && (
                   <div className="participant-more-wrapper">
                     <button
                       className="participant-more-btn"
@@ -422,16 +430,38 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                     </button>
                     {isDropdownOpen && (
                       <div className="participant-dropdown">
-                        <button
-                          className="participant-dropdown-item kick"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleKick(participant.userId);
-                          }}
-                        >
-                          <FiUserX size={14} />
-                          <span>{t('meet_kick_participant') || 'Kick'}</span>
-                        </button>
+                        {canKick && (
+                          <button
+                            className="participant-dropdown-item kick"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleKick(participant.userId);
+                            }}
+                          >
+                            <FiUserX size={14} />
+                            <span>{t('meet_kick_participant') || 'Kick'}</span>
+                          </button>
+                        )}
+                        {canReport && (
+                          <button
+                            className={`participant-dropdown-item report ${alreadyReported ? 'disabled' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!alreadyReported && onReportParticipant) {
+                                onReportParticipant(participant.userId, participant.username);
+                                setOpenDropdownId(null);
+                              }
+                            }}
+                            disabled={alreadyReported}
+                          >
+                            <FiFlag size={14} />
+                            <span>
+                              {alreadyReported
+                                ? (t('meet_already_reported') || 'Already Reported')
+                                : (t('meet_report_participant') || 'Report')}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

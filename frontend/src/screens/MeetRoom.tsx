@@ -13,7 +13,9 @@ import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueu
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
 import { kickMember, restoreMember, getPostById } from '../api/posts';
+import { getReportedUserIds } from '../api/reports';
 import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
+import ReportModal from '../components/meet/ReportModal';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
@@ -50,6 +52,9 @@ const MeetRoom: React.FC = () => {
   const [isLoadingState, setIsLoadingState] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [reportedUserIds, setReportedUserIds] = useState<string[]>([]);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ userId: string; username: string } | null>(null);
 
   // WebSocket에서 queue 업데이트를 받았는지 추적 (race condition 방지)
   const hasReceivedWebSocketQueue = useRef(false);
@@ -85,12 +90,16 @@ const MeetRoom: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const [sessionData, noteData, queueData, recordingData] = await Promise.all([
+        const [sessionData, noteData, queueData, recordingData, reportedIds] = await Promise.all([
           getSession(sessionId, accessToken),
           getNotes(sessionId, accessToken).catch(() => null),
           getQueue(sessionId, accessToken).catch(() => null),
           getRecording(sessionId, accessToken).catch(() => null),
+          getReportedUserIds(sessionId, accessToken).catch(() => []),
         ]);
+
+        // Set reported user IDs
+        setReportedUserIds(reportedIds);
 
         setSession(sessionData);
 
@@ -565,6 +574,15 @@ const MeetRoom: React.FC = () => {
     }
   }, [session?.post?.id, accessToken, user?.id, t]);
 
+  const handleReportParticipant = useCallback((userId: string, username: string) => {
+    setReportTarget({ userId, username });
+    setIsReportModalOpen(true);
+  }, []);
+
+  const handleReportSuccess = useCallback((reportedUserId: string) => {
+    setReportedUserIds((prev) => [...prev, reportedUserId]);
+  }, []);
+
   // Check if current user is moderator (host)
   // Use queue.moderatorId if available, otherwise fall back to post creator
   const isHost = queue?.moderatorId
@@ -656,6 +674,7 @@ const MeetRoom: React.FC = () => {
             currentUserId={user?.id || ''}
             hasRaisedHand={hasRaisedHand}
             blockedUsers={blockedUsers}
+            reportedUserIds={reportedUserIds}
             onOpenMeet={handleOpenMeet}
             onRaiseHand={handleRaiseHand}
             onNextSpeaker={handleNextSpeaker}
@@ -665,6 +684,7 @@ const MeetRoom: React.FC = () => {
             onDelegateModerator={handleDelegateModerator}
             onKickParticipant={handleKickParticipant}
             onRestoreParticipant={handleRestoreParticipant}
+            onReportParticipant={handleReportParticipant}
           />
         </aside>
 
@@ -694,6 +714,23 @@ const MeetRoom: React.FC = () => {
           />
         </aside>
       </div>
+
+      {/* Report Modal */}
+      {reportTarget && (
+        <ReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setReportTarget(null);
+          }}
+          sessionId={sessionId || ''}
+          postId={session.post.id}
+          reportedUserId={reportTarget.userId}
+          reportedUsername={reportTarget.username}
+          accessToken={accessToken || ''}
+          onReportSuccess={handleReportSuccess}
+        />
+      )}
     </div>
   );
 };
