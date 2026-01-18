@@ -15,7 +15,6 @@ import java.util.List;
 @AllArgsConstructor
 public class GetSessionResponse {
     private String sessionId;
-    private String status;
     private String meetLink;
     private PostInfo post;
 

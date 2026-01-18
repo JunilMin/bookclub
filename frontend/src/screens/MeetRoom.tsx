@@ -737,12 +737,10 @@ const MeetRoom: React.FC = () => {
           </div>
         </div>
         <div className="meetroom-header-right">
-          {session.status === 'live' && (
-            <span className="meetroom-live-badge">
-              <span className="live-dot"></span>
-              LIVE
-            </span>
-          )}
+          <span className="meetroom-live-badge">
+            <span className="live-dot"></span>
+            LIVE
+          </span>
           {recording?.isRecording && (
             <span className="meetroom-recording-badge">
               <span className="recording-dot"></span>

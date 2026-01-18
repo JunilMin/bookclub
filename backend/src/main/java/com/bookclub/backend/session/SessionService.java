@@ -65,8 +65,8 @@ public class SessionService {
             throw new MeetingEndedException("This meeting has ended");
         }
 
-        // 5. 기존 live 세션 찾기 또는 새로 생성
-        Optional<Session> existingSession = sessionRepository.findByPostIdAndStatus(postId, "live");
+        // 5. 기존 세션 찾기 또는 새로 생성
+        Optional<Session> existingSession = sessionRepository.findByPostId(postId);
         Session session;
 
         if (existingSession.isPresent()) {
@@ -79,7 +79,6 @@ public class SessionService {
         // 6. 응답 생성
         return new JoinSessionResponse(
             session.getId(),
-            session.getStatus(),
             post.getMeetLink()
         );
     }
@@ -150,7 +149,6 @@ public class SessionService {
 
         return new GetSessionResponse(
             session.getId(),
-            session.getStatus(),
             post.getMeetLink(),
             postInfo
         );

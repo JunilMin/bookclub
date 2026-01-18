@@ -4,8 +4,13 @@ import axiosInstance, { setAccessToken } from './axiosInstance';
 // Session 관련 타입 정의
 export interface JoinSessionResponse {
   sessionId: string;
-  status: string;
   meetLink: string | null;
+}
+
+export interface EndInfo {
+  ended: boolean;
+  endedAt: string | null;
+  endedBy: string | null;
 }
 
 export interface PostInfo {
@@ -17,11 +22,12 @@ export interface PostInfo {
   capacity: number;
   memberCount: number;
   createrId: string;
+  end?: EndInfo;
+  blockedIds?: string[];
 }
 
 export interface GetSessionResponse {
   sessionId: string;
-  status: string;
   meetLink: string | null;
   post: PostInfo;
 }

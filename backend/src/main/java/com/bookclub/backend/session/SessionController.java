@@ -122,7 +122,7 @@ public class SessionController {
                 Map<String, Object> status = new HashMap<>();
 
                 // Find session for this post
-                Optional<Session> sessionOpt = sessionRepository.findByPostIdAndStatus(postId, "live");
+                Optional<Session> sessionOpt = sessionRepository.findByPostId(postId);
 
                 if (sessionOpt.isPresent()) {
                     String sessionId = sessionOpt.get().getId();

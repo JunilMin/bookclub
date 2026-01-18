@@ -115,7 +115,7 @@ const Meet: React.FC = () => {
     );
   }
 
-  const { post, meetLink, status } = session;
+  const { post, meetLink } = session;
 
   return (
     <div className="meet-page">
@@ -126,12 +126,10 @@ const Meet: React.FC = () => {
           <span>{t('meeting_back_to_browse') || 'Back to Browse'}</span>
         </button>
         <div className="meet-status-badge">
-          {status === 'live' && (
-            <span className="meet-live-indicator">
-              <span className="live-dot"></span>
-              LIVE
-            </span>
-          )}
+          <span className="meet-live-indicator">
+            <span className="live-dot"></span>
+            LIVE
+          </span>
           <span className="meet-session-id">Session: {sessionId?.slice(0, 8)}...</span>
         </div>
       </header>

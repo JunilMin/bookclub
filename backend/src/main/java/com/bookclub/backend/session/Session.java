@@ -20,17 +20,12 @@ public class Session {
 
     private String postId;  // 연결된 Post의 ID
 
-    private String status;  // "live", "ended", "scheduled"
-
     private LocalDateTime createdAt;
 
     private LocalDateTime startedAt;
 
-    private LocalDateTime endedAt;
-
     public Session(String postId) {
         this.postId = postId;
-        this.status = "live";
         this.createdAt = LocalDateTime.now();
         this.startedAt = LocalDateTime.now();
     }

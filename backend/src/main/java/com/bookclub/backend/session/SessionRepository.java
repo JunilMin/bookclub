@@ -10,12 +10,7 @@ import java.util.Optional;
 public interface SessionRepository extends MongoRepository<Session, String> {
 
     /**
-     * Post ID로 세션 찾기 (live 상태인 세션)
-     */
-    Optional<Session> findByPostIdAndStatus(String postId, String status);
-
-    /**
-     * Post ID로 세션 찾기 (상태 무관)
+     * Post ID로 세션 찾기
      */
     Optional<Session> findByPostId(String postId);
 }

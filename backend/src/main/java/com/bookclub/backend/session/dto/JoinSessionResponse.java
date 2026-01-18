@@ -12,6 +12,5 @@ import lombok.Setter;
 @AllArgsConstructor
 public class JoinSessionResponse {
     private String sessionId;
-    private String status;
     private String meetLink;
 }
