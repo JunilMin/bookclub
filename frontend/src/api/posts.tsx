@@ -13,6 +13,16 @@ export interface EndStatus {
   endedBy: string | null;
 }
 
+// 책 정보 인터페이스
+export interface BookData {
+  title?: string;  // 책 제목
+  isbn?: string;   // 책 ISBN
+  cover?: string;  // 책 표지 이미지 URL
+  author?: string; // 책 저자
+  genre?: string;  // 책 장르/카테고리
+  api?: 'google' | 'naver'; // 데이터 출처 API
+}
+
 export interface Post {
   id: string; // 서버에서 자동 생성되는 ID
   createrId: string; // 생성자 User ObjectId
@@ -21,8 +31,8 @@ export interface Post {
   capacity: number;
   memberIds: string[]; // 참여자 User ObjectId 리스트
   level: 'low' | 'moderate' | 'high';
-  book: string;
-  isbn?: string; // 책 ISBN
+  // 책 정보 (모든 책 관련 데이터는 여기에 저장)
+  bookData: BookData;
   // Google Meet 관련 필드
   meetLink?: string; // Google Meet 링크
   calendarEventId?: string; // Calendar 이벤트 ID
@@ -152,5 +162,16 @@ export const endMeeting = async (
   const response = await axiosInstance.post(`/posts/${postId}/end`, null, {
     params,
   });
+  return response.data;
+};
+
+// Post의 bookData 업데이트 (기존 Post에 bookData가 없을 때 사용)
+export const updatePostBookData = async (
+  postId: string,
+  bookData: BookData,
+  token: string
+): Promise<Post> => {
+  setAccessToken(token);
+  const response = await axiosInstance.patch(`/posts/${postId}/book-data`, bookData);
   return response.data;
 };

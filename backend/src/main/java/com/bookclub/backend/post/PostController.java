@@ -110,6 +110,25 @@ public class PostController {
     }
 
     /**
+     * 게시물의 bookData만 업데이트 (기존 Post에 bookData가 없을 때 사용)
+     */
+    @PatchMapping("/{id}/book-data")
+    public ResponseEntity<Post> updateBookData(
+            @PathVariable String id,
+            @RequestBody Post.BookData bookData) {
+        try {
+            Post updated = postService.updateBookData(id, bookData);
+            if (updated != null) {
+                return ResponseEntity.ok(updated);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
      * 게시물 삭제 (Google Calendar 이벤트도 함께 삭제)
      */
     @DeleteMapping("/{id}")

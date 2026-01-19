@@ -55,10 +55,11 @@ public class PostService {
         }
 
         // Google Meet 링크 생성 시도 (사용자 토큰 없으면 서비스 계정 사용)
-        if (post.getDue() != null && post.getBook() != null) {
+        String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : null;
+        if (post.getDue() != null && bookTitle != null) {
             try {
                 MeetEventResult result = googleCalendarService.createMeetEvent(
-                    post.getBook(),
+                    bookTitle,
                     post.getDue(),
                     post.getDue().plusHours(1),
                     googleAccessToken // null이면 서비스 계정으로 fallback
@@ -104,7 +105,9 @@ public class PostService {
 
             // 시간/제목 변경 여부 확인 (Calendar 동기화 판단용)
             boolean dueChanged = updatedPost.getDue() != null && !updatedPost.getDue().equals(post.getDue());
-            boolean bookChanged = updatedPost.getBook() != null && !updatedPost.getBook().equals(post.getBook());
+            String updatedBookTitle = updatedPost.getBookData() != null ? updatedPost.getBookData().getTitle() : null;
+            String currentBookTitle = post.getBookData() != null ? post.getBookData().getTitle() : null;
+            boolean bookChanged = updatedBookTitle != null && !updatedBookTitle.equals(currentBookTitle);
             boolean needsCalendarSync = dueChanged || bookChanged;
 
             // 기본 필드 업데이트
@@ -126,11 +129,11 @@ public class PostService {
             if (updatedPost.getLevel() != null) {
                 post.setLevel(updatedPost.getLevel());
             }
-            if (updatedPost.getBook() != null) {
-                post.setBook(updatedPost.getBook());
+            if (updatedPost.getBookData() != null) {
+                post.setBookData(updatedPost.getBookData());
             }
 
-            // 새로운 필드 업데이트
+            // 추가 필드 업데이트
             if (updatedPost.getDuration() != null) {
                 post.setDuration(updatedPost.getDuration());
             }
@@ -145,11 +148,12 @@ public class PostService {
             }
 
             // Google Calendar 이벤트 동기화 (시간 또는 제목 변경 시)
-            if (needsCalendarSync && post.getCalendarEventId() != null && googleAccessToken != null) {
+            String bookTitleForCalendar = post.getBookData() != null ? post.getBookData().getTitle() : null;
+            if (needsCalendarSync && post.getCalendarEventId() != null && googleAccessToken != null && bookTitleForCalendar != null) {
                 try {
                     boolean updated = googleCalendarService.updateEvent(
                         post.getCalendarEventId(),
-                        post.getBook(),
+                        bookTitleForCalendar,
                         post.getDue(),
                         post.getDue() != null ? post.getDue().plusHours(1) : null,
                         googleAccessToken
@@ -175,6 +179,21 @@ public class PostService {
      */
     public Post updatePost(String id, Post updatedPost) {
         return updatePost(id, updatedPost, null);
+    }
+
+    /**
+     * 게시물의 bookData만 업데이트 (기존 Post에 bookData가 없을 때 사용)
+     * @param id 게시물 ID
+     * @param bookData 저장할 책 정보
+     */
+    public Post updateBookData(String id, Post.BookData bookData) {
+        Optional<Post> existingPost = postRepository.findById(id);
+        if (existingPost.isPresent()) {
+            Post post = existingPost.get();
+            post.setBookData(bookData);
+            return postRepository.save(post);
+        }
+        return null;
     }
 
     /**

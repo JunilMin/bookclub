@@ -85,6 +85,7 @@ const AccountDropdown: React.FC = () => {
       {isOpen && (
         <div className="dropdown-menu">
           {/* User Summary Section */}
+          
           <div className="dropdown-section user-summary" onClick={() => handleNavigation('/profile')}>
             <img
               src={avatarUrl}
@@ -104,6 +105,7 @@ const AccountDropdown: React.FC = () => {
 
           {/* Core Actions Section */}
           <div className="dropdown-section">
+            <span className="title-core-action">{t('dropdown_core_action_title')}</span>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/profile')}
@@ -138,6 +140,7 @@ const AccountDropdown: React.FC = () => {
 
           {/* Settings Section */}
           <div className="dropdown-section">
+            <span className="title-setting-management">{t('dropdown_setting_management_title')}</span>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/profile#settings')}

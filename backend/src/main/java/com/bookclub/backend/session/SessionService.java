@@ -123,10 +123,12 @@ public class SessionService {
         }
 
         // 6. 응답 생성
+        String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : null;
+        String bookIsbn = post.getBookData() != null ? post.getBookData().getIsbn() : null;
         GetSessionResponse.PostInfo postInfo = new GetSessionResponse.PostInfo(
             post.getId(),
-            post.getBook(),
-            post.getIsbn(),
+            bookTitle,
+            bookIsbn,
             post.getDue(),
             post.getLevel(),
             post.getCapacity(),

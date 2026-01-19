@@ -49,7 +49,7 @@ public class SessionNoteController {
             Optional<Post> postOpt = postRepository.findById(session.getPostId());
             if (postOpt.isPresent()) {
                 Post post = postOpt.get();
-                String bookTitle = post.getBook();
+                String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
 
                 // Format: [yyyy-MM-dd] BookTitle
                 if (post.getDue() != null) {

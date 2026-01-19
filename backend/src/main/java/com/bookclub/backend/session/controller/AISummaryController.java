@@ -73,7 +73,9 @@ public class AISummaryController {
 
             // Get post to find book title
             Optional<Post> postOpt = postRepository.findById(session.getPostId());
-            String bookTitle = postOpt.map(Post::getBook).orElse("Unknown Book");
+            String bookTitle = postOpt
+                    .map(p -> p.getBookData() != null ? p.getBookData().getTitle() : null)
+                    .orElse("Unknown Book");
 
             // Get notes content
             Optional<SessionNote> noteOpt = sessionNoteService.getNoteBySessionId(sessionId);
@@ -112,7 +114,9 @@ public class AISummaryController {
 
         if (sessionOpt.isPresent()) {
             Optional<Post> postOpt = postRepository.findById(sessionOpt.get().getPostId());
-            bookTitle = postOpt.map(Post::getBook).orElse("Discussion Notes");
+            bookTitle = postOpt
+                    .map(p -> p.getBookData() != null ? p.getBookData().getTitle() : null)
+                    .orElse("Discussion Notes");
         }
 
         // Convert TipTap JSON to Markdown (simplified)

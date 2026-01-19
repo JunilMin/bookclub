@@ -25,8 +25,9 @@ public class Post {
   private int capacity;  // 인원 수
   private List<String> memberIds;  // 멤버 User ObjectId 리스트
   private String level;  // 난이도
-  private String book;   // 책 제목
-  private String isbn;   // 책 ISBN
+
+  // 책 정보 (모든 책 관련 데이터는 여기에 저장)
+  private BookData bookData;
 
   // Google Meet 관련 필드
   private String meetLink;           // Google Meet 링크
@@ -56,6 +57,22 @@ public class Post {
     private boolean ended = false;           // 종료 여부
     private LocalDateTime endedAt = null;    // 종료 시각
     private String endedBy = null;           // 종료한 사용자 ID
+  }
+
+  /**
+   * 책 정보를 나타내는 내부 클래스
+   */
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class BookData {
+    private String title;   // 책 제목
+    private String isbn;    // 책 ISBN
+    private String cover;   // 책 표지 이미지 URL
+    private String author;  // 책 저자
+    private String genre;   // 책 장르/카테고리
+    private String api;     // 데이터 출처 API ("google" 또는 "naver")
   }
 
   /**

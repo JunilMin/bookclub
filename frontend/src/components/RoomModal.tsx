@@ -7,6 +7,29 @@ import { updatePost, leaveBookMeeting } from '../api/posts';
 import { useAuth } from '../AuthContext/AuthContext';
 import './styles/RoomModal.css';
 
+// Generate book cover placeholder SVG
+function generateBookCoverPlaceholder(title: string): string {
+  const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
+  const colorIndex = (title.charCodeAt(0) || 0) % colors.length;
+  const bgColor = colors[colorIndex];
+
+  // Truncate title if too long
+  const displayTitle = title.length > 30 ? title.slice(0, 27) + '...' : title;
+  const lines = displayTitle.match(/.{1,15}/g) || [displayTitle];
+
+  const textElements = lines.map((line, i) =>
+    `<text x="50%" y="${45 + i * 12}%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="11" font-weight="500">${line}</text>`
+  ).join('');
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="224" height="320" viewBox="0 0 224 320">
+    <rect width="224" height="320" fill="${bgColor}" rx="8"/>
+    <rect x="15" y="15" width="194" height="290" fill="rgba(255,255,255,0.1)" rx="4"/>
+    ${textElements}
+    <text x="50%" y="85%" dominant-baseline="middle" text-anchor="middle" fill="rgba(255,255,255,0.6)" font-family="Arial, sans-serif" font-size="10">BookClub</text>
+  </svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 // Room interface (same as in Board.tsx)
 export interface Room {
   id: string;
@@ -363,13 +386,14 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
           {/* Left: Book Cover */}
           <div className="room-modal-cover">
             <img
-              src={room.book.cover || 'https://via.placeholder.com/224x320?text=No+Cover'}
+              src={room.book.cover || generateBookCoverPlaceholder(room.book.title)}
               alt={room.book.title}
               loading="lazy"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                if (!target.src.includes('via.placeholder.com')) {
-                  target.src = 'https://via.placeholder.com/224x320?text=No+Cover';
+                // Use SVG placeholder on image load error
+                if (!target.src.startsWith('data:image/svg+xml')) {
+                  target.src = generateBookCoverPlaceholder(room.book.title);
                 }
               }}
             />

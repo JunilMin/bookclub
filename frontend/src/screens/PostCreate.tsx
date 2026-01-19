@@ -203,8 +203,15 @@ const PostCreate: React.FC = () => {
       capacity: form.capacity,
       memberIds: [user.id!], // 생성자의 ObjectId를 기본 멤버로 추가
       level: form.level,
-      book: form.selectedBook.title,
-      isbn: form.selectedBook.isbn,
+      // 모든 책 정보는 bookData 객체에 저장
+      bookData: {
+        title: form.selectedBook.title,
+        isbn: form.selectedBook.isbn,
+        cover: form.selectedBook.thumbnail,
+        author: form.selectedBook.author,
+        genre: form.selectedBook.categories?.[0],
+        api: form.bookLanguage === 'en' ? 'google' : 'naver',
+      },
       duration: duration,
       description: form.description.trim() || undefined,
       tags: form.tags.length > 0 ? form.tags : undefined,
