@@ -58,7 +58,7 @@ export interface UserNoteResponse {
   // Book Info
   bookTitle: string;
   bookAuthor: string;
-  bookCover: string;
+  bookCover: { small?: string; medium?: string };
   bookGenre: string;
   bookIsbn: string;
 

@@ -30,6 +30,12 @@ function generateBookCoverPlaceholder(title: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// Book cover interface
+export interface BookCover {
+  small?: string;
+  medium?: string;
+}
+
 // Room interface (same as in Board.tsx)
 export interface Room {
   id: string;
@@ -39,7 +45,7 @@ export interface Room {
   book: {
     title: string;
     author: string;
-    cover: string;
+    cover: BookCover;
     genre: string;
     isbn: string;
   };
@@ -387,7 +393,7 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
           {/* Left: Book Cover */}
           <div className="room-modal-cover">
             <img
-              src={room.book.cover || generateBookCoverPlaceholder(room.book.title)}
+              src={room.book.cover.medium || room.book.cover.small || generateBookCoverPlaceholder(room.book.title)}
               alt={room.book.title}
               loading="lazy"
               onError={(e) => {

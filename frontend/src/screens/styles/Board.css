@@ -268,6 +268,18 @@
   font-weight: 600;
 }
 
+.board-tab.disabled,
+.board-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.board-tab.disabled:hover,
+.board-tab:disabled:hover {
+  background: transparent;
+  color: #6b7280;
+}
+
 /* Rooms Section */
 .board-rooms {
   flex: 1;
@@ -391,23 +403,151 @@
   box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
 }
 
-/* Room Card Cover */
+/* Room Card Cover - 3D Book Effect */
 .room-card-cover {
   position: relative;
   height: 200px;
   overflow: hidden;
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  background-color: #d4d0d6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.room-card-cover img {
+/* Background darkening overlay */
+.room-card-cover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.15);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 3D Book Container */
+.book-container {
+  perspective: 1500px;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
 }
 
-.room-card:hover .room-card-cover img {
-  transform: scale(1.05);
+.book {
+  position: relative;
+  display: inline-block;
+  border-radius: 2px 4px 4px 2px;
+  background: linear-gradient(45deg, #DAD5DC 0%, #f2ebf4 100%);
+  transform-style: preserve-3d;
+  transition: transform 0.5s;
+}
+
+.room-card:hover .book {
+  transform: rotate3d(0, 1, 0, 25deg);
+}
+
+.book-front {
+  position: relative;
+  transform-style: preserve-3d;
+  transform-origin: 0% 50%;
+  transition: transform 0.5s;
+  z-index: 10;
+}
+
+.room-card:hover .book-front {
+  transform: translate3d(0, 0, 9px);
+}
+
+.book-cover {
+  position: relative;
+  display: block;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(45deg, #DAD5DC 0%, #f2ebf4 100%);
+  box-shadow: inset 4px 0 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.book-cover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8px;
+  bottom: 0;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: 1px 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.book-cover img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 150px;
+  max-height: 220px;
+  /* Improve image rendering quality */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: smooth;
+}
+
+.book-author {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 400;
+  color: #2b2b2b;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 3px 6px;
+  border-radius: 3px;
+  backdrop-filter: blur(4px);
+}
+
+.book-left-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  left: -9px;
+  background-color: rgba(232, 229, 234, 1);
+  transform: rotate3d(0, 1, 0, -90deg);
+}
+
+.book-left-side h2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 100%;
+  color: #2b2b2b;
+  font-size: 8px;
+  font-weight: 400;
+  line-height: 18px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+.book-left-side h2 span {
+  font-weight: 400;
+  font-size: 8px;
 }
 
 /* Status Badge */
@@ -423,6 +563,7 @@
   font-size: 12px;
   font-weight: 600;
   backdrop-filter: blur(8px);
+  z-index: 3;
 }
 
 .room-status-badge.live {
@@ -470,6 +611,7 @@
   font-size: 12px;
   font-weight: 600;
   backdrop-filter: blur(8px);
+  z-index: 3;
 }
 
 /* Room Card Content */
@@ -791,6 +933,28 @@
   .board-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  /* 3D Book responsive */
+  .room-card-cover {
+    height: 180px;
+    background-color: #111827;
+  }
+
+  .book-cover img {
+    max-width: 120px;
+    max-height: 180px;
+  }
+
+  .book-left-side {
+    width: 14px;
+    left: -7px;
+  }
+
+  .book-left-side h2 {
+    width: 14px;
+    line-height: 14px;
+    font-size: 6px;
   }
 }
 

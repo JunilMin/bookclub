@@ -13,11 +13,17 @@ export interface EndStatus {
   endedBy: string | null;
 }
 
+// 책 표지 이미지 인터페이스
+export interface BookCover {
+  small?: string;  // 작은 표지 이미지 URL (128x193)
+  medium?: string; // 중간 표지 이미지 URL (더 큰 사이즈)
+}
+
 // 책 정보 인터페이스
 export interface BookData {
   title?: string;  // 책 제목
   isbn?: string;   // 책 ISBN
-  cover?: string;  // 책 표지 이미지 URL
+  cover?: BookCover;  // 책 표지 이미지 URL (small, medium)
   author?: string; // 책 저자
   genre?: string;  // 책 장르/카테고리
   api?: 'google' | 'naver'; // 데이터 출처 API
@@ -56,9 +62,11 @@ export interface EndPostResponse {
   endedBy: string | null;
 }
 
-// 모든 포스트 조회 (userId 전달 시 강퇴된 게시물 제외)
-export const getAllPosts = async (token: string, userId?: string): Promise<Post[]> => {
-  setAccessToken(token);
+// 모든 포스트 조회 (userId 전달 시 강퇴된 게시물 제외, token 없이도 공개 조회 가능)
+export const getAllPosts = async (token?: string, userId?: string): Promise<Post[]> => {
+  if (token) {
+    setAccessToken(token);
+  }
   const params = userId ? { userId } : {};
   const response = await axiosInstance.get('/posts', { params });
   return response.data;

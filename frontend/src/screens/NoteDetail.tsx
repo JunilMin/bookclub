@@ -470,9 +470,9 @@ const NoteDetail: React.FC = () => {
         {/* Sidebar */}
         <aside className="note-detail-sidebar">
           {/* Book Cover */}
-          {note.bookCover && (
+          {(note.bookCover?.medium || note.bookCover?.small) && (
             <div className="note-detail-cover">
-              <img src={note.bookCover} alt={note.bookTitle} />
+              <img src={note.bookCover?.medium || note.bookCover?.small} alt={note.bookTitle} />
             </div>
           )}
 

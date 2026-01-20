@@ -60,19 +60,62 @@ public class Post {
   }
 
   /**
-   * 책 정보를 나타내는 내부 클래스
+   * 책 표지 이미지 URL을 나타내는 내부 클래스
    */
   @Getter
   @Setter
   @NoArgsConstructor
   @AllArgsConstructor
+  public static class BookCover {
+    private String small;   // 작은 표지 이미지 URL (128x193)
+    private String medium;  // 중간 표지 이미지 URL (더 큰 사이즈)
+  }
+
+  /**
+   * 책 정보를 나타내는 내부 클래스
+   */
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
   public static class BookData {
-    private String title;   // 책 제목
-    private String isbn;    // 책 ISBN
-    private String cover;   // 책 표지 이미지 URL
-    private String author;  // 책 저자
-    private String genre;   // 책 장르/카테고리
-    private String api;     // 데이터 출처 API ("google" 또는 "naver")
+    @Getter
+    private String title;     // 책 제목
+    @Getter
+    private String isbn;      // 책 ISBN
+    private Object cover;     // 책 표지 이미지 URL (String 또는 BookCover 객체, 하위 호환성)
+    @Getter
+    private String author;    // 책 저자
+    @Getter
+    private String genre;     // 책 장르/카테고리
+    @Getter
+    private String api;       // 데이터 출처 API ("google" 또는 "naver")
+
+    /**
+     * cover를 BookCover 객체로 반환 (하위 호환성 지원)
+     * 기존 String 형식이면 small, medium 모두 같은 URL로 변환
+     */
+    @SuppressWarnings("unchecked")
+    public BookCover getCover() {
+      if (cover == null) {
+        return null;
+      }
+      if (cover instanceof String) {
+        // 기존 String 형식 → BookCover 객체로 변환
+        String url = (String) cover;
+        return new BookCover(url, url);
+      }
+      if (cover instanceof BookCover) {
+        return (BookCover) cover;
+      }
+      if (cover instanceof java.util.Map) {
+        // MongoDB에서 읽어온 LinkedHashMap 형식 처리
+        java.util.Map<String, Object> map = (java.util.Map<String, Object>) cover;
+        String small = map.get("small") != null ? map.get("small").toString() : null;
+        String medium = map.get("medium") != null ? map.get("medium").toString() : null;
+        return new BookCover(small, medium);
+      }
+      return null;
+    }
   }
 
   /**

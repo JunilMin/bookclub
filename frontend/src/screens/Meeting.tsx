@@ -110,7 +110,7 @@ const Meeting: React.FC = () => {
             <div className="meeting-book-section">
               <div className="meeting-book-cover">
                 <img
-                  src={room.book.cover}
+                  src={room.book.cover.small || room.book.cover.medium}
                   alt={room.book.title}
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = `https://via.placeholder.com/180x260?text=${encodeURIComponent(room.book.title)}`;

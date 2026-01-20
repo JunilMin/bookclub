@@ -38,8 +38,8 @@ export interface BoardState {
 
 export interface BoardActions {
   // Core fetch actions
-  initBoard: (accessToken: string, userId?: string) => Promise<void>;
-  refreshNow: (reason: string, accessToken: string, userId?: string) => Promise<void>;
+  initBoard: (accessToken?: string, userId?: string) => Promise<void>;
+  refreshNow: (reason: string, accessToken?: string, userId?: string) => Promise<void>;
 
   // Polling control
   startPolling: (accessToken: string, userId?: string) => void;
@@ -93,9 +93,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   ...initialState,
 
   // ---------------------------------------------------------------------------
-  // initBoard: Initial fetch on page mount
+  // initBoard: Initial fetch on page mount (works without token for public access)
   // ---------------------------------------------------------------------------
-  initBoard: async (accessToken: string, userId?: string) => {
+  initBoard: async (accessToken?: string, userId?: string) => {
     const state = get();
 
     // If already have data, don't show loading - do silent refresh
@@ -123,9 +123,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         order.push(post.id);
       });
 
-      // Fetch room statuses
+      // Fetch room statuses (only if token is available)
       let roomStatuses: Record<string, RoomStatus> = {};
-      if (order.length > 0) {
+      if (order.length > 0 && accessToken) {
         try {
           roomStatuses = await getRoomStatuses(order, accessToken);
         } catch (e) {
@@ -156,9 +156,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   },
 
   // ---------------------------------------------------------------------------
-  // refreshNow: Silent background refresh
+  // refreshNow: Silent background refresh (works without token for public access)
   // ---------------------------------------------------------------------------
-  refreshNow: async (reason: string, accessToken: string, userId?: string) => {
+  refreshNow: async (reason: string, accessToken?: string, userId?: string) => {
     const state = get();
 
     // Deduplication: if already in flight, mark pending and return
@@ -178,10 +178,10 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         (a, b) => new Date(b.due).getTime() - new Date(a.due).getTime()
       );
 
-      // Fetch room statuses
+      // Fetch room statuses (only if token is available)
       let roomStatuses: Record<string, RoomStatus> = state.roomStatuses;
       const postIds = sortedPosts.map((p) => p.id);
-      if (postIds.length > 0) {
+      if (postIds.length > 0 && accessToken) {
         try {
           roomStatuses = await getRoomStatuses(postIds, accessToken);
         } catch (e) {

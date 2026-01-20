@@ -11,6 +11,15 @@ import RoomModal, { Room } from '../components/RoomModal';
 import Footer from '../components/Footer';
 import './styles/Board.css';
 
+// Post background images
+import postBg1 from '../assets/post-background-1.png';
+import postBg2 from '../assets/post-background-2.png';
+import postBg3 from '../assets/post-background-3.png';
+import postBg4 from '../assets/post-background-4.png';
+import postBg5 from '../assets/post-background-5.png';
+
+const POST_BACKGROUNDS = [postBg1, postBg2, postBg3, postBg4, postBg5];
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -43,9 +52,18 @@ async function fetchBookInfoFromGoogle(isbn: string, bookTitle: string): Promise
     if (!data.items || data.items.length === 0) return null;
 
     const volumeInfo = data.items[0].volumeInfo;
-    let cover = volumeInfo.imageLinks?.thumbnail || volumeInfo.imageLinks?.smallThumbnail || '';
-    if (cover.startsWith('http:')) {
-      cover = cover.replace('http:', 'https:');
+    const imageLinks = volumeInfo.imageLinks || {};
+
+    // Get small and medium cover images from Google Books API
+    let smallCover = imageLinks.smallThumbnail || imageLinks.thumbnail || '';
+    let mediumCover = imageLinks.thumbnail || imageLinks.small || imageLinks.medium || '';
+
+    // Convert http to https
+    if (smallCover.startsWith('http:')) {
+      smallCover = smallCover.replace('http:', 'https:');
+    }
+    if (mediumCover.startsWith('http:')) {
+      mediumCover = mediumCover.replace('http:', 'https:');
     }
 
     return {
@@ -53,7 +71,10 @@ async function fetchBookInfoFromGoogle(isbn: string, bookTitle: string): Promise
       isbn: isbn,
       author: volumeInfo.authors?.join(', ') || 'Unknown Author',
       genre: volumeInfo.categories?.[0] || 'General',
-      cover: cover,
+      cover: {
+        small: smallCover,
+        medium: mediumCover
+      },
       api: 'google'
     };
   } catch {
@@ -76,12 +97,17 @@ async function fetchBookInfoFromNaver(isbn: string, bookTitle: string): Promise<
     if (!data.items || data.items.length === 0) return null;
 
     const item = data.items[0];
+    const coverUrl = item.image || '';
+
     return {
       title: item.title?.replace(/<[^>]*>/g, '') || bookTitle,
       isbn: isbn,
       author: item.author?.replace(/<[^>]*>/g, '') || 'Unknown Author',
       genre: 'General', // Naver API doesn't provide category in simple search
-      cover: item.image || '',
+      cover: {
+        small: coverUrl,
+        medium: coverUrl  // Naver only provides one size
+      },
       api: 'naver'
     };
   } catch {
@@ -124,6 +150,12 @@ function generateBookCoverPlaceholder(title: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// Get background based on grid position (ensures no adjacent cards have same background)
+// For 3x3 grid with 5 backgrounds, using index % 5 guarantees no horizontal/vertical adjacency
+function getPostBackground(index: number): string {
+  return POST_BACKGROUNDS[index % POST_BACKGROUNDS.length];
+}
+
 // Generate placeholder avatar
 function generateAvatar(name: string | null | undefined): string {
   const safeName = name && name.trim() ? name.trim() : 'U';
@@ -147,10 +179,13 @@ function postToRoom(
   // Use stored bookData from Post (no legacy fallback)
   const bookTitle = post.bookData?.title || 'Unknown Book';
   const bookIsbn = post.bookData?.isbn || '';
+  const bookCover = post.bookData?.cover;
   const bookInfo = {
     author: post.bookData?.author || 'Unknown Author',
     genre: post.bookData?.genre || 'General',
-    cover: post.bookData?.cover || ''
+    cover: typeof bookCover === 'string'
+      ? { small: bookCover, medium: bookCover }  // Legacy string support
+      : (bookCover || { small: '', medium: '' })
   };
   const now = new Date();
   const dueDate = new Date(post.due);
@@ -181,6 +216,7 @@ function postToRoom(
     tags.push(bookInfo.genre);
   }
 
+  const placeholder = generateBookCoverPlaceholder(bookTitle);
   return {
     id: post.id,
     title: `${bookTitle} Discussion`,
@@ -189,7 +225,10 @@ function postToRoom(
     book: {
       title: bookTitle,
       author: bookInfo.author,
-      cover: bookInfo.cover || generateBookCoverPlaceholder(bookTitle),
+      cover: {
+        small: bookInfo.cover.small || placeholder,
+        medium: bookInfo.cover.medium || placeholder
+      },
       genre: bookInfo.genre,
       isbn: bookIsbn
     },
@@ -286,10 +325,12 @@ const Board: React.FC = () => {
   // Initial Load & Polling
   // ==========================================================================
   useEffect(() => {
-    if (!accessToken) return;
+    // Load posts even without login (public access)
+    initBoard(accessToken || undefined, user?.id);
 
-    initBoard(accessToken, user?.id);
-    startPolling(accessToken, user?.id);
+    if (accessToken) {
+      startPolling(accessToken, user?.id);
+    }
 
     return () => {
       stopPolling();
@@ -629,22 +670,15 @@ const Board: React.FC = () => {
   };
 
   // ==========================================================================
-  // Render: Login Required
+  // Handle Room Click (requires login for details)
   // ==========================================================================
-  if (!accessToken) {
-    return (
-      <div className="board-page">
-        <div className="board-login-required">
-          <FiBookOpen size={64} />
-          <h2>{t('browse_login_required')}</h2>
-          <button className="board-login-btn" onClick={() => navigate('/login')}>
-            {t('browse_login_button')}
-          </button>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
+  const handleRoomClick = useCallback((room: Room) => {
+    if (!accessToken) {
+      navigate('/login');
+      return;
+    }
+    setSelectedRoom(room);
+  }, [accessToken, navigate]);
 
   // ==========================================================================
   // Render: Main Content
@@ -762,14 +796,16 @@ const Board: React.FC = () => {
             {t('browse_tab_all')}
           </button>
           <button
-            className={`board-tab ${activeTab === 'my' ? 'active' : ''}`}
-            onClick={() => handleTabChange('my')}
+            className={`board-tab ${activeTab === 'my' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+            onClick={() => accessToken ? handleTabChange('my') : navigate('/login')}
+            disabled={!accessToken}
           >
             {t('browse_tab_my')}
           </button>
           <button
-            className={`board-tab ${activeTab === 'joined' ? 'active' : ''}`}
-            onClick={() => handleTabChange('joined')}
+            className={`board-tab ${activeTab === 'joined' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+            onClick={() => accessToken ? handleTabChange('joined') : navigate('/login')}
+            disabled={!accessToken}
           >
             {t('browse_tab_joined')}
           </button>
@@ -814,26 +850,48 @@ const Board: React.FC = () => {
         ) : (
           <>
             <div className="board-grid">
-              {displayedRooms.map(room => (
+              {displayedRooms.map((room, index) => (
                 <div
                   key={room.id}
                   className="room-card"
-                  onClick={() => setSelectedRoom(room)}
+                  onClick={() => handleRoomClick(room)}
                 >
-                  {/* Cover */}
-                  <div className="room-card-cover">
-                    <img
-                      src={room.book.cover || generateBookCoverPlaceholder(room.book.title)}
-                      alt={room.book.title}
-                      loading="lazy"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        // Use SVG placeholder on image load error
-                        if (!target.src.startsWith('data:image/svg+xml')) {
-                          target.src = generateBookCoverPlaceholder(room.book.title);
-                        }
-                      }}
-                    />
+                  {/* Cover - 3D Book Effect */}
+                  <div
+                    className="room-card-cover"
+                    style={{
+                      backgroundImage: `url(${getPostBackground(index)})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    }}
+                  >
+                    <div className="book-container">
+                      <div className="book">
+                        <div className="book-front">
+                          <div className="book-cover">
+                            <img
+                              src={room.book.cover.small || room.book.cover.medium || generateBookCoverPlaceholder(room.book.title)}
+                              alt={room.book.title}
+                              loading="lazy"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                if (!target.src.startsWith('data:image/svg+xml')) {
+                                  target.src = generateBookCoverPlaceholder(room.book.title);
+                                }
+                              }}
+                            />
+                            <p className="book-author">{room.book.author}</p>
+                          </div>
+                        </div>
+                        <div className="book-left-side">
+                          <h2 style={{ display: 'flex', justifyContent: 'space-around' }}>
+                            <span>{room.book.title}</span>
+                            <span>{room.book.author}</span>
+                            <span>Mamalias</span>
+                          </h2>
+                        </div>
+                      </div>
+                    </div>
                     <span className={`room-status-badge ${room.status}`}>
                       {room.status === 'live' && <span className="live-dot"></span>}
                       {room.status === 'live'
@@ -879,6 +937,10 @@ const Board: React.FC = () => {
                       className={`room-card-btn ${room.status} ${room.isJoined ? 'joined' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!accessToken) {
+                          navigate('/login');
+                          return;
+                        }
                         if (room.isJoined || room.isMyRoom) {
                           setSelectedRoom(room);
                         } else if (room.status !== 'past') {

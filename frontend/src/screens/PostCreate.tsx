@@ -207,7 +207,7 @@ const PostCreate: React.FC = () => {
       bookData: {
         title: form.selectedBook.title,
         isbn: form.selectedBook.isbn,
-        cover: form.selectedBook.thumbnail,
+        cover: form.selectedBook.thumbnail, // { small, medium } object
         author: form.selectedBook.author,
         genre: form.selectedBook.categories?.[0],
         api: form.bookLanguage === 'en' ? 'google' : 'naver',
@@ -303,8 +303,8 @@ const PostCreate: React.FC = () => {
                     className="book-result-item"
                     onClick={() => handleBookSelect(book)}
                   >
-                    {book.thumbnail && (
-                      <img src={book.thumbnail} alt={book.title} className="book-thumbnail" />
+                    {book.thumbnail?.small && (
+                      <img src={book.thumbnail.small} alt={book.title} className="book-thumbnail" />
                     )}
                     <div className="book-info">
                       <span className="book-title">{book.title}</span>
@@ -321,8 +321,8 @@ const PostCreate: React.FC = () => {
             <div className="selected-book">
               <span className="selected-label">{t('post_create_selected_book')}:</span>
               <div className="selected-book-info">
-                {form.selectedBook.thumbnail && (
-                  <img src={form.selectedBook.thumbnail} alt={form.selectedBook.title} />
+                {form.selectedBook.thumbnail?.small && (
+                  <img src={form.selectedBook.thumbnail.small} alt={form.selectedBook.title} />
                 )}
                 <div>
                   <strong>{form.selectedBook.title}</strong>

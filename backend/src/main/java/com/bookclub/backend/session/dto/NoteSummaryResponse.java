@@ -1,5 +1,6 @@
 package com.bookclub.backend.session.dto;
 
+import com.bookclub.backend.post.Post;
 import com.bookclub.backend.session.model.SessionRecording;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -23,7 +24,7 @@ public class NoteSummaryResponse {
     // Book info
     private String bookTitle;
     private String bookAuthor;
-    private String bookCover;
+    private Post.BookCover bookCover;  // { small, medium }
     private String bookGenre;
     private String bookIsbn;
 

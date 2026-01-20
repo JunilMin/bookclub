@@ -1,9 +1,14 @@
 // bookSearch.ts - Book search APIs (Google Books, Naver Books)
 
+export interface BookThumbnail {
+  small?: string;
+  medium?: string;
+}
+
 export interface BookSearchResult {
   title: string;
   author: string;
-  thumbnail?: string;
+  thumbnail?: BookThumbnail;
   publisher?: string;
   publishedDate?: string;
   description?: string;
@@ -28,16 +33,27 @@ export const searchGoogleBooks = async (query: string): Promise<BookSearchResult
       return [];
     }
 
-    return data.items.map((item: any) => ({
-      title: item.volumeInfo.title || 'Unknown Title',
-      author: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
-      thumbnail: item.volumeInfo.imageLinks?.thumbnail || item.volumeInfo.imageLinks?.smallThumbnail,
-      publisher: item.volumeInfo.publisher,
-      publishedDate: item.volumeInfo.publishedDate,
-      description: item.volumeInfo.description,
-      isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier,
-      categories: item.volumeInfo.categories || [],
-    }));
+    return data.items.map((item: any) => {
+      const imageLinks = item.volumeInfo.imageLinks || {};
+      // Get base URL and create zoom=1 (small) and zoom=3 (medium) versions
+      let baseUrl = imageLinks.thumbnail || imageLinks.smallThumbnail || '';
+      if (baseUrl.startsWith('http:')) baseUrl = baseUrl.replace('http:', 'https:');
+
+      const smallCover = baseUrl || undefined;
+      // Use zoom=3 for medium (higher quality), fallback to API's medium if available
+      const mediumCover = baseUrl ? baseUrl.replace(/zoom=\d/, 'zoom=3') : (imageLinks.medium || undefined);
+
+      return {
+        title: item.volumeInfo.title || 'Unknown Title',
+        author: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+        thumbnail: { small: smallCover, medium: mediumCover },
+        publisher: item.volumeInfo.publisher,
+        publishedDate: item.volumeInfo.publishedDate,
+        description: item.volumeInfo.description,
+        isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier,
+        categories: item.volumeInfo.categories || [],
+      };
+    });
   } catch (error) {
     console.error('Google Books search error:', error);
     return [];
@@ -66,15 +82,18 @@ export const searchNaverBooks = async (query: string): Promise<BookSearchResult[
       return [];
     }
 
-    return data.items.map((item: any) => ({
-      title: item.title?.replace(/<[^>]*>/g, '') || 'Unknown Title', // HTML 태그 제거
-      author: item.author?.replace(/<[^>]*>/g, '') || 'Unknown Author',
-      thumbnail: item.image,
-      publisher: item.publisher,
-      publishedDate: item.pubdate,
-      description: item.description?.replace(/<[^>]*>/g, ''),
-      isbn: item.isbn,
-    }));
+    return data.items.map((item: any) => {
+      const coverUrl = item.image || '';
+      return {
+        title: item.title?.replace(/<[^>]*>/g, '') || 'Unknown Title', // HTML 태그 제거
+        author: item.author?.replace(/<[^>]*>/g, '') || 'Unknown Author',
+        thumbnail: { small: coverUrl, medium: coverUrl }, // Naver only provides one size
+        publisher: item.publisher,
+        publishedDate: item.pubdate,
+        description: item.description?.replace(/<[^>]*>/g, ''),
+        isbn: item.isbn,
+      };
+    });
   } catch (error) {
     console.error('Naver Books search error:', error);
     // 폴백: Google Books API로 한국어 검색
@@ -99,16 +118,27 @@ const searchGoogleBooksKorean = async (query: string): Promise<BookSearchResult[
       return [];
     }
 
-    return data.items.map((item: any) => ({
-      title: item.volumeInfo.title || 'Unknown Title',
-      author: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
-      thumbnail: item.volumeInfo.imageLinks?.thumbnail || item.volumeInfo.imageLinks?.smallThumbnail,
-      publisher: item.volumeInfo.publisher,
-      publishedDate: item.volumeInfo.publishedDate,
-      description: item.volumeInfo.description,
-      isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier,
-      categories: item.volumeInfo.categories || [],
-    }));
+    return data.items.map((item: any) => {
+      const imageLinks = item.volumeInfo.imageLinks || {};
+      // Get base URL and create zoom=1 (small) and zoom=3 (medium) versions
+      let baseUrl = imageLinks.thumbnail || imageLinks.smallThumbnail || '';
+      if (baseUrl.startsWith('http:')) baseUrl = baseUrl.replace('http:', 'https:');
+
+      const smallCover = baseUrl || undefined;
+      // Use zoom=3 for medium (higher quality), fallback to API's medium if available
+      const mediumCover = baseUrl ? baseUrl.replace(/zoom=\d/, 'zoom=3') : (imageLinks.medium || undefined);
+
+      return {
+        title: item.volumeInfo.title || 'Unknown Title',
+        author: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
+        thumbnail: { small: smallCover, medium: mediumCover },
+        publisher: item.volumeInfo.publisher,
+        publishedDate: item.volumeInfo.publishedDate,
+        description: item.volumeInfo.description,
+        isbn: item.volumeInfo.industryIdentifiers?.[0]?.identifier,
+        categories: item.volumeInfo.categories || [],
+      };
+    });
   } catch (error) {
     console.error('Google Books Korean search error:', error);
     return [];
@@ -133,10 +163,19 @@ export const getBookByISBN = async (isbn: string): Promise<BookSearchResult | nu
     }
 
     const item = data.items[0];
+    const imageLinks = item.volumeInfo.imageLinks || {};
+    // Get base URL and create zoom=1 (small) and zoom=3 (medium) versions
+    let baseUrl = imageLinks.thumbnail || imageLinks.smallThumbnail || '';
+    if (baseUrl.startsWith('http:')) baseUrl = baseUrl.replace('http:', 'https:');
+
+    const smallCover = baseUrl || undefined;
+    // Use zoom=3 for medium (higher quality), fallback to API's medium if available
+    const mediumCover = baseUrl ? baseUrl.replace(/zoom=\d/, 'zoom=3') : (imageLinks.medium || undefined);
+
     return {
       title: item.volumeInfo.title || 'Unknown Title',
       author: item.volumeInfo.authors?.join(', ') || 'Unknown Author',
-      thumbnail: item.volumeInfo.imageLinks?.thumbnail || item.volumeInfo.imageLinks?.smallThumbnail,
+      thumbnail: { small: smallCover, medium: mediumCover },
       publisher: item.volumeInfo.publisher,
       publishedDate: item.volumeInfo.publishedDate,
       description: item.volumeInfo.description,

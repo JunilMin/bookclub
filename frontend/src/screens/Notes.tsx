@@ -372,16 +372,33 @@ const Notes: React.FC = () => {
                 className={`notes-card ${viewMode}`}
                 onClick={() => navigate(`/notes/${note.noteId}`)}
               >
-                {/* Cover Image */}
+                {/* 3D Book Cover */}
                 <div className="notes-card-cover">
-                  <img
-                    src={note.bookCover || generateBookCoverPlaceholder(note.bookTitle)}
-                    alt={note.bookTitle}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = generateBookCoverPlaceholder(note.bookTitle);
-                    }}
-                  />
-                  <div className="notes-card-overlay" />
+                  <div className="notes-book-container">
+                    <div className="notes-book">
+                      <div className="notes-book-front">
+                        <div className="notes-book-cover">
+                          <img
+                            src={note.bookCover?.small || note.bookCover?.medium || generateBookCoverPlaceholder(note.bookTitle)}
+                            alt={note.bookTitle}
+                            loading="lazy"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (!target.src.startsWith('data:image/svg+xml')) {
+                                target.src = generateBookCoverPlaceholder(note.bookTitle);
+                              }
+                            }}
+                          />
+                          <p className="notes-book-author">{note.bookAuthor}</p>
+                        </div>
+                      </div>
+                      <div className="notes-book-left-side">
+                        <h2>
+                          <span>{note.bookTitle}</span>
+                        </h2>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Badges */}
                   {note.bookGenre && (
