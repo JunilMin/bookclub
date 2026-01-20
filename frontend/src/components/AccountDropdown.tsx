@@ -105,7 +105,7 @@ const AccountDropdown: React.FC = () => {
 
           {/* Core Actions Section */}
           <div className="dropdown-section">
-            <span className="title-core-action">{t('dropdown_core_action_title')}</span>
+            <span className="section-title">{t('dropdown_core_action_title')}</span>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/profile')}
@@ -138,9 +138,30 @@ const AccountDropdown: React.FC = () => {
 
           <div className="dropdown-divider" />
 
+          {/* Knowledge & Records Section */}
+          <div className="dropdown-section">
+            <span className="section-title">{t('dropdown_knowledge_records_title')}</span>
+            <button
+              className="dropdown-item"
+              onClick={() => handleNavigation('/notes')}
+            >
+              <span className="item-icon">&#128196;</span>
+              <span>{t('dropdown_discussion_notes')}</span>
+            </button>
+            <button
+              className="dropdown-item"
+              onClick={() => handleNavigation('/favorites')}
+            >
+              <span className="item-icon">&#11088;</span>
+              <span>{t('dropdown_favorite_meetings')}</span>
+            </button>
+          </div>
+
+          <div className="dropdown-divider" />
+
           {/* Settings Section */}
           <div className="dropdown-section">
-            <span className="title-setting-management">{t('dropdown_setting_management_title')}</span>
+            <span className="section-title">{t('dropdown_setting_management_title')}</span>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/profile#settings')}

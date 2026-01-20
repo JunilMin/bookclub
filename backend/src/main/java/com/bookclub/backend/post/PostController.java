@@ -3,10 +3,13 @@ package com.bookclub.backend.post;
 import com.bookclub.backend.post.dto.EndPostResponse;
 import com.bookclub.backend.session.dto.KickEventMessage;
 import com.bookclub.backend.session.dto.MeetingEndedMessage;
+import com.bookclub.backend.session.service.UserSessionNoteService;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +25,8 @@ import java.util.Optional;
 @CrossOrigin(origins = "http://localhost:5173")
 public class PostController {
 
+    private static final Logger logger = LoggerFactory.getLogger(PostController.class);
+
     @Autowired
     private PostService postService;
 
@@ -30,6 +35,9 @@ public class PostController {
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private UserSessionNoteService userSessionNoteService;
 
     /**
      * 모든 게시물 조회 (강퇴된 사용자에게는 해당 게시물 미표시)
@@ -261,6 +269,15 @@ public class PostController {
                     post.getEnd().getEndedBy()
                 );
                 messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/ended", endedMessage);
+
+                // 세션 종료 시 공용 노트를 모든 참가자에게 fork
+                try {
+                    userSessionNoteService.forkNotesToParticipants(sessionId);
+                    logger.info("Forked session notes to participants for session: {}", sessionId);
+                } catch (Exception e) {
+                    logger.error("Failed to fork notes to participants for session {}: {}", sessionId, e.getMessage());
+                    // Note forking 실패해도 미팅 종료는 성공으로 처리
+                }
             }
 
             EndPostResponse response = EndPostResponse.from(

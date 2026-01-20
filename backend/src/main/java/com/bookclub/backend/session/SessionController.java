@@ -5,6 +5,7 @@ import com.bookclub.backend.session.dto.ErrorResponse;
 import com.bookclub.backend.session.dto.GetSessionResponse;
 import com.bookclub.backend.session.dto.JoinSessionRequest;
 import com.bookclub.backend.session.dto.JoinSessionResponse;
+import com.bookclub.backend.session.dto.NoteSummaryResponse;
 import com.bookclub.backend.session.service.SpeakingQueueService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -139,6 +140,31 @@ public class SessionController {
 
             return ResponseEntity.ok(result);
 
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("Internal server error: " + e.getMessage(), "SERVER_ERROR"));
+        }
+    }
+
+    /**
+     * 사용자가 참여한 모든 세션의 AI 요약 목록 조회
+     * GET /api/sessions/my-summaries
+     */
+    @GetMapping("/my-summaries")
+    public ResponseEntity<?> getMySummaries(HttpServletRequest httpRequest) {
+        try {
+            String token = extractToken(httpRequest);
+            if (token == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Authentication required", "UNAUTHORIZED"));
+            }
+
+            List<NoteSummaryResponse> summaries = sessionService.getUserSummaries(token);
+            return ResponseEntity.ok(summaries);
+
+        } catch (SessionService.UnauthorizedException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse(e.getMessage(), "UNAUTHORIZED"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("Internal server error: " + e.getMessage(), "SERVER_ERROR"));

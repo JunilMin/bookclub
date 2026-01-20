@@ -57,6 +57,7 @@ export interface Room {
   meetLink?: string | null;
   calendarEventId?: string | null;
   recruit?: boolean; // 모집 중 여부 (기본값: true)
+  api?: 'google' | 'naver'; // 도서 검색 API 출처 (언어별 필터링용)
 }
 
 interface RoomModalProps {

@@ -11,6 +11,8 @@ import Meeting from './screens/Meeting';
 import Meet from './screens/Meet';
 import MeetRoom from './screens/MeetRoom';
 import About from './screens/About';
+import Notes from './screens/Notes';
+import NoteDetail from './screens/NoteDetail';
 import NavBar from './components/NavBar';
 import Login from './screens/Login';
 import SessionWarning from './components/SessionWarning';
@@ -59,6 +61,8 @@ const AppContent: React.FC = () => {
           <Route path="/set-username" element={<SetUsername />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/about" element={<About />} />
+          <Route path="/notes" element={<Notes />} />
+          <Route path="/notes/:noteId" element={<NoteDetail />} />
           <Route path="/login" element={<Login />} />
         </Routes>
       </div>

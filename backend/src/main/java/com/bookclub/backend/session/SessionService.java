@@ -5,14 +5,20 @@ import com.bookclub.backend.post.Post;
 import com.bookclub.backend.post.PostRepository;
 import com.bookclub.backend.session.dto.GetSessionResponse;
 import com.bookclub.backend.session.dto.JoinSessionResponse;
+import com.bookclub.backend.session.dto.NoteSummaryResponse;
+import com.bookclub.backend.session.model.SessionRecording;
+import com.bookclub.backend.session.repository.SessionRecordingRepository;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
+import org.bson.types.ObjectId;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -26,6 +32,9 @@ public class SessionService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private SessionRecordingRepository sessionRecordingRepository;
 
     /**
      * 세션 참가 (없으면 생성, 있으면 재사용)
@@ -154,6 +163,127 @@ public class SessionService {
             post.getMeetLink(),
             postInfo
         );
+    }
+
+    /**
+     * 사용자가 참여한 모든 세션의 AI 요약 목록 조회
+     */
+    public List<NoteSummaryResponse> getUserSummaries(String token) throws Exception {
+        // 1. Firebase 토큰에서 UID 추출
+        String uid = extractUidFromToken(token);
+        if (uid == null) {
+            throw new UnauthorizedException("Invalid or expired token");
+        }
+
+        // 2. UID로 사용자 조회
+        Optional<User> userOpt = userRepository.findByUid(uid);
+        if (userOpt.isEmpty()) {
+            throw new UnauthorizedException("User not found");
+        }
+        User user = userOpt.get();
+
+        List<NoteSummaryResponse> summaries = new ArrayList<>();
+
+        // 3. 사용자가 참여한 모든 Post 조회 (participatedBookMeetings + createdBookMeetings)
+        List<String> participatedIds = user.getParticipatedBookMeetings();
+        List<String> createdIds = user.getCreatedBookMeetings();
+
+        // Combine both lists, avoiding duplicates
+        List<String> allPostIds = new ArrayList<>();
+        if (participatedIds != null) {
+            allPostIds.addAll(participatedIds);
+        }
+        if (createdIds != null) {
+            for (String id : createdIds) {
+                if (!allPostIds.contains(id)) {
+                    allPostIds.add(id);
+                }
+            }
+        }
+
+        // 4. 각 Post에 대해 세션과 요약 정보 조회
+        for (String postId : allPostIds) {
+            Optional<Post> postOpt = postRepository.findById(postId);
+            if (postOpt.isEmpty()) continue;
+            Post post = postOpt.get();
+
+            // Find session for this post
+            Optional<Session> sessionOpt = sessionRepository.findByPostId(postId);
+            if (sessionOpt.isEmpty()) continue;
+            Session session = sessionOpt.get();
+
+            // Find recording for this session
+            Optional<SessionRecording> recordingOpt = sessionRecordingRepository.findBySessionId(session.getId());
+            if (recordingOpt.isEmpty()) continue;
+            SessionRecording recording = recordingOpt.get();
+
+            // Skip if no AI summary
+            if (recording.getAiSummary() == null) continue;
+
+            // Get host info
+            String hostId = post.getCreaterId();
+            String hostUsername = "Unknown";
+            String hostPhotoUrl = null;
+            Integer hostRating = 0;
+
+            if (hostId != null) {
+                Optional<User> hostOpt = userRepository.findById(new ObjectId(hostId));
+                if (hostOpt.isPresent()) {
+                    User host = hostOpt.get();
+                    hostUsername = host.getUsername();
+                    hostPhotoUrl = host.getPhotoUrl();
+                    hostRating = host.getRating();
+                }
+            }
+
+            // Build response
+            NoteSummaryResponse summary = new NoteSummaryResponse();
+            summary.setSessionId(session.getId());
+            summary.setPostId(postId);
+
+            // Book info
+            if (post.getBookData() != null) {
+                summary.setBookTitle(post.getBookData().getTitle());
+                summary.setBookAuthor(post.getBookData().getAuthor());
+                summary.setBookCover(post.getBookData().getCover());
+                summary.setBookGenre(post.getBookData().getGenre());
+                summary.setBookIsbn(post.getBookData().getIsbn());
+            }
+
+            // Meeting info
+            summary.setMeetingDate(post.getDue());
+            summary.setDuration(post.getDuration());
+            // participantCount = unique participants (creator + members, avoiding double count)
+            int memberCount = post.getMemberIds() != null ? post.getMemberIds().size() : 0;
+            boolean creatorInMembers = post.getMemberIds() != null && hostId != null && post.getMemberIds().contains(hostId);
+            summary.setParticipantCount(creatorInMembers ? memberCount : memberCount + 1);
+            summary.setLevel(post.getLevel());
+
+            // Host info
+            summary.setHostId(hostId);
+            summary.setHostUsername(hostUsername);
+            summary.setHostPhotoUrl(hostPhotoUrl);
+            summary.setHostRating(hostRating);
+
+            // Summary info
+            summary.setAiSummary(recording.getAiSummary());
+            summary.setSessionCreatedAt(session.getCreatedAt());
+
+            // User's relation
+            summary.setHost(hostId != null && hostId.equals(user.getId()));
+            summary.setFavorite(false); // TODO: Implement favorites feature
+
+            summaries.add(summary);
+        }
+
+        // Sort by session creation date (newest first)
+        summaries.sort((a, b) -> {
+            if (a.getSessionCreatedAt() == null) return 1;
+            if (b.getSessionCreatedAt() == null) return -1;
+            return b.getSessionCreatedAt().compareTo(a.getSessionCreatedAt());
+        });
+
+        return summaries;
     }
 
     /**

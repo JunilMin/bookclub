@@ -206,7 +206,8 @@ function postToRoom(
     isMyRoom: currentUserId ? post.createrId === currentUserId : false,
     meetLink: post.meetLink,
     calendarEventId: post.calendarEventId,
-    recruit: post.recruit !== undefined ? post.recruit : true
+    recruit: post.recruit !== undefined ? post.recruit : true,
+    api: post.bookData?.api as 'google' | 'naver' | undefined
   };
 }
 
@@ -223,7 +224,7 @@ type SortBy = 'latest' | 'mostPopular' | 'startingSoon';
 // =============================================================================
 
 const Board: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { accessToken, user } = useAuth();
@@ -446,6 +447,11 @@ const Board: React.FC = () => {
   const filteredRooms = useMemo(() => {
     let result = [...rooms];
 
+    // Language-based API filter (KR → Naver, EN → Google)
+    const currentLang = i18n.language;
+    const targetApi = currentLang === 'ko' ? 'naver' : 'google';
+    result = result.filter(room => room.api === targetApi);
+
     // Tab filter
     if (activeTab === 'my') {
       result = result.filter(room => room.isMyRoom);
@@ -489,7 +495,7 @@ const Board: React.FC = () => {
     }
 
     return result;
-  }, [rooms, activeTab, debouncedSearch, selectedGenre, selectedStatus, sortBy]);
+  }, [rooms, activeTab, debouncedSearch, selectedGenre, selectedStatus, sortBy, i18n.language]);
 
   // Apply pagination AFTER filtering
   const displayedRooms = useMemo(() => {

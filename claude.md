@@ -13,7 +13,7 @@
 | **Frontend** | React 18 + TypeScript + Vite |
 | **Backend** | Spring Boot 3.3 + MongoDB |
 | **인증** | Firebase Authentication (Google OAuth 포함) |
-| **도서 데이터** | OpenLibrary API |
+| **도서 데이터** | Google Books API (EN) / Naver Books API (KR) |
 | **다국어** | i18next, react-i18next |
 | **화상회의** | Google Meet (via Google Calendar API) |
 | **실시간 통신** | WebSocket (STOMP) |
@@ -99,14 +99,17 @@ bookclub/
         ├── session/             # 세션, 발언 대기열, 협업 노트, 녹음/요약
         │   ├── model/
         │   │   ├── SpeakingQueue.java      # 발언 대기열 모델
-        │   │   ├── SessionNote.java        # 협업 노트 모델
+        │   │   ├── SessionNote.java        # 협업 노트 모델 (공용)
+        │   │   ├── UserSessionNote.java    # 개인 토론 노트 모델 (fork된)
         │   │   └── SessionRecording.java   # 녹음 & AI 요약 모델
         │   ├── controller/
         │   │   ├── SessionNoteController.java
+        │   │   ├── UserSessionNoteController.java  # 개인 노트 API
         │   │   ├── SpeakingQueueController.java
         │   │   └── AISummaryController.java
         │   ├── service/
         │   │   ├── SessionNoteService.java
+        │   │   ├── UserSessionNoteService.java   # 개인 노트 서비스
         │   │   ├── SpeakingQueueService.java
         │   │   └── SessionRecordingService.java
         │   ├── repository/
@@ -140,6 +143,8 @@ bookclub/
 | `/set-username` | SetUsername | 기존 사용자 닉네임 변경 |
 | `/login` | Login | 로그인 페이지 |
 | `/about` | About | 소개 페이지 |
+| `/notes` | Notes | 개인 토론 노트 목록 페이지 |
+| `/notes/:noteId` | NoteDetail | 개인 토론 노트 상세/편집 페이지 |
 
 ---
 
@@ -273,6 +278,10 @@ public class User {
 - 한국어/영어 전환 지원
 - i18next, react-i18next 사용
 - IP 기반 자동 언어 감지
+- **언어별 도서 API 분리**:
+  - 한국어(KR): Naver Books API 사용, `api: 'naver'` posts만 표시
+  - 영어(EN): Google Books API 사용, `api: 'google'` posts만 표시
+- Post.bookData.api 필드로 도서 검색 출처 저장
 
 ### 계정 드롭다운 메뉴 (AccountDropdown)
 
@@ -285,7 +294,9 @@ public class User {
 | | 내가 만든 모임 | `/board?filter=created` |
 | | 참여 중인 모임 | `/board?filter=participating` |
 | | 새 토론 만들기 | `/board/create` (CTA 스타일) |
-| **설정** | 계정 설정 | `/profile#settings` |
+| **지식 & 기록** | 토론 노트 | `/notes` (준비 중) |
+| | 관심 북미팅 | `/favorites` (준비 중) |
+| **설정 & 관리** | 계정 설정 | `/profile#settings` |
 | | 평판 & 활동 내역 | `/profile#activity` |
 | **지원** | 도움말 / FAQ | `/help` (준비 중) |
 | | 피드백 보내기 | `/feedback` (준비 중) |
@@ -321,6 +332,30 @@ public class User {
 **주요 파일**
 - `frontend/src/screens/Profile.tsx` - 프로필 페이지 컴포넌트
 - `frontend/src/screens/styles/Profile.css` - 스타일
+
+### 토론 요약 노트 페이지 (Notes)
+
+사용자가 참여한 토론의 AI 생성 요약을 탐색하고 관리하는 페이지입니다.
+
+**라우트**: `/notes`
+
+| 기능 | 설명 |
+|------|------|
+| 요약 목록 | 사용자가 참여한 모든 토론의 AI 요약 표시 |
+| 그리드/리스트 뷰 | 뷰 모드 전환 지원 |
+| 검색 | 책 제목, 저자, 호스트 이름으로 검색 |
+| 필터 | 전체/최근 30일/즐겨찾기 탭 |
+| 정렬 | 최신순/참가자 많은순/토론 시간순 |
+| 반응형 | 모바일/태블릿/데스크톱 지원 |
+
+**API 엔드포인트**
+- `GET /api/sessions/my-summaries` - 사용자의 모든 토론 요약 조회
+
+**주요 파일**
+- `frontend/src/screens/Notes.tsx` - 노트 페이지 컴포넌트
+- `frontend/src/screens/styles/Notes.css` - 스타일
+- `frontend/src/api/aiSummary.ts` - API 호출 (getMySummaries)
+- `backend/.../session/dto/NoteSummaryResponse.java` - 응답 DTO
 
 ---
 
@@ -712,6 +747,105 @@ CollaborativeNotes.insertContentAtEnd() 호출
 - `backend/src/main/java/com/bookclub/backend/session/controller/AISummaryController.java` - REST API
 - `frontend/src/components/meet/RightPanel/RecordingPanel.tsx` - UI 컴포넌트
 - `frontend/src/api/aiSummary.ts` - API 호출
+
+---
+
+### 개인 토론 노트 (User Session Notes)
+
+세션 종료 시 공용 협업 노트가 각 참가자에게 개인 복사본으로 fork되어 저장됩니다.
+
+#### 핵심 개념
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  세션 진행 중                                                     │
+│  ┌──────────────────┐                                            │
+│  │  session_notes   │  ← 모든 참가자가 실시간 협업 편집           │
+│  │  (공용)          │                                            │
+│  └──────────────────┘                                            │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+                              │ 세션 종료 시 fork
+                              ↓
+┌──────────────────────────────────────────────────────────────────┐
+│  세션 종료 후                                                     │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐     │
+│  │ user_session   │  │ user_session   │  │ user_session   │     │
+│  │ _notes (A)     │  │ _notes (B)     │  │ _notes (C)     │     │
+│  │ 개인 수정 가능 │  │ 개인 수정 가능 │  │ 개인 수정 가능 │     │
+│  └────────────────┘  └────────────────┘  └────────────────┘     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### UserSessionNote 모델 (MongoDB)
+```java
+@Document(collection = "user_session_notes")
+@CompoundIndexes({
+    @CompoundIndex(name = "session_user_idx", def = "{'sessionId': 1, 'userId': 1}", unique = true)
+})
+public class UserSessionNote {
+    @Id
+    private String id;
+    private String sessionId;      // 연결된 세션 ID
+    private String userId;         // 노트 소유자 ID
+    private String baseNoteId;     // 원본 session_notes._id
+    private int baseVersion;       // 포크 당시 버전
+    private String title;          // 노트 제목
+    private String content;        // TipTap JSON 콘텐츠
+    private int version;           // 개인 노트 버전
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}
+```
+
+#### Fork 흐름
+
+```
+호스트: "종료하기" 클릭
+    ↓
+POST /api/posts/{id}/end
+    ↓
+PostController.endMeeting()
+    ↓
+WebSocket 브로드캐스트: /topic/session/{sessionId}/ended
+    ↓
+userSessionNoteService.forkNotesToParticipants(sessionId)
+    ↓
+각 참가자에게 개인 노트 생성:
+  - session_notes 내용 복사
+  - userId별 user_session_notes 생성
+  - 제목: "{책 제목} 토론 노트"
+    ↓
+사용자: /notes 페이지에서 개인 노트 확인 & 수정
+```
+
+#### 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| 자동 Fork | 세션 종료 시 모든 참가자에게 자동 배포 |
+| 개인 편집 | 각자의 노트를 자유롭게 수정 |
+| 버전 추적 | 원본 노트 ID와 버전 저장 |
+| 수동 Fork | 뒤늦게 요청하는 경우 수동 fork 가능 |
+
+#### API 엔드포인트
+- `GET /api/user-notes` - 내 모든 개인 노트 조회
+- `GET /api/user-notes/enriched` - 미팅 컨텍스트 포함 조회
+- `GET /api/user-notes/{noteId}` - 특정 노트 조회
+- `GET /api/user-notes/{noteId}/enriched` - 컨텍스트 포함 조회
+- `GET /api/user-notes/session/{sessionId}` - 세션별 내 노트 조회
+- `PUT /api/user-notes/{noteId}/content` - 노트 내용 수정
+- `PUT /api/user-notes/{noteId}/title` - 노트 제목 수정
+- `DELETE /api/user-notes/{noteId}` - 노트 삭제
+- `POST /api/user-notes/fork/{sessionId}` - 수동 fork
+
+**주요 파일**
+- `backend/src/main/java/com/bookclub/backend/session/model/UserSessionNote.java` - 모델
+- `backend/src/main/java/com/bookclub/backend/session/service/UserSessionNoteService.java` - 서비스
+- `backend/src/main/java/com/bookclub/backend/session/controller/UserSessionNoteController.java` - REST API
+- `frontend/src/screens/Notes.tsx` - 노트 목록 페이지
+- `frontend/src/screens/NoteDetail.tsx` - 노트 상세/편집 페이지
+- `frontend/src/api/notes.ts` - API 호출
 
 ---
 
