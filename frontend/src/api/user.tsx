@@ -1,6 +1,12 @@
 // src/api/user.ts
 import axiosInstance, {setAccessToken} from './axiosInstance';
 
+// 북미팅 관련 타입
+export interface UserPosts {
+  created?: string[];      // 내가 생성한 북미팅 ID 리스트
+  participated?: string[]; // 참여한 북미팅 ID 리스트 (지난/현재 모두)
+}
+
 export interface User {
   id?: string;
   uid: string;
@@ -10,11 +16,9 @@ export interface User {
   rating?: number;
   absent?: number;
   friends?: string[];
-  posts?:[];
+  posts?: UserPosts;  // 북미팅 관련 필드 (생성/참여)
   late?: number;
   kicked?: number;  // 강퇴 당한 횟수
-  createdBookMeetings?: string[];      // 내가 생성한 북미팅 ID 리스트
-  participatedBookMeetings?: string[]; // 참여한 북미팅 ID 리스트 (지난/현재 모두)
   isEmailVerified?: boolean; // 이메일 인증 여부
   verificationToken?: string; // 이메일 인증 토큰
   photoUrl?: string; // Google 프로필 사진 URL

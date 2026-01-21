@@ -13,7 +13,6 @@ import com.bookclub.backend.session.repository.SessionRecordingRepository;
 import com.bookclub.backend.session.repository.UserSessionNoteRepository;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
-import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,7 +117,7 @@ public class UserSessionNoteService {
         Integer hostRating = 0;
 
         if (hostId != null) {
-            Optional<User> hostOpt = userRepository.findById(new ObjectId(hostId));
+            Optional<User> hostOpt = userRepository.findById(hostId);
             if (hostOpt.isPresent()) {
                 User host = hostOpt.get();
                 hostUsername = host.getUsername();
@@ -183,7 +182,7 @@ public class UserSessionNoteService {
                 if (memberId.equals(hostId)) continue;
 
                 try {
-                    Optional<User> memberOpt = userRepository.findById(new ObjectId(memberId));
+                    Optional<User> memberOpt = userRepository.findById(memberId);
                     if (memberOpt.isPresent()) {
                         User member = memberOpt.get();
                         UserNoteResponse.ParticipantInfo memberInfo = new UserNoteResponse.ParticipantInfo(

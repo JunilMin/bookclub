@@ -9,7 +9,6 @@ import com.bookclub.backend.session.Session;
 import com.bookclub.backend.session.SessionRepository;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -104,13 +103,9 @@ public class EndorsementService {
 
         // 9. Get target username for response
         String targetUsername = "Unknown";
-        try {
-            User targetUser = userRepository.findById(new ObjectId(targetUserId)).orElse(null);
-            if (targetUser != null) {
-                targetUsername = targetUser.getUsername();
-            }
-        } catch (IllegalArgumentException e) {
-            // Invalid ObjectId format, use default username
+        User targetUser = userRepository.findById(targetUserId).orElse(null);
+        if (targetUser != null) {
+            targetUsername = targetUser.getUsername();
         }
 
         return new EndorsementResponse(
@@ -166,12 +161,7 @@ public class EndorsementService {
         // 5. Build participant list with endorsement status
         List<EndorsementResponse.PendingParticipant> participants = participantIds.stream()
             .map(userId -> {
-                User user = null;
-                try {
-                    user = userRepository.findById(new ObjectId(userId)).orElse(null);
-                } catch (IllegalArgumentException e) {
-                    // Invalid ObjectId format
-                }
+                User user = userRepository.findById(userId).orElse(null);
                 return new EndorsementResponse.PendingParticipant(
                     userId,
                     user != null ? user.getUsername() : "Unknown",
@@ -214,7 +204,7 @@ public class EndorsementService {
      * @param categories The selected categories
      */
     private void updateUserEndorsementStats(String userId, List<String> categories) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Target user not found"));
 
         User.EndorsementStats stats = user.getEndorsementStats();

@@ -7,7 +7,6 @@ import com.bookclub.backend.session.Session;
 import com.bookclub.backend.session.SessionRepository;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -124,7 +123,7 @@ public class ReportService {
      */
     private void updateUserReportedStats(String reportedUserId, List<Report.ReportReason> reasons) {
         try {
-            Optional<User> userOpt = userRepository.findById(new ObjectId(reportedUserId));
+            Optional<User> userOpt = userRepository.findById(reportedUserId);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
 

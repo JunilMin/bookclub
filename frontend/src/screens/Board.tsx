@@ -489,15 +489,21 @@ const Board: React.FC = () => {
     let result = [...rooms];
 
     // Language-based API filter (KR → Naver, EN → Google)
+    // Posts without api field are shown in all languages (legacy support)
     const currentLang = i18n.language;
     const targetApi = currentLang === 'ko' ? 'naver' : 'google';
-    result = result.filter(room => room.api === targetApi);
+    result = result.filter(room => !room.api || room.api === targetApi);
 
     // Tab filter
     if (activeTab === 'my') {
       result = result.filter(room => room.isMyRoom);
     } else if (activeTab === 'joined') {
       result = result.filter(room => room.isJoined && !room.isMyRoom);
+    } else {
+      // 'all' tab: 종료된 미팅은 참가자/주최자가 아니면 숨김
+      result = result.filter(room =>
+        room.status !== 'past' || room.isJoined || room.isMyRoom
+      );
     }
 
     // Search filter

@@ -1,6 +1,5 @@
 package com.bookclub.backend.user;
 
-import org.bson.types.ObjectId;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
@@ -27,7 +26,7 @@ public class UserService {
     /**
      * ID로 사용자 조회
      */
-    public Optional<User> getUserById(ObjectId id) {
+    public Optional<User> getUserById(String id) {
         return userRepository.findById(id);
     }
 
@@ -77,14 +76,12 @@ public class UserService {
 
         user.setUid(user.getUid());
         user.setFriends(new ArrayList<>());
-        user.setPosts(new ArrayList<>());
         user.setPassword(""); // Firebase 인증 사용으로 비밀번호 저장 불필요
         user.setRating(0);
         user.setAbsent(0);
         user.setLate(0);
         user.setKicked(0);
-        user.setCreatedBookMeetings(new ArrayList<>());
-        user.setParticipatedBookMeetings(new ArrayList<>());
+        user.setPosts(new User.UserPosts(new ArrayList<>(), new ArrayList<>()));
         user.setPhotoUrl(user.getPhotoUrl()); // Google 프로필 사진 URL (null 허용)
 
         return userRepository.save(user);
@@ -93,7 +90,7 @@ public class UserService {
     /**
      * 친구 추가
      */
-    public User addFriend(ObjectId userId, ObjectId friendId) {
+    public User addFriend(String userId, String friendId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
         User friend = userRepository.findById(friendId)
@@ -110,18 +107,20 @@ public class UserService {
     /**
      * 사용자 정보 업데이트
      */
-    public User updateUser(ObjectId id, User updatedUser) {
+    public User updateUser(String id, User updatedUser) {
         Optional<User> existingUser = userRepository.findById(id);
         if (existingUser.isPresent()) {
             User user = existingUser.get();
             user.setEmail(updatedUser.getEmail());
             user.setUsername(updatedUser.getUsername());
-            user.setPosts(updatedUser.getPosts());
             user.setRating(updatedUser.getRating());
             user.setAbsent(updatedUser.getAbsent());
             user.setFriends(updatedUser.getFriends());
             user.setLate(updatedUser.getLate());
             user.setPhotoUrl(updatedUser.getPhotoUrl());
+            if (updatedUser.getPosts() != null) {
+                user.setPosts(updatedUser.getPosts());
+            }
             return userRepository.save(user);
         }
         return null;
@@ -130,8 +129,23 @@ public class UserService {
     /**
      * 사용자 삭제
      */
-    public void deleteUser(ObjectId id) {
+    public void deleteUser(String id) {
         userRepository.deleteById(id);
+    }
+
+    /**
+     * posts 필드 초기화 헬퍼
+     */
+    private void ensurePostsInitialized(User user) {
+        if (user.getPosts() == null) {
+            user.setPosts(new User.UserPosts(new ArrayList<>(), new ArrayList<>()));
+        }
+        if (user.getPosts().getCreated() == null) {
+            user.getPosts().setCreated(new ArrayList<>());
+        }
+        if (user.getPosts().getParticipated() == null) {
+            user.getPosts().setParticipated(new ArrayList<>());
+        }
     }
 
     /**
@@ -141,12 +155,10 @@ public class UserService {
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getCreatedBookMeetings() == null) {
-            user.setCreatedBookMeetings(new ArrayList<>());
-        }
+        ensurePostsInitialized(user);
 
-        if (!user.getCreatedBookMeetings().contains(postId)) {
-            user.getCreatedBookMeetings().add(postId);
+        if (!user.getPosts().getCreated().contains(postId)) {
+            user.getPosts().getCreated().add(postId);
         }
 
         return userRepository.save(user);
@@ -159,9 +171,8 @@ public class UserService {
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getCreatedBookMeetings() != null) {
-            user.getCreatedBookMeetings().remove(postId);
-        }
+        ensurePostsInitialized(user);
+        user.getPosts().getCreated().remove(postId);
 
         return userRepository.save(user);
     }
@@ -173,12 +184,10 @@ public class UserService {
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getParticipatedBookMeetings() == null) {
-            user.setParticipatedBookMeetings(new ArrayList<>());
-        }
+        ensurePostsInitialized(user);
 
-        if (!user.getParticipatedBookMeetings().contains(postId)) {
-            user.getParticipatedBookMeetings().add(postId);
+        if (!user.getPosts().getParticipated().contains(postId)) {
+            user.getPosts().getParticipated().add(postId);
         }
 
         return userRepository.save(user);
@@ -191,9 +200,8 @@ public class UserService {
         User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getParticipatedBookMeetings() != null) {
-            user.getParticipatedBookMeetings().remove(postId);
-        }
+        ensurePostsInitialized(user);
+        user.getPosts().getParticipated().remove(postId);
 
         return userRepository.save(user);
     }
@@ -204,22 +212,20 @@ public class UserService {
      * userId (String)로 사용자 조회
      */
     public Optional<User> getUserByIdString(String userId) {
-        return userRepository.findById(new ObjectId(userId));
+        return userRepository.findById(userId);
     }
 
     /**
      * 생성한 북미팅 추가 (userId 기반)
      */
     public User addCreatedBookMeetingById(String userId, String postId) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getCreatedBookMeetings() == null) {
-            user.setCreatedBookMeetings(new ArrayList<>());
-        }
+        ensurePostsInitialized(user);
 
-        if (!user.getCreatedBookMeetings().contains(postId)) {
-            user.getCreatedBookMeetings().add(postId);
+        if (!user.getPosts().getCreated().contains(postId)) {
+            user.getPosts().getCreated().add(postId);
         }
 
         return userRepository.save(user);
@@ -229,12 +235,11 @@ public class UserService {
      * 생성한 북미팅 제거 (userId 기반)
      */
     public User removeCreatedBookMeetingById(String userId, String postId) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getCreatedBookMeetings() != null) {
-            user.getCreatedBookMeetings().remove(postId);
-        }
+        ensurePostsInitialized(user);
+        user.getPosts().getCreated().remove(postId);
 
         return userRepository.save(user);
     }
@@ -243,15 +248,13 @@ public class UserService {
      * 참여한 북미팅 추가 (userId 기반)
      */
     public User addParticipatedBookMeetingById(String userId, String postId) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getParticipatedBookMeetings() == null) {
-            user.setParticipatedBookMeetings(new ArrayList<>());
-        }
+        ensurePostsInitialized(user);
 
-        if (!user.getParticipatedBookMeetings().contains(postId)) {
-            user.getParticipatedBookMeetings().add(postId);
+        if (!user.getPosts().getParticipated().contains(postId)) {
+            user.getPosts().getParticipated().add(postId);
         }
 
         return userRepository.save(user);
@@ -261,12 +264,11 @@ public class UserService {
      * 참여한 북미팅 제거 (userId 기반)
      */
     public User removeParticipatedBookMeetingById(String userId, String postId) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
-        if (user.getParticipatedBookMeetings() != null) {
-            user.getParticipatedBookMeetings().remove(postId);
-        }
+        ensurePostsInitialized(user);
+        user.getPosts().getParticipated().remove(postId);
 
         return userRepository.save(user);
     }
@@ -275,7 +277,7 @@ public class UserService {
      * 강퇴 횟수 증가 (userId 기반)
      */
     public User incrementKickedCount(String userId) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
         user.setKicked(user.getKicked() + 1);
@@ -287,7 +289,7 @@ public class UserService {
      * 강퇴 횟수 감소 (userId 기반) - 복구 시 사용
      */
     public User decrementKickedCount(String userId) {
-        User user = userRepository.findById(new ObjectId(userId))
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
         if (user.getKicked() > 0) {

@@ -1,7 +1,6 @@
 package com.bookclub.backend.user;
 
 import com.bookclub.backend.moderation.PerspectiveService;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,13 +33,8 @@ public class UserController {
      */
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable String id) {
-        try {
-            ObjectId objectId = new ObjectId(id);
-            Optional<User> user = userService.getUserById(objectId);
-            return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        Optional<User> user = userService.getUserById(id);
+        return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /**
@@ -146,16 +140,11 @@ public class UserController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<User> updateUser(@PathVariable String id, @RequestBody User updatedUser) {
-        try {
-            ObjectId objectId = new ObjectId(id);
-            User user = userService.updateUser(objectId, updatedUser);
-            if (user != null) {
-                return ResponseEntity.ok(user);
-            } else {
-                return ResponseEntity.notFound().build();
-            }
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+        User user = userService.updateUser(id, updatedUser);
+        if (user != null) {
+            return ResponseEntity.ok(user);
+        } else {
+            return ResponseEntity.notFound().build();
         }
     }
 
@@ -164,13 +153,8 @@ public class UserController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable String id) {
-        try {
-            ObjectId objectId = new ObjectId(id);
-            userService.deleteUser(objectId);
-            return ResponseEntity.noContent().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -179,12 +163,8 @@ public class UserController {
     @PostMapping("/{userId}/add-friend/{friendId}")
     public ResponseEntity<User> addFriend(@PathVariable String userId, @PathVariable String friendId) {
         try {
-            ObjectId userObjectId = new ObjectId(userId);
-            ObjectId friendObjectId = new ObjectId(friendId);
-            User user = userService.addFriend(userObjectId, friendObjectId);
+            User user = userService.addFriend(userId, friendId);
             return ResponseEntity.ok(user);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(null);
         }

@@ -10,7 +10,6 @@ import com.bookclub.backend.session.model.SessionRecording;
 import com.bookclub.backend.session.repository.SessionRecordingRepository;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserRepository;
-import org.bson.types.ObjectId;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
@@ -184,9 +183,9 @@ public class SessionService {
 
         List<NoteSummaryResponse> summaries = new ArrayList<>();
 
-        // 3. 사용자가 참여한 모든 Post 조회 (participatedBookMeetings + createdBookMeetings)
-        List<String> participatedIds = user.getParticipatedBookMeetings();
-        List<String> createdIds = user.getCreatedBookMeetings();
+        // 3. 사용자가 참여한 모든 Post 조회 (posts.participated + posts.created)
+        List<String> participatedIds = user.getPosts() != null ? user.getPosts().getParticipated() : null;
+        List<String> createdIds = user.getPosts() != null ? user.getPosts().getCreated() : null;
 
         // Combine both lists, avoiding duplicates
         List<String> allPostIds = new ArrayList<>();
@@ -227,7 +226,7 @@ public class SessionService {
             Integer hostRating = 0;
 
             if (hostId != null) {
-                Optional<User> hostOpt = userRepository.findById(new ObjectId(hostId));
+                Optional<User> hostOpt = userRepository.findById(hostId);
                 if (hostOpt.isPresent()) {
                     User host = hostOpt.get();
                     hostUsername = host.getUsername();

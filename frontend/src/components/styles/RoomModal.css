@@ -397,6 +397,21 @@
   transform: translateY(-1px);
 }
 
+.room-modal-btn-notes {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0f172a;
+  color: white;
+}
+
+.room-modal-btn-notes:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+}
+
 /* Edit Mode Styles */
 .room-modal-info-item-full {
   grid-column: 1 / -1;

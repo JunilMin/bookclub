@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo, FiEdit2, FiSave, FiXCircle, FiLogOut } from 'react-icons/fi';
+import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo, FiEdit2, FiSave, FiXCircle, FiLogOut, FiEdit3, FiArrowRight } from 'react-icons/fi';
 import { joinSession } from '../api/sessions';
 import { updatePost, leaveBookMeeting } from '../api/posts';
 import { useAuth } from '../AuthContext/AuthContext';
@@ -191,6 +191,11 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
     if (room.meetLink) {
       window.open(room.meetLink, '_blank', 'noopener,noreferrer');
     }
+  };
+
+  // 노트 보기 (종료된 미팅용)
+  const handleViewNotes = () => {
+    navigate('/notes');
   };
 
   const handleDelete = () => {
@@ -625,7 +630,18 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
 
         {/* Actions */}
         <div className="room-modal-actions">
-          {/* Enter Meeting 버튼 - 참가자/주최자만 표시 */}
+          {/* 종료된 미팅 - 노트 보기 버튼 (참가자/주최자만) */}
+          {!isEditMode && (room.isJoined || room.isMyRoom) && room.status === 'past' && (
+            <button
+              className="room-modal-btn room-modal-btn-notes"
+              onClick={handleViewNotes}
+            >
+              <FiEdit3 size={18} />
+              {t('notes_view_note') || 'View Notes'}
+              <FiArrowRight size={18} />
+            </button>
+          )}
+          {/* Enter Meeting 버튼 - 참가자/주최자만 표시 (종료되지 않은 미팅) */}
           {!isEditMode && (room.isJoined || room.isMyRoom) && room.status !== 'past' && (
             <button
               className="room-modal-btn room-modal-btn-enter"
@@ -636,8 +652,8 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
               {isEntering ? t('loading') : t('browse_modal_enter_meeting') || 'Enter Meeting'}
             </button>
           )}
-          {/* Google Meet 직접 열기 */}
-          {!isEditMode && (room.isJoined || room.isMyRoom) && room.meetLink && (
+          {/* Google Meet 직접 열기 (종료되지 않은 미팅만) */}
+          {!isEditMode && (room.isJoined || room.isMyRoom) && room.meetLink && room.status !== 'past' && (
             <button className="room-modal-btn room-modal-btn-meet" onClick={handleOpenMeet}>
               <FiExternalLink size={18} />
               {t('browse_modal_open_meet')}

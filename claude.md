@@ -222,14 +222,19 @@ public class User {
     private String email;
     private String username;
     private String password;
-    private List<Post> posts;
     private int rating;                           // 평판 점수
     private int absent;                           // 불참 횟수
     private List<String> friends;
     private int late;                             // 지각 횟수
-    private List<String> createdBookMeetings;     // 생성한 북미팅 ID 리스트
-    private List<String> participatedBookMeetings; // 참여한 북미팅 ID 리스트
+    private int kicked;                           // 강퇴 당한 횟수
+    private UserPosts posts;                      // 북미팅 관련 필드
     private String photoUrl;                      // Google 프로필 사진 URL
+
+    // 북미팅 관련 내부 클래스
+    public static class UserPosts {
+        private List<String> created;             // 생성한 북미팅 ID 리스트
+        private List<String> participated;        // 참여한 북미팅 ID 리스트
+    }
 }
 ```
 
