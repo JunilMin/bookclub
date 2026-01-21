@@ -16,7 +16,8 @@ import {
   FiSave,
   FiEdit3,
   FiBook,
-  FiUser
+  FiUser,
+  FiAward
 } from 'react-icons/fi';
 import { useAuth } from '../AuthContext/AuthContext';
 import {
@@ -26,6 +27,9 @@ import {
   UserNoteResponse,
   ParticipantInfo
 } from '../api/notes';
+import { getPendingParticipants } from '../api/endorsements';
+import { PendingParticipant } from '../types/endorsement';
+import EndorsementFeedbackModal from '../components/meet/EndorsementFeedbackModal';
 import Footer from '../components/Footer';
 import './styles/NoteDetail.css';
 
@@ -122,6 +126,13 @@ const NoteDetail: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
 
+  // Endorsement State
+  const [isEndorsementModalOpen, setIsEndorsementModalOpen] = useState(false);
+  const [pendingParticipants, setPendingParticipants] = useState<PendingParticipant[]>([]);
+  const [hasUnendorsed, setHasUnendorsed] = useState(false);
+  const [endorsementLoading, setEndorsementLoading] = useState(false);
+  const [isEndorsementCollapsing, setIsEndorsementCollapsing] = useState(false);
+
   // TipTap Editor
   const editor = useEditor({
     extensions: [
@@ -180,6 +191,68 @@ const NoteDetail: React.FC = () => {
 
     fetchNote();
   }, [accessToken, noteId, t, editor]);
+
+  // ==========================================================================
+  // Fetch Endorsement Status
+  // ==========================================================================
+  useEffect(() => {
+    const fetchEndorsementStatus = async () => {
+      if (!accessToken || !note?.sessionId) return;
+
+      setEndorsementLoading(true);
+      try {
+        const response = await getPendingParticipants(note.sessionId, accessToken);
+        setPendingParticipants(response.participants);
+
+        // 미평가 참가자가 있는지 확인
+        const unendorsedExists = response.participants.some(p => !p.alreadyEndorsed);
+        setHasUnendorsed(unendorsedExists);
+      } catch (err) {
+        console.error('Failed to fetch endorsement status:', err);
+        // 에러 시 평가 섹션 숨김
+        setHasUnendorsed(false);
+      } finally {
+        setEndorsementLoading(false);
+      }
+    };
+
+    fetchEndorsementStatus();
+  }, [accessToken, note?.sessionId]);
+
+  // ==========================================================================
+  // Endorsement Modal Handlers
+  // ==========================================================================
+  const handleOpenEndorsementModal = useCallback(() => {
+    setIsEndorsementModalOpen(true);
+  }, []);
+
+  const handleCloseEndorsementModal = useCallback(async () => {
+    setIsEndorsementModalOpen(false);
+
+    // 모달 닫힌 후 평가 상태 재조회
+    if (accessToken && note?.sessionId) {
+      try {
+        const response = await getPendingParticipants(note.sessionId, accessToken);
+        setPendingParticipants(response.participants);
+
+        const unendorsedExists = response.participants.some(p => !p.alreadyEndorsed);
+
+        // 모두 평가 완료되었으면 접힘 애니메이션 시작
+        if (!unendorsedExists && hasUnendorsed) {
+          setIsEndorsementCollapsing(true);
+          // 애니메이션 완료 후 상태 업데이트
+          setTimeout(() => {
+            setHasUnendorsed(false);
+            setIsEndorsementCollapsing(false);
+          }, 400);
+        } else {
+          setHasUnendorsed(unendorsedExists);
+        }
+      } catch (err) {
+        console.error('Failed to refresh endorsement status:', err);
+      }
+    }
+  }, [accessToken, note?.sessionId, hasUnendorsed]);
 
   // ==========================================================================
   // Cancel Edit Handler
@@ -546,6 +619,47 @@ const NoteDetail: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* Endorsement Section - 미평가 참가자가 있을 때만 표시 */}
+          {!endorsementLoading && (hasUnendorsed || isEndorsementCollapsing) && (
+            <div className={`note-detail-endorsement ${isEndorsementCollapsing ? 'collapsing' : ''}`}>
+              <div className="note-detail-endorsement-header">
+                <FiAward />
+                <span>{t('note_detail_endorsement_title') || 'Rate Participants'}</span>
+              </div>
+              <p className="note-detail-endorsement-desc">
+                {t('note_detail_endorsement_desc') || 'You haven\'t rated all participants yet.'}
+              </p>
+              <div className="note-detail-endorsement-pending">
+                {pendingParticipants
+                  .filter(p => !p.alreadyEndorsed)
+                  .slice(0, 3)
+                  .map((p, idx) => (
+                    <div key={p.userId} className="endorsement-pending-avatar" style={{ zIndex: 10 - idx }}>
+                      {p.photoUrl ? (
+                        <img src={p.photoUrl} alt={p.username} />
+                      ) : (
+                        <div className="endorsement-pending-default">
+                          {p.username.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                {pendingParticipants.filter(p => !p.alreadyEndorsed).length > 3 && (
+                  <span className="endorsement-pending-more">
+                    +{pendingParticipants.filter(p => !p.alreadyEndorsed).length - 3}
+                  </span>
+                )}
+              </div>
+              <button
+                className="note-detail-endorsement-btn"
+                onClick={handleOpenEndorsementModal}
+              >
+                <FiAward size={16} />
+                {t('note_detail_endorsement_button') || 'Rate Now'}
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* Note Content */}
@@ -574,6 +688,15 @@ const NoteDetail: React.FC = () => {
           )}
         </section>
       </main>
+
+      {/* Endorsement Modal */}
+      {note?.sessionId && (
+        <EndorsementFeedbackModal
+          isOpen={isEndorsementModalOpen}
+          onClose={handleCloseEndorsementModal}
+          sessionId={note.sessionId}
+        />
+      )}
 
       <Footer />
     </div>

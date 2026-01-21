@@ -91,7 +91,7 @@ export const createPost = async (
 };
 
 // 포스트 수정
-export const updatePost = async (id: string, post: Post, token: string): Promise<Post> => {
+export const updatePost = async (id: string, post: Partial<Post>, token: string): Promise<Post> => {
   setAccessToken(token);
   const response = await axiosInstance.put(`/posts/${id}`, post);
   return response.data;

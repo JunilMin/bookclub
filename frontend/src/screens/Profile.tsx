@@ -35,13 +35,13 @@ const Profile: React.FC = () => {
 
         // Filter created meetings
         const created = allPosts.filter(
-          post => post.creater === user.username
+          post => post.createrId === user.id
         );
         setCreatedMeetings(created);
 
         // Filter participating meetings (where user is a member but not the creator)
         const participating = allPosts.filter(
-          post => post.member?.includes(user.username) && post.creater !== user.username
+          post => post.memberIds?.includes(user.id!) && post.createrId !== user.id
         );
         setParticipatingMeetings(participating);
       } catch (error) {
@@ -149,9 +149,9 @@ const Profile: React.FC = () => {
                     <div className="meetings-list">
                       {createdMeetings.slice(0, 5).map(post => (
                         <div key={post.id} className="meeting-card">
-                          <span className="meeting-book">{post.book}</span>
+                          <span className="meeting-book">{post.bookData?.title}</span>
                           <span className="meeting-date">{formatDate(post.due)}</span>
-                          <span className="meeting-members">{post.member?.length || 0}/{post.capacity}</span>
+                          <span className="meeting-members">{post.memberIds?.length || 0}/{post.capacity}</span>
                         </div>
                       ))}
                     </div>
@@ -175,9 +175,9 @@ const Profile: React.FC = () => {
                     <div className="meetings-list">
                       {participatingMeetings.slice(0, 5).map(post => (
                         <div key={post.id} className="meeting-card">
-                          <span className="meeting-book">{post.book}</span>
+                          <span className="meeting-book">{post.bookData?.title}</span>
                           <span className="meeting-date">{formatDate(post.due)}</span>
-                          <span className="meeting-members">{post.member?.length || 0}/{post.capacity}</span>
+                          <span className="meeting-members">{post.memberIds?.length || 0}/{post.capacity}</span>
                         </div>
                       ))}
                     </div>

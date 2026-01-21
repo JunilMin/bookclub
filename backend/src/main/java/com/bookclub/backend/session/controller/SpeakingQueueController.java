@@ -43,6 +43,35 @@ public class SpeakingQueueController {
     }
 
     /**
+     * REST: Join session and set participant online
+     * This is a backup for WebSocket join message
+     */
+    @PostMapping("/{sessionId}/queue/join")
+    public ResponseEntity<SpeakingQueue> joinQueue(
+            @PathVariable String sessionId,
+            @RequestBody QueueActionMessage message) {
+        logger.info("REST Join received: sessionId={}, userId={}, username={}",
+                sessionId, message.getUserId(), message.getUsername());
+
+        SpeakingQueue queue = speakingQueueService.addParticipant(
+                sessionId,
+                message.getUserId(),
+                message.getUsername(),
+                message.getPhotoUrl(),
+                false
+        );
+
+        logger.info("Participant added via REST. Total: {}, Online: {}",
+                queue.getParticipants().size(),
+                queue.getParticipants().stream().filter(p -> p.isOnline()).count());
+
+        // Broadcast to WebSocket subscribers
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
+        return ResponseEntity.ok(queue);
+    }
+
+    /**
      * REST: Raise/lower hand
      */
     @PostMapping("/{sessionId}/queue/raise-hand")

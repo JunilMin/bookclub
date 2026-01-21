@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from
 import Home from './screens/Home';
 import Board from './screens/Board';
 import PostCreate from './screens/PostCreate';
-import RoomDetail from './screens/RoomDetail';
 import SetUsername from './screens/SetUsername';
 import Register from './screens/Register';
 import Profile from './screens/Profile';

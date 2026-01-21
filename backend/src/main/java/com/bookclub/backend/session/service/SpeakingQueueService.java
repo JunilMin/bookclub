@@ -338,13 +338,26 @@ public class SpeakingQueueService {
     public int getOnlineParticipantCount(String sessionId) {
         Optional<SpeakingQueue> queueOpt = speakingQueueRepository.findFirstBySessionId(sessionId);
         if (queueOpt.isEmpty()) {
+            System.out.println("[getOnlineParticipantCount] No SpeakingQueue found for sessionId: " + sessionId);
             return 0;
         }
 
         SpeakingQueue queue = queueOpt.get();
-        return (int) queue.getParticipants().stream()
+        int totalParticipants = queue.getParticipants().size();
+        int onlineCount = (int) queue.getParticipants().stream()
                 .filter(SessionParticipant::isOnline)
                 .count();
+
+        System.out.println("[getOnlineParticipantCount] sessionId: " + sessionId +
+            ", totalParticipants: " + totalParticipants +
+            ", onlineCount: " + onlineCount);
+
+        // Debug: print each participant's online status
+        queue.getParticipants().forEach(p -> {
+            System.out.println("  - " + p.getUsername() + " (userId: " + p.getUserId() + "): isOnline=" + p.isOnline());
+        });
+
+        return onlineCount;
     }
 
     /**

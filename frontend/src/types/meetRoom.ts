@@ -65,7 +65,7 @@ export interface SpeakingQueue {
 }
 
 export interface QueueActionMessage {
-  action: 'RAISE_HAND' | 'NEXT_SPEAKER' | 'REMOVE';
+  action: 'RAISE_HAND' | 'NEXT_SPEAKER' | 'REMOVE' | 'ADD_PARTICIPANT';
   userId: string;
   username: string;
   photoUrl: string;

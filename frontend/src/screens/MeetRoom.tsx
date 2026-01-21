@@ -10,7 +10,7 @@ import {
 } from 'react-icons/fi';
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
-import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator } from '../api/speakingQueue';
+import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator, joinQueueRest } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
 import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
@@ -60,7 +60,7 @@ const MeetRoom: React.FC = () => {
   const [reportTarget, setReportTarget] = useState<{ userId: string; username: string } | null>(null);
   const [isEndModalOpen, setIsEndModalOpen] = useState(false);
   const [isMeetingEnded, setIsMeetingEnded] = useState(false);
-  const [meetingEndedBy, setMeetingEndedBy] = useState<string | null>(null);
+  const [_meetingEndedBy, setMeetingEndedBy] = useState<string | null>(null);
   const [showEndorsementModal, setShowEndorsementModal] = useState(false);
 
   // WebSocket에서 queue 업데이트를 받았는지 추적 (race condition 방지)
@@ -178,6 +178,30 @@ const MeetRoom: React.FC = () => {
           console.log('Queue from API ignored (WebSocket already received newer data)');
         }
         setRecording(recordingData);
+
+        // REST API로 참가자 추가 (WebSocket 연결 전 백업)
+        // 이렇게 하면 WebSocket 연결 여부와 관계없이 참가자가 온라인으로 표시됨
+        if (user?.id && user?.username) {
+          try {
+            console.log('=== Joining queue via REST API (backup) ===');
+            const updatedQueue = await joinQueueRest(
+              sessionId!,
+              user.id,
+              user.username,
+              user.photoUrl || '',
+              accessToken
+            );
+            if (!hasReceivedWebSocketQueue.current) {
+              setQueue(updatedQueue);
+            }
+            console.log('Queue updated via REST join:', {
+              participants: updatedQueue?.participants?.length || 0,
+              onlineCount: updatedQueue?.participants?.filter((p: any) => p.isOnline).length || 0,
+            });
+          } catch (restJoinErr) {
+            console.error('Failed to join queue via REST:', restJoinErr);
+          }
+        }
 
         console.log('Initial data loaded:', {
           sessionId: sessionData.sessionId,

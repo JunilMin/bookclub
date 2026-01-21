@@ -106,12 +106,12 @@ export function useCollaborativeEditor({
     const content = JSON.stringify(editorRef.current.getJSON());
 
     try {
-      await updateNotes(docId, content, username, accessToken);
+      await updateNotes(docId, content, userId, username, accessToken);
       console.log('Notes saved to database');
     } catch (error) {
       console.error('Failed to save notes to database:', error);
     }
-  }, [docId, username, accessToken]);
+  }, [docId, userId, username, accessToken]);
 
   const debouncedSaveToDatabase = useCallback(() => {
     if (dbSaveTimerRef.current) {

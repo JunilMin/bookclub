@@ -72,7 +72,7 @@ const PostCreate: React.FC = () => {
       const loadBookByISBN = async () => {
         setIsSearching(true);
         try {
-          const book = await getBookByISBN(state.isbn);
+          const book = await getBookByISBN(state.isbn!);
           if (book) {
             setForm(prev => ({ ...prev, selectedBook: book }));
             setBookSearch(book.title);

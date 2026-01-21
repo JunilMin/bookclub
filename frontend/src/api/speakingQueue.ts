@@ -11,6 +11,27 @@ export const getQueue = async (sessionId: string, token: string): Promise<Speaki
 };
 
 /**
+ * Join session via REST (backup for WebSocket join)
+ */
+export const joinQueueRest = async (
+  sessionId: string,
+  userId: string,
+  username: string,
+  photoUrl: string,
+  token: string
+): Promise<SpeakingQueue> => {
+  setAccessToken(token);
+  const message: QueueActionMessage = {
+    action: 'RAISE_HAND', // Action doesn't matter for this endpoint
+    userId,
+    username,
+    photoUrl,
+  };
+  const response = await axiosInstance.post(`/sessions/${sessionId}/queue/join`, message);
+  return response.data;
+};
+
+/**
  * Raise/lower hand
  */
 export const raiseHand = async (

@@ -168,7 +168,7 @@ const Meet: React.FC = () => {
                 <FiBookOpen className="meet-detail-icon" />
                 <div>
                   <span className="meet-detail-label">{t('browse_modal_host') || 'Host'}</span>
-                  <span className="meet-detail-value">{post.creater}</span>
+                  <span className="meet-detail-value">{post.createrId}</span>
                 </div>
               </div>
               {post.isbn && (
