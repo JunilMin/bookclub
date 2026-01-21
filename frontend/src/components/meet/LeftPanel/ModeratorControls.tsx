@@ -14,6 +14,8 @@ import {
   FiRotateCcw,
   FiSlash,
   FiFlag,
+  FiChevronDown,
+  FiChevronUp,
 } from 'react-icons/fi';
 import {
   DndContext,
@@ -154,6 +156,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   const { t } = useTranslation();
   const [speakerTime, setSpeakerTime] = useState('0:00');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [showOfflineParticipants, setShowOfflineParticipants] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -470,6 +473,105 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
             );
           })}
         </ul>
+
+        {/* Offline Participants Toggle Button */}
+        {queue?.participants?.some(p => !p.isOnline) && (
+          <>
+            <button
+              className="offline-toggle-btn"
+              onClick={() => setShowOfflineParticipants(!showOfflineParticipants)}
+            >
+              {showOfflineParticipants ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+            </button>
+
+            {/* Offline Participants List */}
+            <div className={`offline-participants-section ${showOfflineParticipants ? 'expanded' : ''}`}>
+              <div className="offline-participants-content">
+                <div className="offline-participants-header">
+                  <h4>{t('meet_offline_participants') || 'Offline'} ({queue.participants.filter(p => !p.isOnline).length})</h4>
+                </div>
+                <ul className="offline-participants-list">
+                  {queue.participants.filter(p => !p.isOnline).map((participant) => {
+                    const canKick = isCreator && participant.userId !== currentUserId;
+                    const canReport = participant.userId !== currentUserId;
+                    const alreadyReported = reportedUserIds?.includes(participant.userId) || false;
+                    const isDropdownOpen = openDropdownId === `offline-${participant.userId}`;
+
+                    return (
+                      <li key={participant.userId} className="participant-item offline">
+                        {participant.photoUrl ? (
+                          <img
+                            src={participant.photoUrl}
+                            alt={participant.username}
+                            className="participant-avatar"
+                          />
+                        ) : (
+                          <div className="participant-avatar-placeholder">
+                            <FiUser size={14} />
+                          </div>
+                        )}
+                        <span className="participant-name">{participant.username}</span>
+                        <span className="online-status offline"></span>
+
+                        {/* More options dropdown for offline participants */}
+                        {(canKick || canReport) && (
+                          <div className="participant-more-wrapper">
+                            <button
+                              className="participant-more-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenDropdownId(isDropdownOpen ? null : `offline-${participant.userId}`);
+                              }}
+                              title={t('meet_more_options') || 'More options'}
+                            >
+                              <FiMoreVertical size={14} />
+                            </button>
+                            {isDropdownOpen && (
+                              <div className="participant-dropdown">
+                                {canKick && (
+                                  <button
+                                    className="participant-dropdown-item kick"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleKick(participant.userId);
+                                    }}
+                                  >
+                                    <FiUserX size={14} />
+                                    <span>{t('meet_kick_participant') || 'Kick'}</span>
+                                  </button>
+                                )}
+                                {canReport && (
+                                  <button
+                                    className={`participant-dropdown-item report ${alreadyReported ? 'disabled' : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!alreadyReported && onReportParticipant) {
+                                        onReportParticipant(participant.userId, participant.username);
+                                        setOpenDropdownId(null);
+                                      }
+                                    }}
+                                    disabled={alreadyReported}
+                                  >
+                                    <FiFlag size={14} />
+                                    <span>
+                                      {alreadyReported
+                                        ? (t('meet_already_reported') || 'Already Reported')
+                                        : (t('meet_report_participant') || 'Report')}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Speaking Log */}

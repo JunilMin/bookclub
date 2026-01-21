@@ -269,6 +269,7 @@ const Board: React.FC = () => {
   const { accessToken, user } = useAuth();
   const gridRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
 
   // Zustand store - select stable references directly
   const {
@@ -305,6 +306,8 @@ const Board: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('latest');
   const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [showEndedMeetings, setShowEndedMeetings] = useState(false);
+  const [isEndedSectionClosing, setIsEndedSectionClosing] = useState(false);
 
   // Search debounce timer
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -496,14 +499,14 @@ const Board: React.FC = () => {
 
     // Tab filter
     if (activeTab === 'my') {
-      result = result.filter(room => room.isMyRoom);
+      // 내 토론방: 종료된 미팅은 별도 섹션에서 표시
+      result = result.filter(room => room.isMyRoom && room.status !== 'past');
     } else if (activeTab === 'joined') {
-      result = result.filter(room => room.isJoined && !room.isMyRoom);
+      // 참여 중: 종료된 미팅은 별도 섹션에서 표시
+      result = result.filter(room => room.isJoined && !room.isMyRoom && room.status !== 'past');
     } else {
-      // 'all' tab: 종료된 미팅은 참가자/주최자가 아니면 숨김
-      result = result.filter(room =>
-        room.status !== 'past' || room.isJoined || room.isMyRoom
-      );
+      // 전체 탭: 종료된 미팅은 표시하지 않음
+      result = result.filter(room => room.status !== 'past');
     }
 
     // Search filter
@@ -551,6 +554,30 @@ const Board: React.FC = () => {
 
   const hasMore = filteredRooms.length > displayCount;
 
+  // 종료된 미팅 필터링 (내 토론방 / 참여 중 탭에서만 사용)
+  const endedMeetings = useMemo(() => {
+    if (activeTab === 'all') return [];
+
+    let result = [...rooms];
+
+    // Language-based API filter
+    const currentLang = i18n.language;
+    const targetApi = currentLang === 'ko' ? 'naver' : 'google';
+    result = result.filter(room => !room.api || room.api === targetApi);
+
+    // Tab filter + 종료된 미팅만
+    if (activeTab === 'my') {
+      result = result.filter(room => room.isMyRoom && room.status === 'past');
+    } else if (activeTab === 'joined') {
+      result = result.filter(room => room.isJoined && !room.isMyRoom && room.status === 'past');
+    }
+
+    // Sort by latest
+    result.sort((a, b) => new Date(b.dueISO).getTime() - new Date(a.dueISO).getTime());
+
+    return result;
+  }, [rooms, activeTab, i18n.language]);
+
   // ==========================================================================
   // Infinite Scroll with IntersectionObserver
   // ==========================================================================
@@ -594,6 +621,8 @@ const Board: React.FC = () => {
   // ==========================================================================
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
+    setShowEndedMeetings(false); // Reset ended meetings section when switching tabs
+    setIsEndedSectionClosing(false);
     if (accessToken) {
       refreshNow('tab-change', accessToken, user?.id);
       scheduleNextPoll(accessToken, user?.id);
@@ -607,6 +636,25 @@ const Board: React.FC = () => {
       scheduleNextPoll(accessToken, user?.id);
     }
   }, [accessToken, user?.id, refreshNow, scheduleNextPoll]);
+
+  // Toggle ended meetings section with animation
+  const handleToggleEndedMeetings = useCallback(() => {
+    if (showEndedMeetings) {
+      // Closing: scroll so hero is hidden (hero bottom at viewport top)
+      if (heroRef.current) {
+        const heroBottom = heroRef.current.getBoundingClientRect().bottom + window.scrollY;
+        window.scrollTo({ top: heroBottom, behavior: 'smooth' });
+      }
+      setIsEndedSectionClosing(true);
+      setTimeout(() => {
+        setShowEndedMeetings(false);
+        setIsEndedSectionClosing(false);
+      }, 500); // Match animation duration
+    } else {
+      // Opening
+      setShowEndedMeetings(true);
+    }
+  }, [showEndedMeetings]);
 
   // ==========================================================================
   // Action Handlers
@@ -700,7 +748,7 @@ const Board: React.FC = () => {
       )}
 
       {/* Hero Section */}
-      <section className="board-hero">
+      <section className="board-hero" ref={heroRef}>
         <div className="board-hero-content">
           <span className="board-hero-badge">
             {t('browse_hero_badge')}
@@ -795,26 +843,36 @@ const Board: React.FC = () => {
 
         {/* Tabs */}
         <div className="board-tabs">
-          <button
-            className={`board-tab ${activeTab === 'all' ? 'active' : ''}`}
-            onClick={() => handleTabChange('all')}
-          >
-            {t('browse_tab_all')}
-          </button>
-          <button
-            className={`board-tab ${activeTab === 'my' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
-            onClick={() => accessToken ? handleTabChange('my') : navigate('/login')}
-            disabled={!accessToken}
-          >
-            {t('browse_tab_my')}
-          </button>
-          <button
-            className={`board-tab ${activeTab === 'joined' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
-            onClick={() => accessToken ? handleTabChange('joined') : navigate('/login')}
-            disabled={!accessToken}
-          >
-            {t('browse_tab_joined')}
-          </button>
+          <div className="board-tabs-left">
+            <button
+              className={`board-tab ${activeTab === 'all' ? 'active' : ''}`}
+              onClick={() => handleTabChange('all')}
+            >
+              {t('browse_tab_all')}
+            </button>
+            <button
+              className={`board-tab ${activeTab === 'my' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+              onClick={() => accessToken ? handleTabChange('my') : navigate('/login')}
+              disabled={!accessToken}
+            >
+              {t('browse_tab_my')}
+            </button>
+            <button
+              className={`board-tab ${activeTab === 'joined' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+              onClick={() => accessToken ? handleTabChange('joined') : navigate('/login')}
+              disabled={!accessToken}
+            >
+              {t('browse_tab_joined')}
+            </button>
+          </div>
+          {(activeTab === 'my' || activeTab === 'joined') && endedMeetings.length > 0 && (
+            <button
+              className={`board-ended-meetings-btn ${showEndedMeetings ? 'active' : ''}`}
+              onClick={handleToggleEndedMeetings}
+            >
+              {t('browse_ended_meetings') || '종료된 북미팅'} ({endedMeetings.length})
+            </button>
+          )}
         </div>
       </section>
 
@@ -985,6 +1043,110 @@ const Board: React.FC = () => {
           </>
         )}
       </section>
+
+      {/* Ended Meetings Section */}
+      {(activeTab === 'my' || activeTab === 'joined') && endedMeetings.length > 0 && (
+        <section className={`board-ended-section ${isEndedSectionClosing ? 'closing' : showEndedMeetings ? 'open' : 'closed'}`}>
+          <div className="board-ended-content">
+            <div className="board-ended-content-inner">
+              <div className="board-ended-header">
+              <h2>{t('browse_ended_meetings') || '종료된 북미팅'}</h2>
+              <span className="board-ended-count">{endedMeetings.length}개</span>
+            </div>
+            <div className="board-grid ended">
+              {endedMeetings.map((room, index) => (
+                <div
+                  key={room.id}
+                  className="room-card ended"
+                  onClick={() => handleRoomClick(room)}
+                >
+                  {/* Cover */}
+                  <div
+                    className="room-card-cover"
+                    style={{
+                      backgroundImage: `url(${getPostBackground(index)})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    }}
+                  >
+                    <div className="book-container">
+                      <div className="book">
+                        <div className="book-front">
+                          <div className="book-cover">
+                            <img
+                              src={room.book.cover.small || room.book.cover.medium || generateBookCoverPlaceholder(room.book.title)}
+                              alt={room.book.title}
+                              loading="lazy"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                if (!target.src.startsWith('data:image/svg+xml')) {
+                                  target.src = generateBookCoverPlaceholder(room.book.title);
+                                }
+                              }}
+                            />
+                            <p className="book-author">{room.book.author}</p>
+                          </div>
+                        </div>
+                        <div className="book-left-side">
+                          <h2 style={{ display: 'flex', justifyContent: 'space-around' }}>
+                            <span>{room.book.title}</span>
+                            <span>{room.book.author}</span>
+                            <span>Mamalias</span>
+                          </h2>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="room-status-badge past">
+                      {t('browse_card_past')}
+                    </span>
+                    {room.isMyRoom && (
+                      <span className="room-my-badge">{t('browse_card_my_room')}</span>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="room-card-content">
+                    <h3 className="room-card-title">{room.title}</h3>
+                    <p className="room-card-book">
+                      {room.book.title} by {room.book.author}
+                    </p>
+
+                    {/* Host */}
+                    <div className="room-card-host">
+                      <img src={room.hostAvatar} alt={room.host} className="room-host-avatar" />
+                      <span>{t('browse_card_hosted_by')} {room.host}</span>
+                    </div>
+
+                    {/* Meta */}
+                    <div className="room-card-meta">
+                      <span className="room-meta-item">
+                        <FiCalendar size={14} />
+                        {formatDate(room.dueISO)} {formatTime(room.dueISO)}
+                      </span>
+                      <span className="room-meta-item">
+                        <FiUsers size={14} />
+                        {room.participants}/{room.maxParticipants} {t('browse_card_participants')}
+                      </span>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      className="room-card-btn past joined"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRoom(room);
+                      }}
+                    >
+                      {t('browse_card_view_details')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Room Modal */}
       {selectedRoom && (

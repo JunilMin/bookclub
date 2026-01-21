@@ -266,6 +266,7 @@ const ko = {
   browse_tab_all: '전체 토론방',
   browse_tab_my: '내 토론방',
   browse_tab_joined: '참여 중',
+  browse_ended_meetings: '종료된 북미팅',
 
   browse_card_live: '진행 중',
   browse_card_waiting: '대기 중',
@@ -382,6 +383,7 @@ const ko = {
   meet_next: '다음',
   meet_queue_empty: '대기열에 아무도 없습니다',
   meet_participants: '참가자',
+  meet_offline_participants: '오프라인',
   meet_host: '호스트',
   meet_moderator: '사회자',
   meet_delegate_moderator: '사회자 위임',

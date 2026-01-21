@@ -40,9 +40,147 @@
 - **세션 종료 시 Fork**: 공유 노트를 각 멤버에게 개인 복사본으로 분배
 - **포스트 애니메이션**: 카드 hover 효과
 
+### Phase 7: Board 페이지 UX 개선
+- **Room Status Badge 수정**: WebSocket + REST API 백업으로 "진행중" 상태 정확히 표시
+- **종료된 미팅 필터링**: 탭별 표시 규칙 구현
+- **종료된 북미팅 버튼**: 슬라이드 애니메이션 + 자동 스크롤
+
+### Phase 8: MeetRoom 참가자 관리 개선
+- **오프라인 참가자 섹션**: 참가자 목록 하단에 펼침 버튼 추가
+- **반원형 토글 버튼**: 아래 화살표로 오프라인 참가자 목록 펼치기/접기
+- **투명한 UI**: 오프라인 참가자는 60% 투명도로 표시
+- **강퇴/신고 기능**: 오프라인 참가자에 대해서도 강퇴, 신고 가능
+
 ---
 
 ## 최근 세션 완료 작업 (현재)
+
+### 1. 오프라인 참가자 섹션 구현
+MeetRoom의 참가자 목록에서 오프라인 참가자를 별도로 표시하는 기능
+
+#### 기능
+- **토글 버튼**: participants-section 하단 중앙에 반원형 버튼 (↓/↑ 아이콘)
+- **표시 조건**: 오프라인 참가자가 1명 이상일 때만 버튼 표시
+- **펼치기/접기**: 슬라이드 애니메이션 (`grid-template-rows` 트랜지션)
+- **투명한 UI**: 오프라인 참가자 아이템에 `opacity: 0.6` 적용
+- **강퇴/신고**: 오프라인 참가자에 대해서도 동일하게 동작
+
+#### 변경된 파일
+**Frontend:**
+- `frontend/src/components/meet/LeftPanel/ModeratorControls.tsx`
+  - `showOfflineParticipants` 상태 추가
+  - `FiChevronDown`, `FiChevronUp` 아이콘 import
+  - 오프라인 토글 버튼 및 섹션 JSX 추가
+- `frontend/src/components/meet/styles/LeftPanel.css`
+  - `.offline-toggle-btn`: 반원형 버튼 스타일
+  - `.offline-participants-section`: 펼침 애니메이션
+  - `.offline-participants-content`: overflow hidden 래퍼
+  - `.participant-item.offline`: 투명도 스타일
+
+**i18n:**
+- `frontend/src/language/ko.tsx` - `meet_offline_participants: '오프라인'`
+- `frontend/src/language/en.tsx` - `meet_offline_participants: 'Offline'`
+
+---
+
+### 2. Room Status Badge "진행중" 표시 수정
+WebSocket JOIN 메시지가 연결 전에 전송되어 실패하는 문제 해결
+
+#### 해결 방법
+- REST API 백업 엔드포인트 추가
+- MeetRoom 진입 시 WebSocket + REST 이중 호출로 안정성 확보
+
+#### 변경된 파일
+**Backend:**
+- `backend/src/main/java/com/bookclub/backend/session/controller/SpeakingQueueController.java`
+  - `POST /api/sessions/{sessionId}/queue/join` 엔드포인트 추가
+  - WebSocket broadcast도 함께 수행
+
+**Frontend:**
+- `frontend/src/api/speakingQueue.ts`
+  - `joinQueueRest()` 함수 추가
+- `frontend/src/screens/MeetRoom.tsx`
+  - 세션 로드 후 REST API로 queue join 호출 (WebSocket 백업)
+
+---
+
+### 2. 종료된 미팅 필터링 로직 변경
+#### 탭별 표시 규칙
+| 탭 | 종료된 미팅 표시 |
+|---|---|
+| 전체 (all) | 숨김 |
+| 내 토론방 (my) | 별도 섹션에 표시 |
+| 참여 중 (joined) | 별도 섹션에 표시 |
+
+#### 변경된 파일
+- `frontend/src/screens/Board.tsx`
+  - `filteredRooms`: 모든 탭에서 `status !== 'past'` 필터링
+  - `endedMeetings`: 종료된 미팅만 별도 useMemo로 필터링
+
+---
+
+### 3. "종료된 북미팅" 버튼 및 섹션 구현
+내 토론방/참여 중 탭에서 종료된 미팅을 별도 섹션으로 표시
+
+#### 기능
+- **버튼 위치**: `board-tabs` 우측 끝
+- **표시 조건**: `activeTab === 'my' || activeTab === 'joined'` && `endedMeetings.length > 0`
+- **클릭 동작**: 하단에 종료된 북미팅 섹션 토글
+
+#### 슬라이드 애니메이션
+- **열기**: `grid-template-rows: 0fr → 1fr` + opacity 페이드 인
+- **닫기**: `grid-template-rows: 1fr → 0fr` + opacity 페이드 아웃
+- **구조**: section > content (overflow:hidden, min-height:0) > content-inner (실제 콘텐츠)
+
+```css
+/* 핵심 CSS */
+.board-ended-section {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.5s ease;
+}
+.board-ended-section.closed,
+.board-ended-section.closing {
+  grid-template-rows: 0fr;
+}
+.board-ended-content {
+  overflow: hidden;
+  min-height: 0;
+}
+```
+
+#### 닫을 때 자동 스크롤
+- `board-hero` 하단으로 부드럽게 스크롤 (hero가 화면 밖으로 사라짐)
+- `board-filters`가 화면 상단에 위치
+
+```tsx
+const heroBottom = heroRef.current.getBoundingClientRect().bottom + window.scrollY;
+window.scrollTo({ top: heroBottom, behavior: 'smooth' });
+```
+
+#### 변경된 파일
+**Frontend:**
+- `frontend/src/screens/Board.tsx`
+  - `showEndedMeetings`, `isEndedSectionClosing` 상태 추가
+  - `handleToggleEndedMeetings` 핸들러 (애니메이션 + 스크롤)
+  - `heroRef` 추가
+  - `endedMeetings` useMemo
+  - 종료된 북미팅 섹션 JSX
+- `frontend/src/screens/styles/Board.css`
+  - `.board-tabs` flex layout (좌: 탭, 우: 버튼)
+  - `.board-tabs-left` 탭 래퍼
+  - `.board-ended-meetings-btn` 버튼 스타일
+  - `.board-ended-section` 슬라이드 애니메이션
+  - `.board-ended-content`, `.board-ended-content-inner` 구조
+  - `.board-ended-header`, `.board-ended-count` 헤더 스타일
+
+**i18n:**
+- `frontend/src/language/ko.tsx` - `browse_ended_meetings: '종료된 북미팅'`
+- `frontend/src/language/en.tsx` - `browse_ended_meetings: 'Ended Meetings'`
+
+---
+
+## 이전 세션 완료 작업
 
 ### 1. Room Card 배경 이미지 시스템
 - 5개의 랜덤 배경 이미지 사용
@@ -381,3 +519,27 @@ if (user.getPosts() != null) {
 - [ ] 북미팅 탈퇴 시 posts.participated에서 제거
 - [ ] 북미팅 삭제 시 posts.created에서 제거
 - [ ] Notes 페이지에서 사용자의 모든 노트 정상 조회
+
+### Room Status Badge
+- [ ] MeetRoom 진입 시 "진행중" 상태 즉시 표시
+- [ ] Board 페이지에서 누군가 미팅룸에 있으면 "진행중" 뱃지 표시
+- [ ] WebSocket 연결 전에도 REST API로 참가 처리됨
+
+### 종료된 북미팅 기능
+- [ ] 전체 탭: 종료된 미팅 숨김
+- [ ] 내 토론방 탭: "종료된 북미팅" 버튼 표시 (종료된 미팅 있을 때)
+- [ ] 참여 중 탭: "종료된 북미팅" 버튼 표시 (종료된 미팅 있을 때)
+- [ ] 버튼 클릭: 슬라이드 다운 애니메이션으로 섹션 열림
+- [ ] 버튼 재클릭: 슬라이드 업 애니메이션 + 상단 스크롤
+- [ ] 스크롤: board-hero 하단으로 부드럽게 이동
+- [ ] 탭 전환 시: 종료된 북미팅 섹션 자동 닫힘
+- [ ] 모바일 반응형: 버튼 전체 너비, 패딩 조정
+
+### 오프라인 참가자 섹션
+- [ ] 오프라인 참가자가 있을 때 반원형 토글 버튼 표시
+- [ ] 버튼 클릭 시 슬라이드 다운 애니메이션으로 오프라인 목록 표시
+- [ ] 오프라인 참가자 항목에 투명도 적용 (60%)
+- [ ] 오프라인 참가자에 대해 강퇴 기능 동작
+- [ ] 오프라인 참가자에 대해 신고 기능 동작
+- [ ] 버튼 재클릭 시 슬라이드 업 애니메이션으로 목록 숨김
+- [ ] 아이콘: 펼침 시 ↑, 접힘 시 ↓

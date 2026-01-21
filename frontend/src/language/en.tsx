@@ -266,6 +266,7 @@ const en = {
   browse_tab_all: 'All Rooms',
   browse_tab_my: 'My Rooms',
   browse_tab_joined: 'Joined',
+  browse_ended_meetings: 'Ended Meetings',
 
   browse_card_live: 'Live',
   browse_card_waiting: 'Waiting',
@@ -382,6 +383,7 @@ const en = {
   meet_next: 'Next',
   meet_queue_empty: 'No one in queue',
   meet_participants: 'Participants',
+  meet_offline_participants: 'Offline',
   meet_host: 'Host',
   meet_moderator: 'Moderator',
   meet_delegate_moderator: 'Delegate moderator',

@@ -328,6 +328,7 @@
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: visible;
 }
 
 .participants-header {
@@ -751,4 +752,89 @@
 
 .restore-btn svg {
   flex-shrink: 0;
+}
+
+/* Offline Participants Toggle Button */
+.offline-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 24px;
+  margin: 12px auto 0;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0 0 24px 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #6b7280;
+}
+
+.offline-toggle-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* Offline Participants Section */
+.offline-participants-section {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+  margin-top: 8px;
+}
+
+.offline-participants-section.expanded {
+  grid-template-rows: 1fr;
+}
+
+.offline-participants-content {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Allow dropdown to overflow when expanded */
+.offline-participants-section.expanded .offline-participants-content {
+  overflow: visible;
+}
+
+.offline-participants-header {
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.offline-participants-header h4 {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin: 0 0 8px;
+}
+
+.offline-participants-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Offline participant item - slightly transparent */
+.participant-item.offline {
+  opacity: 0.6;
+}
+
+.participant-item.offline:hover {
+  opacity: 0.8;
+}
+
+/* Offline participants dropdown - position above to avoid overflow clipping */
+.offline-participants-list .participant-dropdown {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 4px;
+  z-index: 200;
+}
+
+/* Ensure offline participant items can show dropdown */
+.offline-participants-list .participant-more-wrapper {
+  position: relative;
+  z-index: 150;
 }
