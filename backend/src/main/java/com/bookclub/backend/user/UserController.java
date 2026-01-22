@@ -1,6 +1,7 @@
 package com.bookclub.backend.user;
 
 import com.bookclub.backend.moderation.PerspectiveService;
+import com.bookclub.backend.user.dto.UserReputationResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,12 +21,23 @@ public class UserController {
     @Autowired
     private PerspectiveService perspectiveService;
 
+    @Autowired
+    private UserReputationService userReputationService;
+
     /**
      * 모든 사용자 조회
      */
     @GetMapping
     public List<User> getAllUsers() {
         return userService.getAllUsers();
+    }
+
+    /**
+     * 총 사용자 수 조회 (공개 API)
+     */
+    @GetMapping("/count")
+    public ResponseEntity<Long> getUserCount() {
+        return ResponseEntity.ok(userService.getUserCount());
     }
 
     /**
@@ -167,6 +179,48 @@ public class UserController {
             return ResponseEntity.ok(user);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(null);
+        }
+    }
+
+    /**
+     * 사용자 평판 및 활동 데이터 조회
+     * @param userId 사용자 ID
+     * @param locale 언어 (ko, en)
+     */
+    @GetMapping("/{userId}/reputation")
+    public ResponseEntity<UserReputationResponse> getUserReputation(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "ko") String locale) {
+        try {
+            UserReputationResponse response = userReputationService.getUserReputation(userId, locale);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * 현재 로그인한 사용자의 평판 및 활동 데이터 조회
+     */
+    @GetMapping("/me/reputation")
+    public ResponseEntity<?> getMyReputation(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(defaultValue = "ko") String locale) {
+        try {
+            String cleanToken = token;
+            if (cleanToken.startsWith("Bearer ")) {
+                cleanToken = cleanToken.substring(7);
+            }
+
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            UserReputationResponse response = userReputationService.getUserReputation(userOpt.get().getId(), locale);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
         }
     }
 }

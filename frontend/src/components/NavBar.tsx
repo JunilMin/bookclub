@@ -17,20 +17,27 @@ function NavBar() {
 
     return (
         <div className='nav-container'>
-            <div className='left-nav-wrap'>
-                <Link to="/">{t('nav_home')}</Link>
-                <Link to="/board">{t('nav_dashboard')}</Link>
-                <Link to="/about">{t('nav_about')}</Link>
-            </div>
-            <div className='right-nav-wrap'>
-                <LanguageToggle />
-                {isLoading ? (
-                    <span>{t('loading')}</span>
-                ) : user ? (
-                    <AccountDropdown />
-                ) : (
-                    <Button style="filled" title={t('nav_login')} size="normal" onClick={handleLoginClick}/>
-                )}
+            <div className='nav-wrapper'>
+                <div className='nav-inner-container'>
+                    <div className='left-nav-wrap'>
+                        <p>Mamalias</p>
+                    </div>
+                    <div className='mid-nav-wrap'>
+                        <Link to="/">{t('nav_home')}</Link>
+                        <Link to="/board">{t('nav_dashboard')}</Link>
+                        <Link to="/about">{t('nav_about')}</Link>
+                    </div>
+                    <div className='right-nav-wrap'>
+                        <LanguageToggle />
+                        {isLoading ? (
+                            <span>{t('loading')}</span>
+                        ) : user ? (
+                            <AccountDropdown />
+                        ) : (
+                            <Button style="filled" title={t('nav_login')} size="normal" onClick={handleLoginClick}/>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

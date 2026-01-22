@@ -332,6 +332,9 @@
 }
 
 .participants-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 12px;
 }
 
@@ -758,16 +761,15 @@
 .offline-toggle-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 24px;
-  margin: 12px auto 0;
+  gap: 6px;
+  padding: 4px 10px;
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
-  border-radius: 0 0 24px 24px;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s;
   color: #6b7280;
+  font-size: 12px;
 }
 
 .offline-toggle-btn:hover {
@@ -775,12 +777,34 @@
   color: #374151;
 }
 
+.offline-toggle-btn.active {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.offline-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+
+.offline-toggle-btn.active .offline-indicator {
+  background: #dc2626;
+}
+
+.offline-count {
+  font-weight: 600;
+}
+
 /* Offline Participants Section */
 .offline-participants-section {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.3s ease;
-  margin-top: 8px;
+  margin-top: 12px;
+  border-top: 1px dashed #e5e7eb;
 }
 
 .offline-participants-section.expanded {
@@ -798,8 +822,7 @@
 }
 
 .offline-participants-header {
-  padding-top: 8px;
-  border-top: 1px dashed #e5e7eb;
+  padding-top: 12px;
 }
 
 .offline-participants-header h4 {

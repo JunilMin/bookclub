@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
 import { getAllPosts, Post } from '../api/posts';
+import HexagonChart from '../components/HexagonChart';
 import './styles/Profile.css';
 
 const Profile: React.FC = () => {
@@ -93,8 +94,8 @@ const Profile: React.FC = () => {
           <p className="profile-email">{user.email}</p>
           <div className="profile-stats">
             <div className="stat-item">
-              <span className="stat-value">{user.rating || 0}</span>
-              <span className="stat-label">{t('profile_rating')}</span>
+              <span className="stat-value">{user.endorsementStats?.points || 0}</span>
+              <span className="stat-label">{t('profile_total_points')}</span>
             </div>
             <div className="stat-item">
               <span className="stat-value">{createdMeetings.length}</span>
@@ -197,14 +198,35 @@ const Profile: React.FC = () => {
             {activeSection === 'activity' && (
               <div className="profile-section">
                 <h2 className="section-title">{t('dropdown_reputation_activity')}</h2>
-                <div className="activity-stats">
-                  <div className="activity-card">
-                    <div className="activity-icon rating-icon">&#11088;</div>
-                    <div className="activity-info">
-                      <span className="activity-value">{user.rating || 0}</span>
-                      <span className="activity-label">{t('profile_rating')}</span>
+
+                {/* Endorsement Hexagon Chart */}
+                <div className="endorsement-chart-section">
+                  <h3>{t('profile_endorsement_chart')}</h3>
+                  <HexagonChart
+                    data={user.endorsementStats?.categoryCounts || {}}
+                  />
+                  <div className="endorsement-summary">
+                    <div className="endorsement-stat">
+                      <span className="endorsement-stat-value">
+                        {user.endorsementStats?.count || 0}
+                      </span>
+                      <span className="endorsement-stat-label">
+                        {t('profile_total_endorsements')}
+                      </span>
+                    </div>
+                    <div className="endorsement-stat">
+                      <span className="endorsement-stat-value">
+                        {user.endorsementStats?.points || 0}
+                      </span>
+                      <span className="endorsement-stat-label">
+                        {t('profile_total_points')}
+                      </span>
                     </div>
                   </div>
+                </div>
+
+                {/* Activity Stats */}
+                <div className="activity-stats">
                   <div className="activity-card">
                     <div className="activity-icon absent-icon">&#10060;</div>
                     <div className="activity-info">
@@ -217,6 +239,13 @@ const Profile: React.FC = () => {
                     <div className="activity-info">
                       <span className="activity-value">{user.late || 0}</span>
                       <span className="activity-label">{t('profile_late')}</span>
+                    </div>
+                  </div>
+                  <div className="activity-card">
+                    <div className="activity-icon kicked-icon">&#128683;</div>
+                    <div className="activity-info">
+                      <span className="activity-value">{user.kicked || 0}</span>
+                      <span className="activity-label">{t('profile_kicked')}</span>
                     </div>
                   </div>
                 </div>

@@ -7,6 +7,28 @@ export interface UserPosts {
   participated?: string[]; // 참여한 북미팅 ID 리스트 (지난/현재 모두)
 }
 
+// Endorsement 통계 타입
+export interface EndorsementStats {
+  count?: number;                          // 총 받은 endorsement 횟수
+  points?: number;                         // 누적 점수
+  categoryCounts?: {                       // 카테고리별 받은 횟수
+    ENGAGEMENT?: number;
+    COMMUNICATION?: number;
+    RESPECT?: number;
+    RULE_ADHERENCE?: number;
+    PREPARATION?: number;
+    REMATCH?: number;
+  };
+  lastEndorsedAt?: string;                 // 마지막 endorsement 받은 시간
+}
+
+// 신고 통계 타입
+export interface ReportedStats {
+  count?: number;
+  lastReportedAt?: string;
+  reasonCounts?: Record<string, number>;
+}
+
 export interface User {
   id?: string;
   uid: string;
@@ -22,7 +44,20 @@ export interface User {
   isEmailVerified?: boolean; // 이메일 인증 여부
   verificationToken?: string; // 이메일 인증 토큰
   photoUrl?: string; // Google 프로필 사진 URL
+  endorsementStats?: EndorsementStats;  // 평가 통계
+  reported?: ReportedStats;  // 신고 통계
 }
+
+// 총 사용자 수 조회 (공개 API)
+export const getUserCount = async (): Promise<number> => {
+  try {
+    const response = await axiosInstance.get('/users/count');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user count:", error);
+    return 0;
+  }
+};
 
 // 회원가입 요청
 export const registerUser = async (user: User, token: string): Promise<User> => {
@@ -170,3 +205,106 @@ export const validateUsernameAPI = async (username: string): Promise<UsernameVal
 //     throw new Error("인증 토큰을 가져오는데 실패했습니다."); // Custom error message
 //   }
 // }
+
+// ========== Reputation API Types & Functions ==========
+
+// 참여 통계
+export interface ParticipationStats {
+  totalParticipated: number;
+  attended: number;
+  absent: number;
+  late: number;
+  kicked: number;
+  created: number;
+  attendanceRate: number;
+  onTimeRate: number;
+}
+
+// Endorsement 통계 DTO
+export interface EndorsementStatsDto {
+  count: number;
+  points: number;
+  categoryCounts: Record<string, number>;
+  categoryScores: Record<string, number>;
+  averageScore: number;
+}
+
+// 배지 정보
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  gradientColors: string;
+  earnedAt?: string;
+  progress?: number;
+  goal?: number;
+}
+
+export interface BadgeInfo {
+  earnedCount: number;
+  totalCount: number;
+  earnedBadges: Badge[];
+  lockedBadges: Badge[];
+}
+
+// 활동 항목
+export interface ActivityItem {
+  type: string;
+  title: string;
+  description: string;
+  icon: string;
+  gradientColors: string;
+  timestamp: string;
+  rating?: number;
+  participantCount?: number;
+  postId?: string;
+}
+
+// 월별 출석 기록
+export interface MonthlyAttendance {
+  month: string;
+  monthLabel: string;
+  attended: number;
+  late: number;
+  absent: number;
+  total: number;
+}
+
+// 사용자 평판 응답 전체
+export interface UserReputationResponse {
+  userId: string;
+  username: string;
+  email: string;
+  photoUrl?: string;
+  joinedAt?: string;
+  participationStats: ParticipationStats;
+  endorsementStats: EndorsementStatsDto;
+  badgeInfo: BadgeInfo;
+  recentActivities: ActivityItem[];
+  monthlyAttendance: MonthlyAttendance[];
+}
+
+// 사용자 평판 데이터 조회 (내 정보)
+export const getMyReputation = async (token: string, locale: string = 'ko'): Promise<UserReputationResponse> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.get(`/users/me/reputation?locale=${locale}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching reputation:", error);
+    throw new Error("평판 데이터를 조회하는데 실패했습니다.");
+  }
+};
+
+// 특정 사용자 평판 데이터 조회
+export const getUserReputation = async (userId: string, token: string, locale: string = 'ko'): Promise<UserReputationResponse> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.get(`/users/${userId}/reputation?locale=${locale}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching user reputation:", error);
+    throw new Error("사용자 평판 데이터를 조회하는데 실패했습니다.");
+  }
+};

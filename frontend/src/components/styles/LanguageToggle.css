@@ -1,34 +1,26 @@
 .language-toggle {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 6px;
     padding: 6px 12px;
     background: transparent;
-    border: 1px solid #ddd;
-    border-radius: 20px;
+    border: none;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 14px;
     font-weight: 500;
-    color: #666;
+    color: #475569;
     transition: all 0.2s ease;
 }
 
 .language-toggle:hover {
-    background-color: #f5f5f5;
-    border-color: #ccc;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.language-toggle svg {
+    flex-shrink: 0;
 }
 
 .language-toggle span {
-    padding: 2px 4px;
-    transition: all 0.2s ease;
-}
-
-.language-toggle span.active {
-    color: #1a73e8;
-    font-weight: 600;
-}
-
-.language-toggle .divider {
-    color: #ccc;
-    font-weight: 300;
+    line-height: 1;
 }

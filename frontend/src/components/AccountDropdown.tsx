@@ -77,8 +77,6 @@ const AccountDropdown: React.FC = () => {
             (e.target as HTMLImageElement).src = defaultAvatar;
           }}
         />
-        <span className="account-username">{user.username}</span>
-        <span className={`dropdown-arrow ${isOpen ? 'open' : ''}`}>&#9662;</span>
       </button>
 
       {/* Dropdown Menu */}
@@ -171,7 +169,7 @@ const AccountDropdown: React.FC = () => {
             </button>
             <button
               className="dropdown-item"
-              onClick={() => handleNavigation('/profile#activity')}
+              onClick={() => handleNavigation('/reputation')}
             >
               <span className="item-icon">&#128202;</span>
               <span>{t('dropdown_reputation_activity')}</span>

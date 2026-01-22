@@ -24,6 +24,13 @@ public class UserService {
     }
 
     /**
+     * 총 사용자 수 조회
+     */
+    public long getUserCount() {
+        return userRepository.count();
+    }
+
+    /**
      * ID로 사용자 조회
      */
     public Optional<User> getUserById(String id) {

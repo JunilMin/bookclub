@@ -360,6 +360,16 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
             <FiUser size={14} />
             {t('meet_participants') || 'Participants'} ({queue?.participants?.filter(p => p.isOnline).length || 0})
           </h3>
+          {queue?.participants?.some(p => !p.isOnline) && (
+            <button
+              className={`offline-toggle-btn ${showOfflineParticipants ? 'active' : ''}`}
+              onClick={() => setShowOfflineParticipants(!showOfflineParticipants)}
+            >
+              <span className="offline-indicator"></span>
+              <span className="offline-count">{queue.participants.filter(p => !p.isOnline).length}</span>
+              {showOfflineParticipants ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
+            </button>
+          )}
         </div>
         <ul className="participants-list">
           {queue?.participants?.filter(p => p.isOnline).map((participant) => {
@@ -474,18 +484,9 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
           })}
         </ul>
 
-        {/* Offline Participants Toggle Button */}
+        {/* Offline Participants List */}
         {queue?.participants?.some(p => !p.isOnline) && (
-          <>
-            <button
-              className="offline-toggle-btn"
-              onClick={() => setShowOfflineParticipants(!showOfflineParticipants)}
-            >
-              {showOfflineParticipants ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
-            </button>
-
-            {/* Offline Participants List */}
-            <div className={`offline-participants-section ${showOfflineParticipants ? 'expanded' : ''}`}>
+          <div className={`offline-participants-section ${showOfflineParticipants ? 'expanded' : ''}`}>
               <div className="offline-participants-content">
                 <div className="offline-participants-header">
                   <h4>{t('meet_offline_participants') || 'Offline'} ({queue.participants.filter(p => !p.isOnline).length})</h4>
@@ -570,7 +571,6 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
                 </ul>
               </div>
             </div>
-          </>
         )}
       </div>
 

@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward, FiWifiOff } from 'react-icons/fi';
 import { Post, BookData, joinBookMeeting, deletePost, updatePostBookData } from '../api/posts';
-import { getUserById } from '../api/user';
+import { getUserById, getUserCount } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import RoomModal, { Room } from '../components/RoomModal';
@@ -308,6 +308,7 @@ const Board: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [showEndedMeetings, setShowEndedMeetings] = useState(false);
   const [isEndedSectionClosing, setIsEndedSectionClosing] = useState(false);
+  const [userCount, setUserCount] = useState<number>(0);
 
   // Search debounce timer
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -323,6 +324,17 @@ const Board: React.FC = () => {
       setActiveTab('joined');
     }
   }, [searchParams]);
+
+  // ==========================================================================
+  // Fetch User Count
+  // ==========================================================================
+  useEffect(() => {
+    const fetchUserCount = async () => {
+      const count = await getUserCount();
+      setUserCount(count);
+    };
+    fetchUserCount();
+  }, []);
 
   // ==========================================================================
   // Initial Load & Polling
@@ -750,21 +762,41 @@ const Board: React.FC = () => {
       {/* Hero Section */}
       <section className="board-hero" ref={heroRef}>
         <div className="board-hero-content">
-          <span className="board-hero-badge">
-            {t('browse_hero_badge')}
-          </span>
-          <h1 className="board-hero-title">
-            {t('browse_hero_title')}
-          </h1>
-          <p className="board-hero-subtitle">
-            {t('browse_hero_subtitle')}
-          </p>
+          <div className="board-hero-badge">
+            <div className="badge-pulse-dot">
+              <div className="pulse-dot"></div>
+              <div className="pulse-ping"></div>
+            </div>
+            <span className="badge-text">{t('browse_hero_badge')}</span>
+            <div className="badge-divider"></div>
+            <div className="badge-readers">
+              <i className="ri-user-line"></i>
+              <span className='badge-text-counter'>{userCount.toLocaleString()} {t('browse_stat_readers')}</span>
+            </div>
+          </div>
+          <div className='board-title-wrap'>
+            <h1 className="board-hero-title-1">
+              {t('browse_hero_title_1')}
+            </h1>
+            <h1 className="board-hero-title-2">
+              {t('browse_hero_title_2')}
+            </h1>
+            <h1 className="board-hero-title-3">
+              {t('browse_hero_title_3')}
+            </h1>
+          </div>
+          <div className='board-hero-subtitle-wrap'>
+            <p className="board-hero-subtitle">
+              {t('browse_hero_subtitle')}
+            </p>
+          </div>
           <div className="board-hero-cta">
-            <button className="board-cta-primary" onClick={handleScrollToGrid}>
-              {t('browse_hero_cta_browse')}
-            </button>
-            <button className="board-cta-secondary" onClick={() => navigate('/board/create')}>
+            
+            <button className="board-cta-primary" onClick={() => navigate('/board/create')}>
               {t('browse_hero_cta_create')}
+            </button>
+            <button className="board-cta-secondary" onClick={handleScrollToGrid}>
+              {t('browse_hero_cta_browse')}
             </button>
           </div>
         </div>

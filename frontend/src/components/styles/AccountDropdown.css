@@ -5,18 +5,13 @@
 .account-trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  border: None;
   background: transparent;
-  border: 1px solid #e0e0e0;
-  border-radius: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  
 }
 
 .account-trigger:hover {
-  background-color: #f5f5f5;
-  border-color: #ccc;
+  opacity: 90%;
 }
 
 .account-avatar {
