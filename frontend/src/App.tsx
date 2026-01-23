@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
-import Home from './screens/Home';
+import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Board from './screens/Board';
 import PostCreate from './screens/PostCreate';
 import SetUsername from './screens/SetUsername';
@@ -51,9 +50,9 @@ const AppContent: React.FC = () => {
       <NavBar />
       <div className="app-container">
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/board" element={<Board />} />
-          <Route path="/board/create" element={<PostCreate />} />
+          <Route path="/" element={<Board />} />
+          <Route path="/board" element={<Navigate to="/" replace />} />
+          <Route path="/create" element={<PostCreate />} />
           <Route path="/meeting/:id" element={<Meeting />} />
           <Route path="/meet/:sessionId" element={<Meet />} />
           <Route path="/meet-room/:sessionId" element={<MeetRoom />} />

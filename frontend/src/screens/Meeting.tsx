@@ -69,7 +69,7 @@ const Meeting: React.FC = () => {
           <FiVideo size={64} />
           <h2>{t('meeting_not_found')}</h2>
           <p>{t('meeting_not_found_desc')}</p>
-          <Link to="/board" className="meeting-back-link">
+          <Link to="/" className="meeting-back-link">
             <FiArrowLeft size={18} />
             {t('meeting_back_to_browse')}
           </Link>
@@ -82,7 +82,7 @@ const Meeting: React.FC = () => {
     <div className="meeting-page">
       {/* Header */}
       <header className="meeting-header">
-        <button className="meeting-back-btn" onClick={() => navigate('/board')}>
+        <button className="meeting-back-btn" onClick={() => navigate('/')}>
           <FiArrowLeft size={20} />
           <span>{t('meeting_back_to_browse')}</span>
         </button>

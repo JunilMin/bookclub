@@ -106,7 +106,7 @@ const Meet: React.FC = () => {
           <FiVideo size={64} />
           <h2>{error || t('meeting_not_found')}</h2>
           <p>{t('meeting_not_found_desc') || 'The meeting you are looking for could not be found.'}</p>
-          <Link to="/board" className="meet-back-link">
+          <Link to="/" className="meet-back-link">
             <FiArrowLeft size={18} />
             {t('meeting_back_to_browse') || 'Back to Browse'}
           </Link>
@@ -121,7 +121,7 @@ const Meet: React.FC = () => {
     <div className="meet-page">
       {/* Header */}
       <header className="meet-header">
-        <button className="meet-back-btn" onClick={() => navigate('/board')}>
+        <button className="meet-back-btn" onClick={() => navigate('/')}>
           <FiArrowLeft size={20} />
           <span>{t('meeting_back_to_browse') || 'Back to Browse'}</span>
         </button>

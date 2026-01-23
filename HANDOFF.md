@@ -55,7 +55,153 @@
 
 ## 최근 세션 완료 작업 (현재)
 
-### 1. 오프라인 참가자 섹션 구현
+### 1. 라우트 구조 변경
+Board 페이지를 홈페이지로 설정
+
+#### 변경 내용
+| 이전 | 이후 | 설명 |
+|------|------|------|
+| `/` | `/` | Board (홈페이지) |
+| `/board` | `/` (redirect) | Board로 리다이렉트 |
+| `/board/create` | `/create` | 토론방 만들기 |
+
+#### 변경된 파일
+**Frontend:**
+- `frontend/src/App.tsx`
+  - `Home` import 제거
+  - `/` → `<Board />`, `/board` → `<Navigate to="/" replace />`
+  - `/board/create` → `/create`
+- `frontend/src/components/NavBar.tsx`
+  - Home 링크 제거, 게시판과 소개만 남김
+  - `/board` → `/`
+- `frontend/src/components/AccountDropdown.tsx`
+  - `/board?filter=...` → `/?filter=...`
+  - `/board/create` → `/create`
+- `frontend/src/components/Footer.tsx`
+  - `/board` → `/`, `/board/create` → `/create`
+- `frontend/src/components/RoomModal.tsx`
+  - `/board/create` → `/create`
+- `frontend/src/screens/Board.tsx`
+  - `navigate('/board/create')` → `navigate('/create')`
+- `frontend/src/screens/Meet.tsx`, `Meeting.tsx`, `MeetRoom.tsx`
+  - `/board` → `/`
+- `frontend/src/screens/Notes.tsx`, `PostCreate.tsx`, `Reputation.tsx`
+  - `/board` → `/`
+- `frontend/src/screens/Profile.tsx`
+  - `/?filter=created`, `/?filter=participating`
+- `frontend/src/AuthContext/GoogleLoginHandler.tsx`
+  - `/board` → `/`
+
+---
+
+### 2. Board 페이지 UI 개선
+
+#### 2.1 CSS 특이성(Specificity) 문제 해결
+`.board-stat-card` 내부 요소 스타일이 적용되지 않는 문제 해결
+
+**원인**: `.board-hero` 부모 요소의 스타일이 오버라이드
+**해결**: 모든 stat 관련 셀렉터에 `.board-stat-card` prefix 추가
+
+```css
+/* 이전 */
+.stat-value { font-size: 48px; }
+
+/* 이후 */
+.board-stat-card .stat-value { font-size: 48px; }
+```
+
+#### 2.2 Feature Badges 섹션 추가
+`board-hero-cta` 하단에 특징 배지 3개 추가
+
+```html
+<div class="board-hero-features">
+  <div class="feature-badge">
+    <div class="feature-icon"><i class="ri-shield-check-line"></i></div>
+    <span>구독 불필요</span>
+  </div>
+  <div class="feature-badge">
+    <div class="feature-icon feature-icon-secondary"><i class="ri-robot-2-line"></i></div>
+    <span>AI 기반 인사이트</span>
+  </div>
+  <div class="feature-badge">
+    <div class="feature-icon feature-icon-primary"><i class="ri-calendar-check-line"></i></div>
+    <span>일회성 모임</span>
+  </div>
+</div>
+```
+
+**i18n 키 추가:**
+- `browse_feature_no_subscription`: '구독 불필요' / 'No Subscription'
+- `browse_feature_ai_insights`: 'AI 기반 인사이트' / 'AI-Powered Insights'
+- `browse_feature_one_time`: '일회성 모임' / 'One-Time Meetings'
+
+#### 2.3 board-grid 가운데 정렬
+```css
+.board-grid {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  justify-content: center;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+```
+
+#### 2.4 room-card-btn 개선
+- **Shine 효과**: `.room-card-btn.joined`에 `.board-cta-primary`와 동일한 hover shine 효과 추가
+- **하단 고정**: `margin-top: auto`로 버튼을 카드 하단에 고정
+- **레이아웃**: `.room-card-book`에 `margin-top: auto` 적용하여 제목만 상단, 나머지 하단
+
+```css
+.room-card-btn.joined::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.7s ease;
+}
+.room-card-btn.joined:hover:not(:disabled)::before {
+  transform: translateX(100%);
+}
+```
+
+#### 2.5 board-ended-meetings-btn 반응형 수정
+작은 화면에서 버튼이 너무 커지는 문제 해결
+
+```css
+@media (max-width: 768px) {
+  .board-ended-meetings-btn {
+    max-width: 150px;
+    text-align: center;
+    padding: 8px 14px;
+    font-size: 13px;
+    height: auto;
+  }
+}
+```
+
+#### 2.6 board-stats 반응형 가운데 정렬
+```css
+@media (max-width: 768px) {
+  .board-stats {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .board-stat-card {
+    width: 100%;
+    max-width: 280px;
+  }
+}
+```
+
+#### 변경된 파일
+- `frontend/src/screens/Board.tsx` - Feature badges JSX, route 변경
+- `frontend/src/screens/styles/Board.css` - 위 모든 CSS 변경
+- `frontend/src/language/ko.tsx` - Feature badge 번역
+- `frontend/src/language/en.tsx` - Feature badge 번역
+
+---
+
+### 3. 오프라인 참가자 섹션 구현
 MeetRoom의 참가자 목록에서 오프라인 참가자를 별도로 표시하는 기능
 
 #### 기능
@@ -543,3 +689,22 @@ if (user.getPosts() != null) {
 - [ ] 오프라인 참가자에 대해 신고 기능 동작
 - [ ] 버튼 재클릭 시 슬라이드 업 애니메이션으로 목록 숨김
 - [ ] 아이콘: 펼침 시 ↑, 접힘 시 ↓
+
+### 라우트 변경
+- [ ] `/` 접속 시 Board 페이지 표시
+- [ ] `/board` 접속 시 `/`로 리다이렉트
+- [ ] `/create` 접속 시 PostCreate 페이지 표시
+- [ ] NavBar에서 Home 링크 제거됨
+- [ ] AccountDropdown에서 `/?filter=created`, `/?filter=participating` 동작
+- [ ] AccountDropdown에서 `/create` 동작
+
+### Board UI 개선
+- [ ] board-stat-card 내부 스타일 정상 적용 (font-size, font-weight 등)
+- [ ] Feature badges 3개 표시 (구독 불필요, AI 인사이트, 일회성 모임)
+- [ ] Feature badges hover 효과 (아이콘 확대, 텍스트 색상 변경)
+- [ ] board-grid 가운데 정렬
+- [ ] room-card-btn.joined shine hover 효과
+- [ ] room-card-btn 카드 하단 고정
+- [ ] room-card-title 상단, room-card-book 이하 하단 배치
+- [ ] board-ended-meetings-btn 반응형 (max-width: 150px)
+- [ ] board-stats 반응형 가운데 정렬

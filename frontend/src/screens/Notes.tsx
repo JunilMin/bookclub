@@ -359,7 +359,7 @@ const Notes: React.FC = () => {
             </div>
             <h3>{t('notes_empty_title')}</h3>
             <p>{t('notes_empty_desc')}</p>
-            <button className="notes-empty-btn" onClick={() => navigate('/board')}>
+            <button className="notes-empty-btn" onClick={() => navigate('/')}>
               <FiBookOpen />
               {t('notes_empty_cta')}
             </button>

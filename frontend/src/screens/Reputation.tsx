@@ -381,7 +381,7 @@ const Reputation: React.FC = () => {
                 <div
                   key={`${activity.postId}-${index}`}
                   className="activity-item"
-                  onClick={() => activity.postId && navigate(`/board`)}
+                  onClick={() => activity.postId && navigate(`/`)}
                 >
                   <div className="activity-dot"></div>
                   <div className="activity-content">

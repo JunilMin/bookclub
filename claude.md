@@ -66,8 +66,7 @@ bookclub/
 │   │   │   ├── collaborative.ts # 협업 에디터 타입
 │   │   │   └── meetRoom.ts      # 미팅룸 타입
 │   │   ├── screens/             # 페이지 컴포넌트
-│   │   │   ├── Home.tsx
-│   │   │   ├── Board.tsx
+│   │   │   ├── Board.tsx        # 홈페이지 (/)
 │   │   │   ├── PostCreate.tsx
 │   │   │   ├── Profile.tsx      # 프로필 페이지
 │   │   │   ├── Register.tsx     # Google 회원가입 (닉네임 설정)
@@ -134,9 +133,9 @@ bookclub/
 
 | 경로 | 컴포넌트 | 설명 |
 |------|----------|------|
-| `/` | Home | 홈 페이지 |
-| `/board` | Board | 게시판 (모임 목록) |
-| `/board/create` | PostCreate | 토론방 만들기 |
+| `/` | Board | 홈페이지 (게시판, 모임 목록) |
+| `/board` | Navigate | `/`로 리다이렉트 |
+| `/create` | PostCreate | 토론방 만들기 |
 | `/meet/:sessionId` | MeetRoom | 실시간 미팅룸 (3 패널 레이아웃) |
 | `/profile` | Profile | 프로필 페이지 |
 | `/register` | Register | Google 회원가입 (닉네임 설정 후 DB 저장) |
@@ -296,9 +295,9 @@ public class User {
 |------|------|------|
 | **사용자 요약** | 프로필 사진, 닉네임, 평점 | 클릭 시 프로필 페이지로 이동 |
 | **핵심 액션** | 내 프로필 | `/profile` |
-| | 내가 만든 모임 | `/board?filter=created` |
-| | 참여 중인 모임 | `/board?filter=participating` |
-| | 새 토론 만들기 | `/board/create` (CTA 스타일) |
+| | 내가 만든 모임 | `/?filter=created` |
+| | 참여 중인 모임 | `/?filter=participating` |
+| | 새 토론 만들기 | `/create` (CTA 스타일) |
 | **지식 & 기록** | 토론 노트 | `/notes` (준비 중) |
 | | 관심 북미팅 | `/favorites` (준비 중) |
 | **설정 & 관리** | 계정 설정 | `/profile#settings` |

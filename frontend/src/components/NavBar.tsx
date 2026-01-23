@@ -23,8 +23,7 @@ function NavBar() {
                         <p>Mamalias</p>
                     </div>
                     <div className='mid-nav-wrap'>
-                        <Link to="/">{t('nav_home')}</Link>
-                        <Link to="/board">{t('nav_dashboard')}</Link>
+                        <Link to="/">{t('nav_dashboard')}</Link>
                         <Link to="/about">{t('nav_about')}</Link>
                     </div>
                     <div className='right-nav-wrap'>

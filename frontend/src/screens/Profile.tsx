@@ -160,7 +160,7 @@ const Profile: React.FC = () => {
                   {createdMeetings.length > 5 && (
                     <button
                       className="view-all-btn"
-                      onClick={() => navigate('/board?filter=created')}
+                      onClick={() => navigate('/?filter=created')}
                     >
                       {t('profile_view_all')}
                     </button>
@@ -186,7 +186,7 @@ const Profile: React.FC = () => {
                   {participatingMeetings.length > 5 && (
                     <button
                       className="view-all-btn"
-                      onClick={() => navigate('/board?filter=participating')}
+                      onClick={() => navigate('/?filter=participating')}
                     >
                       {t('profile_view_all')}
                     </button>

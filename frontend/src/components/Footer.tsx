@@ -30,10 +30,10 @@ const Footer: React.FC = () => {
             <h4 className="footer-section-title">{t('footer_quick_links')}</h4>
             <ul className="footer-links">
               <li>
-                <Link to="/board">{t('footer_browse_rooms')}</Link>
+                <Link to="/">{t('footer_browse_rooms')}</Link>
               </li>
               <li>
-                <Link to="/board/create">{t('footer_create_room')}</Link>
+                <Link to="/create">{t('footer_create_room')}</Link>
               </li>
               <li>
                 <Link to="/profile">{t('footer_my_profile')}</Link>

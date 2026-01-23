@@ -285,7 +285,7 @@ const MeetRoom: React.FC = () => {
       // If current user was kicked, redirect to board with alert
       if (kickEvent.kickedUserId === user.id) {
         alert(t('meet_you_were_kicked') || 'You have been removed from this meeting.');
-        navigate('/board');
+        navigate('/');
       }
     });
 
@@ -718,7 +718,7 @@ const MeetRoom: React.FC = () => {
             </p>
             <button
               className="meetroom-ended-btn"
-              onClick={() => navigate('/board')}
+              onClick={() => navigate('/')}
             >
               {t('meeting_back_to_browse') || 'Back to Browse'}
             </button>
@@ -736,7 +736,7 @@ const MeetRoom: React.FC = () => {
           <FiVideo size={64} />
           <h2>{error || t('meeting_not_found')}</h2>
           <p>{t('meeting_not_found_desc') || 'The meeting you are looking for could not be found.'}</p>
-          <Link to="/board" className="meetroom-back-link">
+          <Link to="/" className="meetroom-back-link">
             <FiArrowLeft size={18} />
             {t('meeting_back_to_browse') || 'Back to Browse'}
           </Link>
@@ -750,7 +750,7 @@ const MeetRoom: React.FC = () => {
       {/* Header */}
       <header className="meetroom-header">
         <div className="meetroom-header-left">
-          <button className="meetroom-back-btn" onClick={() => navigate('/board')}>
+          <button className="meetroom-back-btn" onClick={() => navigate('/')}>
             <FiArrowLeft size={20} />
           </button>
           <div className="meetroom-title-section">
@@ -873,7 +873,7 @@ const MeetRoom: React.FC = () => {
         onClose={() => {
           setShowEndorsementModal(false);
           // Navigate to board after closing endorsement modal
-          navigate('/board');
+          navigate('/');
         }}
         sessionId={sessionId || ''}
       />
@@ -890,7 +890,7 @@ const MeetRoom: React.FC = () => {
             </p>
             <button
               className="meetroom-ended-btn"
-              onClick={() => navigate('/board')}
+              onClick={() => navigate('/')}
             >
               {t('meeting_back_to_browse') || 'Back to Browse'}
             </button>

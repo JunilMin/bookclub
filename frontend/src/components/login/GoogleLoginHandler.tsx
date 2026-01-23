@@ -12,7 +12,7 @@ const GoogleLoginHandler: React.FC = () => {
   const handleClick = async () => {
     try {
       await handleGoogleLogin();
-      navigate('/board');
+      navigate('/');
     } catch (error) {
       console.error("Google 로그인 실패:", error);
     }

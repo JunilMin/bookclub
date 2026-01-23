@@ -113,21 +113,21 @@ const AccountDropdown: React.FC = () => {
             </button>
             <button
               className="dropdown-item"
-              onClick={() => handleNavigation('/board?filter=created')}
+              onClick={() => handleNavigation('/?filter=created')}
             >
               <span className="item-icon">&#128221;</span>
               <span>{t('dropdown_my_created_meetings')}</span>
             </button>
             <button
               className="dropdown-item"
-              onClick={() => handleNavigation('/board?filter=participating')}
+              onClick={() => handleNavigation('/?filter=participating')}
             >
               <span className="item-icon">&#128218;</span>
               <span>{t('dropdown_participating_meetings')}</span>
             </button>
             <button
               className="dropdown-item cta-button"
-              onClick={() => handleNavigation('/board/create')}
+              onClick={() => handleNavigation('/create')}
             >
               <span className="item-icon">&#10133;</span>
               <span>{t('dropdown_create_discussion')}</span>

@@ -229,7 +229,7 @@ const PostCreate: React.FC = () => {
         alert(t('post_create_success'));
       }
 
-      navigate('/board');
+      navigate('/');
     } catch (error) {
       console.error('Error:', error);
       alert(t('post_create_failed'));

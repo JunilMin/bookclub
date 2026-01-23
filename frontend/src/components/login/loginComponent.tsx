@@ -20,23 +20,28 @@ const LoginComponent: React.FC = () => {
   };
 
   return (
+    // 당분간 google login만 사용
     <div>
-      <input
-        type="text"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="Username"
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-      />
-      <button onClick={handleLoginButton}>Login</button>
-      <GoogleLoginHandler/>
+    <GoogleLoginHandler/>
       {/* <button onClick={googleLogin}>Google 로그인</button> Google 로그인 버튼 */}
     </div>
+    // <div>
+    //   <input
+    //     type="text"
+    //     value={username}
+    //     onChange={(e) => setUsername(e.target.value)}
+    //     placeholder="Username"
+    //   />
+    //   <input
+    //     type="password"
+    //     value={password}
+    //     onChange={(e) => setPassword(e.target.value)}
+    //     placeholder="Password"
+    //   />
+    //   <button onClick={handleLoginButton}>Login</button>
+    //   <GoogleLoginHandler/>
+    //   {/* <button onClick={googleLogin}>Google 로그인</button> Google 로그인 버튼 */}
+    // </div>
   );
 };
 

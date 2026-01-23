@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward, FiWifiOff } from 'react-icons/fi';
+import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward, FiWifiOff, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { Post, BookData, joinBookMeeting, deletePost, updatePostBookData } from '../api/posts';
 import { getUserById, getUserCount } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
@@ -254,9 +254,10 @@ function postToRoom(
 // Types
 // =============================================================================
 
-type TabType = 'all' | 'my' | 'joined';
+type TabType = 'all' | 'my' | 'joined' | 'ended';
 type StatusFilter = 'all' | 'live' | 'upcoming' | 'past' | 'waiting';
-type SortBy = 'latest' | 'mostPopular' | 'startingSoon';
+type SortBy = 'createdAt' | 'dueDate' | 'remainingSpots';
+type SortOrder = 'asc' | 'desc';
 
 // =============================================================================
 // Component
@@ -267,7 +268,6 @@ const Board: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { accessToken, user } = useAuth();
-  const gridRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLElement>(null);
 
@@ -304,14 +304,19 @@ const Board: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
-  const [sortBy, setSortBy] = useState<SortBy>('latest');
+  const [sortBy, setSortBy] = useState<SortBy>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [showEndedMeetings, setShowEndedMeetings] = useState(false);
   const [isEndedSectionClosing, setIsEndedSectionClosing] = useState(false);
   const [userCount, setUserCount] = useState<number>(0);
+  const [isScrollingDown, setIsScrollingDown] = useState(false);
 
   // Search debounce timer
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrollY = useRef(0);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const tabsSectionRef = useRef<HTMLElement>(null);
 
   // ==========================================================================
   // URL Params Handling
@@ -324,6 +329,81 @@ const Board: React.FC = () => {
       setActiveTab('joined');
     }
   }, [searchParams]);
+
+  // ==========================================================================
+  // Set Tabs Section Height as CSS Variable
+  // ==========================================================================
+  useEffect(() => {
+    const updateTabsHeight = () => {
+      if (tabsSectionRef.current && stickyHeaderRef.current) {
+        const height = tabsSectionRef.current.offsetHeight;
+        stickyHeaderRef.current.style.setProperty('--tabs-height', `${height}px`);
+      }
+    };
+
+    updateTabsHeight();
+    window.addEventListener('resize', updateTabsHeight);
+    return () => window.removeEventListener('resize', updateTabsHeight);
+  }, []);
+
+  // ==========================================================================
+  // Scroll Direction Detection for Sticky Header
+  // ==========================================================================
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTransitioningRef = useRef(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Ignore scroll events during transition
+      if (isTransitioningRef.current) return;
+
+      const currentScrollY = window.scrollY;
+      const scrollDelta = currentScrollY - lastScrollY.current;
+
+      // Only trigger after significant scroll (50px threshold)
+      if (Math.abs(scrollDelta) < 50) return;
+
+      // At top of page - always show tabs
+      if (currentScrollY < 100) {
+        if (isScrollingDown) {
+          isTransitioningRef.current = true;
+          setIsScrollingDown(false);
+          setTimeout(() => { isTransitioningRef.current = false; }, 350);
+        }
+        lastScrollY.current = currentScrollY;
+        return;
+      }
+
+      // Clear any pending timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Debounce the state change
+      scrollTimeoutRef.current = setTimeout(() => {
+        if (scrollDelta > 50 && !isScrollingDown) {
+          // Scrolling down
+          isTransitioningRef.current = true;
+          setIsScrollingDown(true);
+          setTimeout(() => { isTransitioningRef.current = false; }, 350);
+        } else if (scrollDelta < -50 && isScrollingDown) {
+          // Scrolling up
+          isTransitioningRef.current = true;
+          setIsScrollingDown(false);
+          setTimeout(() => { isTransitioningRef.current = false; }, 350);
+        }
+        lastScrollY.current = window.scrollY;
+      }, 100);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [isScrollingDown]);
 
   // ==========================================================================
   // Fetch User Count
@@ -410,7 +490,7 @@ const Board: React.FC = () => {
   // Reset pagination when filters change
   useEffect(() => {
     setDisplayCount(PAGE_SIZE);
-  }, [activeTab, selectedGenre, selectedStatus, sortBy]);
+  }, [activeTab, selectedGenre, selectedStatus, sortBy, sortOrder]);
 
   // ==========================================================================
   // Convert Posts to Rooms (with book info lookup)
@@ -516,6 +596,9 @@ const Board: React.FC = () => {
     } else if (activeTab === 'joined') {
       // 참여 중: 종료된 미팅은 별도 섹션에서 표시
       result = result.filter(room => room.isJoined && !room.isMyRoom && room.status !== 'past');
+    } else if (activeTab === 'ended') {
+      // 종료된 토론방: 내가 참여했던 종료된 미팅만
+      result = result.filter(room => (room.isJoined || room.isMyRoom) && room.status === 'past');
     } else {
       // 전체 탭: 종료된 미팅은 표시하지 않음
       result = result.filter(room => room.status !== 'past');
@@ -543,21 +626,39 @@ const Board: React.FC = () => {
       result = result.filter(room => room.status === selectedStatus);
     }
 
-    // Sort
+    // Sort with order
+    const multiplier = sortOrder === 'asc' ? 1 : -1;
     switch (sortBy) {
-      case 'latest':
-        result.sort((a, b) => new Date(b.dueISO).getTime() - new Date(a.dueISO).getTime());
+      case 'createdAt':
+        // Sort by post creation date (using dueISO as proxy, ideally use createdAt)
+        result.sort((a, b) => {
+          const postA = allPosts.find(p => p.id === a.id);
+          const postB = allPosts.find(p => p.id === b.id);
+          const dateA = postA?.date ? new Date(postA.date).getTime() : 0;
+          const dateB = postB?.date ? new Date(postB.date).getTime() : 0;
+          return (dateB - dateA) * multiplier;
+        });
         break;
-      case 'mostPopular':
-        result.sort((a, b) => b.participants - a.participants);
+      case 'dueDate':
+        // Sort by due date
+        result.sort((a, b) => {
+          const dateA = new Date(a.dueISO).getTime();
+          const dateB = new Date(b.dueISO).getTime();
+          return (dateA - dateB) * multiplier;
+        });
         break;
-      case 'startingSoon':
-        result.sort((a, b) => new Date(a.dueISO).getTime() - new Date(b.dueISO).getTime());
+      case 'remainingSpots':
+        // Sort by remaining spots (capacity - participants)
+        result.sort((a, b) => {
+          const remainingA = a.maxParticipants - a.participants;
+          const remainingB = b.maxParticipants - b.participants;
+          return (remainingA - remainingB) * multiplier;
+        });
         break;
     }
 
     return result;
-  }, [rooms, activeTab, debouncedSearch, selectedGenre, selectedStatus, sortBy, i18n.language]);
+  }, [rooms, activeTab, debouncedSearch, selectedGenre, selectedStatus, sortBy, sortOrder, i18n.language, allPosts]);
 
   // Apply pagination AFTER filtering
   const displayedRooms = useMemo(() => {
@@ -633,8 +734,12 @@ const Board: React.FC = () => {
   // ==========================================================================
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
-    setShowEndedMeetings(false); // Reset ended meetings section when switching tabs
-    setIsEndedSectionClosing(false);
+    if (tab === 'ended') {
+      setShowEndedMeetings(true);
+    } else {
+      setShowEndedMeetings(false);
+      setIsEndedSectionClosing(false);
+    }
     if (accessToken) {
       refreshNow('tab-change', accessToken, user?.id);
       scheduleNextPoll(accessToken, user?.id);
@@ -642,12 +747,18 @@ const Board: React.FC = () => {
   }, [accessToken, user?.id, refreshNow, scheduleNextPoll]);
 
   const handleSortChange = useCallback((sort: SortBy) => {
-    setSortBy(sort);
+    if (sortBy === sort) {
+      // Toggle order if same sort is clicked
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(sort);
+      setSortOrder('desc'); // Default to descending for new sort
+    }
     if (accessToken) {
       refreshNow('sort-change', accessToken, user?.id);
       scheduleNextPoll(accessToken, user?.id);
     }
-  }, [accessToken, user?.id, refreshNow, scheduleNextPoll]);
+  }, [accessToken, user?.id, refreshNow, scheduleNextPoll, sortBy]);
 
   // Toggle ended meetings section with animation
   const handleToggleEndedMeetings = useCallback(() => {
@@ -672,7 +783,7 @@ const Board: React.FC = () => {
   // Action Handlers
   // ==========================================================================
   const handleScrollToGrid = () => {
-    gridRef.current?.scrollIntoView({ behavior: 'smooth' });
+    tabsSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleJoin = useCallback(async (roomId: string) => {
@@ -761,6 +872,24 @@ const Board: React.FC = () => {
 
       {/* Hero Section */}
       <section className="board-hero" ref={heroRef}>
+        {/* Background Decorations */}
+        <div className="hero-bg-decorations">
+          <div className="hero-bg-gradient hero-bg-gradient-1"></div>
+          <div className="hero-bg-gradient hero-bg-gradient-2"></div>
+          <div className="hero-floating-icon hero-floating-icon-1">
+            <i className="ri-book-2-line"></i>
+          </div>
+          <div className="hero-floating-icon hero-floating-icon-2">
+            <i className="ri-book-open-line"></i>
+          </div>
+          <div className="hero-floating-icon hero-floating-icon-3">
+            <i className="ri-bookmark-line"></i>
+          </div>
+          <div className="hero-floating-icon hero-floating-icon-4">
+            <i className="ri-quill-pen-line"></i>
+          </div>
+          <div className="hero-dot-pattern"></div>
+        </div>
         <div className="board-hero-content">
           <div className="board-hero-badge">
             <div className="badge-pulse-dot">
@@ -791,122 +920,198 @@ const Board: React.FC = () => {
             </p>
           </div>
           <div className="board-hero-cta">
-            
-            <button className="board-cta-primary" onClick={() => navigate('/board/create')}>
-              {t('browse_hero_cta_create')}
+            <button className="board-cta-primary" onClick={() => navigate('/create')}>
+              <div className="cta-content">
+                <i className="ri-add-circle-line cta-icon"></i>
+                <span>{t('browse_hero_cta_create')}</span>
+                <i className="ri-arrow-right-line cta-icon arrow"></i>
+              </div>
             </button>
             <button className="board-cta-secondary" onClick={handleScrollToGrid}>
-              {t('browse_hero_cta_browse')}
+              <div className="cta-content">
+                <i className="ri-compass-3-line cta-icon compass"></i>
+                <span>{t('browse_hero_cta_browse')}</span>
+              </div>
             </button>
+          </div>
+
+          {/* Feature Badges */}
+          <div className="board-hero-features">
+            <div className="feature-badge">
+              <div className="feature-icon">
+                <i className="ri-shield-check-line"></i>
+              </div>
+              <span>{t('browse_feature_no_subscription')}</span>
+            </div>
+            <div className="feature-badge">
+              <div className="feature-icon feature-icon-secondary">
+                <i className="ri-robot-2-line"></i>
+              </div>
+              <span>{t('browse_feature_ai_insights')}</span>
+            </div>
+            <div className="feature-badge">
+              <div className="feature-icon feature-icon-primary">
+                <i className="ri-calendar-check-line"></i>
+              </div>
+              <span>{t('browse_feature_one_time')}</span>
+            </div>
           </div>
         </div>
 
         {/* Stats */}
         <div className="board-stats">
           <div className="board-stat-card">
-            <FiUsers className="board-stat-icon" />
-            <span className="board-stat-value">10,000+</span>
-            <span className="board-stat-label">{t('browse_stat_readers')}</span>
+            <div className="stat-hover-bg stat-bg-primary"></div>
+            <div className="stat-content">
+              <div className="stat-icon-wrapper stat-icon-primary">
+                <i className="ri-group-line"></i>
+              </div>
+              <div className="stat-value">{userCount.toLocaleString()}+</div>
+              <div className="stat-label">{t('browse_stat_readers_grid')}</div>
+              <div className="stat-subtitle">{t('browse_stat_readers_sub')}</div>
+            </div>
           </div>
           <div className="board-stat-card">
-            <FiMessageCircle className="board-stat-icon" />
-            <span className="board-stat-value">500+</span>
-            <span className="board-stat-label">{t('browse_stat_discussions')}</span>
+            <div className="stat-hover-bg stat-bg-secondary"></div>
+            <div className="stat-content">
+              <div className="stat-icon-wrapper stat-icon-secondary">
+                <i className="ri-book-open-line"></i>
+              </div>
+              <div className="stat-value">5,000+</div>
+              <div className="stat-label">{t('browse_stat_discussions')}</div>
+              <div className="stat-subtitle">{t('browse_stat_discussions_sub')}</div>
+            </div>
           </div>
           <div className="board-stat-card">
-            <FiAward className="board-stat-icon" />
-            <span className="board-stat-value">50+</span>
-            <span className="board-stat-label">{t('browse_stat_genres')}</span>
+            <div className="stat-hover-bg stat-bg-accent"></div>
+            <div className="stat-content">
+              <div className="stat-icon-wrapper stat-icon-accent">
+                <i className="ri-star-fill"></i>
+              </div>
+              <div className="stat-value">4.9</div>
+              <div className="stat-label">{t('browse_stat_rating')}</div>
+              <div className="stat-stars">
+                <i className="ri-star-fill"></i>
+                <i className="ri-star-fill"></i>
+                <i className="ri-star-fill"></i>
+                <i className="ri-star-fill"></i>
+                <i className="ri-star-fill"></i>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Filter Section */}
-      <section className="board-filters" ref={gridRef}>
-        <div className="board-filters-row">
-          {/* Search */}
-          <div className="board-search">
-            <FiSearch className="board-search-icon" />
-            <input
-              type="text"
-              placeholder={t('browse_search_placeholder')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="board-search-input"
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="board-filter-group">
-            <select
-              value={selectedGenre}
-              onChange={(e) => setSelectedGenre(e.target.value)}
-              className="board-filter-select"
-            >
-              <option value="all">{t('browse_filter_all_genres')}</option>
-              {genres.map(genre => (
-                <option key={genre} value={genre}>{genre}</option>
-              ))}
-            </select>
-
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as StatusFilter)}
-              className="board-filter-select"
-            >
-              <option value="all">{t('browse_filter_all_status')}</option>
-              <option value="live">{t('browse_filter_live')}</option>
-              <option value="waiting">{t('browse_filter_waiting')}</option>
-              <option value="upcoming">{t('browse_filter_upcoming')}</option>
-              <option value="past">{t('browse_filter_past')}</option>
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(e) => handleSortChange(e.target.value as SortBy)}
-              className="board-filter-select"
-            >
-              <option value="latest">{t('browse_sort_latest')}</option>
-              <option value="mostPopular">{t('browse_sort_popular')}</option>
-              <option value="startingSoon">{t('browse_sort_starting_soon')}</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="board-tabs">
-          <div className="board-tabs-left">
+      {/* Sticky Header - Tabs + Filters */}
+      <div
+        className={`board-sticky-header ${isScrollingDown ? 'scrolling-down' : ''}`}
+        ref={stickyHeaderRef}
+      >
+        {/* Tabs Section - Above Filter */}
+        <section className="board-tabs-section" ref={tabsSectionRef}>
+          <div className="board-tabs-container">
             <button
-              className={`board-tab ${activeTab === 'all' ? 'active' : ''}`}
+              className={`board-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
               onClick={() => handleTabChange('all')}
             >
-              {t('browse_tab_all')}
+              <i className="ri-grid-line"></i>
+              <span>{t('browse_tab_all')}</span>
             </button>
             <button
-              className={`board-tab ${activeTab === 'my' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+              className={`board-tab-btn ${activeTab === 'my' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
               onClick={() => accessToken ? handleTabChange('my') : navigate('/login')}
               disabled={!accessToken}
             >
-              {t('browse_tab_my')}
+              <i className="ri-user-line"></i>
+              <span>{t('browse_tab_my')}</span>
             </button>
             <button
-              className={`board-tab ${activeTab === 'joined' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+              className={`board-tab-btn ${activeTab === 'joined' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
               onClick={() => accessToken ? handleTabChange('joined') : navigate('/login')}
               disabled={!accessToken}
             >
-              {t('browse_tab_joined')}
+              <i className="ri-group-line"></i>
+              <span>{t('browse_tab_joined')}</span>
+            </button>
+            <button
+              className={`board-tab-btn ${activeTab === 'ended' ? 'active' : ''} ${!accessToken ? 'disabled' : ''}`}
+              onClick={() => accessToken ? handleTabChange('ended') : navigate('/login')}
+              disabled={!accessToken}
+            >
+              <i className="ri-archive-line"></i>
+              <span>{t('browse_tab_ended')}</span>
             </button>
           </div>
-          {(activeTab === 'my' || activeTab === 'joined') && endedMeetings.length > 0 && (
-            <button
-              className={`board-ended-meetings-btn ${showEndedMeetings ? 'active' : ''}`}
-              onClick={handleToggleEndedMeetings}
-            >
-              {t('browse_ended_meetings') || '종료된 북미팅'} ({endedMeetings.length})
-            </button>
-          )}
-        </div>
-      </section>
+        </section>
+
+        {/* Filter Section */}
+        <section className="board-filters">
+          <div className='board-filters-container-wrapper'>
+            <div className="board-filters-container">
+              {/* Search */}
+              <div className="board-search">
+                <FiSearch className="board-search-icon" />
+                <input
+                  type="text"
+                  placeholder={t('browse_search_placeholder')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="board-search-input"
+                />
+              </div>
+
+              {/* Filter Row */}
+              <div className="board-filter-row">
+                {/* Left: Genre Dropdown */}
+                <div className="board-filter-left">
+                  <select
+                    value={selectedGenre}
+                    onChange={(e) => setSelectedGenre(e.target.value)}
+                    className="board-filter-select"
+                  >
+                    <option value="all">{t('browse_filter_all_genres')}</option>
+                    {genres.map(genre => (
+                      <option key={genre} value={genre}>{genre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Right: Sort Buttons */}
+                <div className="board-sort-buttons">
+                  <span className="board-sort-label">{t('browse_sort_label')}</span>
+                  <button
+                    className={`board-sort-btn ${sortBy === 'createdAt' ? 'active' : ''}`}
+                    onClick={() => handleSortChange('createdAt')}
+                  >
+                    {t('browse_sort_created')}
+                    {sortBy === 'createdAt' && (
+                      sortOrder === 'asc' ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />
+                    )}
+                  </button>
+                  <button
+                    className={`board-sort-btn ${sortBy === 'dueDate' ? 'active' : ''}`}
+                    onClick={() => handleSortChange('dueDate')}
+                  >
+                    {t('browse_sort_due_date')}
+                    {sortBy === 'dueDate' && (
+                      sortOrder === 'asc' ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />
+                    )}
+                  </button>
+                  <button
+                    className={`board-sort-btn ${sortBy === 'remainingSpots' ? 'active' : ''}`}
+                    onClick={() => handleSortChange('remainingSpots')}
+                  >
+                    {t('browse_sort_remaining')}
+                    {sortBy === 'remainingSpots' && (
+                      sortOrder === 'asc' ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* Rooms Grid */}
       <section className="board-rooms">
@@ -939,7 +1144,7 @@ const Board: React.FC = () => {
             <FiBookOpen size={48} />
             <h3>{t('browse_no_rooms')}</h3>
             <p>{t('browse_no_rooms_desc')}</p>
-            <button className="board-create-btn" onClick={() => navigate('/board/create')}>
+            <button className="board-create-btn" onClick={() => navigate('/create')}>
               {t('browse_hero_cta_create')}
             </button>
           </div>
@@ -1076,8 +1281,8 @@ const Board: React.FC = () => {
         )}
       </section>
 
-      {/* Ended Meetings Section */}
-      {(activeTab === 'my' || activeTab === 'joined') && endedMeetings.length > 0 && (
+      {/* Ended Meetings Section - 별도 섹션은 ended 탭에서만 사용 안함 */}
+      {(activeTab === 'my' || activeTab === 'joined') && endedMeetings.length > 0 && showEndedMeetings && (
         <section className={`board-ended-section ${isEndedSectionClosing ? 'closing' : showEndedMeetings ? 'open' : 'closed'}`}>
           <div className="board-ended-content">
             <div className="board-ended-content-inner">
