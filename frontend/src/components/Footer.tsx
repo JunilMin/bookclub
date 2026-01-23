@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiBook, FiMail, FiMessageSquare, FiHelpCircle } from 'react-icons/fi';
 import './styles/Footer.css';
 
 const Footer: React.FC = () => {
@@ -15,19 +14,27 @@ const Footer: React.FC = () => {
           {/* Brand Section */}
           <div className="footer-brand">
             <Link to="/" className="footer-logo">
-              <div className="footer-logo-icon">
-                <FiBook size={24} />
-              </div>
-              <span className="footer-logo-text">BookClub</span>
+              <span className="footer-logo-text">Mamalias</span>
             </Link>
             <p className="footer-description">
               {t('footer_description')}
             </p>
+            <div className="footer-social">
+              <a href="#" className="footer-social-link" aria-label="Twitter">
+                <i className="ri-twitter-fill"></i>
+              </a>
+              <a href="#" className="footer-social-link" aria-label="Facebook">
+                <i className="ri-facebook-fill"></i>
+              </a>
+              <a href="#" className="footer-social-link" aria-label="Instagram">
+                <i className="ri-instagram-fill"></i>
+              </a>
+            </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Product Links */}
           <div className="footer-section">
-            <h4 className="footer-section-title">{t('footer_quick_links')}</h4>
+            <h4 className="footer-section-title">{t('footer_product')}</h4>
             <ul className="footer-links">
               <li>
                 <Link to="/">{t('footer_browse_rooms')}</Link>
@@ -36,45 +43,29 @@ const Footer: React.FC = () => {
                 <Link to="/create">{t('footer_create_room')}</Link>
               </li>
               <li>
-                <Link to="/profile">{t('footer_my_profile')}</Link>
+                <Link to="/about">{t('footer_ai_features')}</Link>
+              </li>
+              <li>
+                <Link to="/about#pricing">{t('footer_pricing')}</Link>
               </li>
             </ul>
           </div>
 
-          {/* Support */}
+          {/* Support Links */}
           <div className="footer-section">
             <h4 className="footer-section-title">{t('footer_support')}</h4>
             <ul className="footer-links">
               <li>
-                <a href="#help">
-                  <FiHelpCircle size={14} />
-                  <span>{t('footer_help_center')}</span>
-                </a>
+                <a href="#help">{t('footer_help_center')}</a>
               </li>
               <li>
-                <a href="#contact">
-                  <FiMail size={14} />
-                  <span>{t('footer_contact')}</span>
-                </a>
+                <a href="#faq">{t('footer_faq')}</a>
               </li>
               <li>
-                <a href="#feedback">
-                  <FiMessageSquare size={14} />
-                  <span>{t('footer_feedback')}</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div className="footer-section">
-            <h4 className="footer-section-title">{t('footer_legal')}</h4>
-            <ul className="footer-links">
-              <li>
-                <a href="#terms">{t('footer_terms')}</a>
+                <a href="#contact">{t('footer_contact')}</a>
               </li>
               <li>
-                <a href="#privacy">{t('footer_privacy')}</a>
+                <Link to="/about">{t('footer_about')}</Link>
               </li>
             </ul>
           </div>
@@ -83,8 +74,12 @@ const Footer: React.FC = () => {
         {/* Bottom Bar */}
         <div className="footer-bottom">
           <p className="footer-copyright">
-            © {currentYear} BookClub. All rights reserved.
+            © {currentYear} Mamalias. All rights reserved.
           </p>
+          <div className="footer-bottom-links">
+            <a href="#privacy">{t('footer_privacy')}</a>
+            <a href="#terms">{t('footer_terms')}</a>
+          </div>
         </div>
       </div>
     </footer>

@@ -13,6 +13,7 @@ import Notes from './screens/Notes';
 import NoteDetail from './screens/NoteDetail';
 import Reputation from './screens/Reputation';
 import NavBar from './components/NavBar';
+import Footer from './components/Footer';
 import Login from './screens/Login';
 import SessionWarning from './components/SessionWarning';
 import { AuthProvider, useAuth } from './AuthContext/AuthContext';
@@ -66,6 +67,7 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<Login />} />
         </Routes>
       </div>
+      <Footer />
       {/* 세션 만료 경고 모달 */}
       <SessionWarning />
     </FirstLoginRedirect>

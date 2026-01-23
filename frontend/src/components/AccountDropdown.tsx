@@ -56,10 +56,6 @@ const AccountDropdown: React.FC = () => {
 
   if (!user) return null;
 
-  // Default avatar as data URI (simple user icon)
-  const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+';
-  const avatarUrl = user.photoUrl || defaultAvatar;
-
   return (
     <div className="account-dropdown" ref={dropdownRef}>
       {/* Trigger Button */}
@@ -69,37 +65,45 @@ const AccountDropdown: React.FC = () => {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <img
-          src={avatarUrl}
-          alt={user.username}
-          className="account-avatar"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = defaultAvatar;
-          }}
-        />
+        {user.photoUrl ? (
+          <img
+            src={user.photoUrl}
+            alt={user.username}
+            className="account-avatar"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="account-avatar-placeholder">
+            <i className="ri-user-line"></i>
+          </div>
+        )}
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
         <div className="dropdown-menu">
           {/* User Summary Section */}
-          
-          <div className="dropdown-section user-summary" onClick={() => handleNavigation('/profile')}>
-            <img
-              src={avatarUrl}
-              alt={user.username}
-              className="summary-avatar"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = defaultAvatar;
-              }}
-            />
-            <div className="summary-info">
-              <span className="summary-username">{user.username}</span>
-              <span className="summary-rating">{user.rating || 0}</span>
+          <div className="dropdown-user-summary" onClick={() => handleNavigation('/profile')}>
+            <div className="user-summary-header">
+              <div className="user-avatar-wrapper">
+                {user.photoUrl ? (
+                  <img
+                    src={user.photoUrl}
+                    alt={user.username}
+                    className="user-avatar"
+                  />
+                ) : (
+                  <i className="ri-user-line"></i>
+                )}
+              </div>
+              <div className="user-info">
+                <span className="user-name">{user.username}</span>
+                <span className="user-email">@{user.username?.toLowerCase().replace(/\s/g, '')}</span>
+              </div>
             </div>
           </div>
-
-          <div className="dropdown-divider" />
 
           {/* Core Actions Section */}
           <div className="dropdown-section">
@@ -108,33 +112,39 @@ const AccountDropdown: React.FC = () => {
               className="dropdown-item"
               onClick={() => handleNavigation('/profile')}
             >
-              <span className="item-icon">&#128100;</span>
+              <div className="item-icon-wrapper">
+                <i className="ri-user-3-line"></i>
+              </div>
               <span>{t('dropdown_my_profile')}</span>
             </button>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/?filter=created')}
             >
-              <span className="item-icon">&#128221;</span>
+              <div className="item-icon-wrapper">
+                <i className="ri-calendar-check-line"></i>
+              </div>
               <span>{t('dropdown_my_created_meetings')}</span>
             </button>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/?filter=participating')}
             >
-              <span className="item-icon">&#128218;</span>
+              <div className="item-icon-wrapper">
+                <i className="ri-group-line"></i>
+              </div>
               <span>{t('dropdown_participating_meetings')}</span>
             </button>
             <button
               className="dropdown-item cta-button"
               onClick={() => handleNavigation('/create')}
             >
-              <span className="item-icon">&#10133;</span>
+              <div className="item-icon-wrapper cta-icon">
+                <i className="ri-add-circle-line"></i>
+              </div>
               <span>{t('dropdown_create_discussion')}</span>
             </button>
           </div>
-
-          <div className="dropdown-divider" />
 
           {/* Knowledge & Records Section */}
           <div className="dropdown-section">
@@ -143,19 +153,21 @@ const AccountDropdown: React.FC = () => {
               className="dropdown-item"
               onClick={() => handleNavigation('/notes')}
             >
-              <span className="item-icon">&#128196;</span>
+              <div className="item-icon-simple">
+                <i className="ri-file-text-line"></i>
+              </div>
               <span>{t('dropdown_discussion_notes')}</span>
             </button>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/favorites')}
             >
-              <span className="item-icon">&#11088;</span>
+              <div className="item-icon-simple">
+                <i className="ri-heart-line"></i>
+              </div>
               <span>{t('dropdown_favorite_meetings')}</span>
             </button>
           </div>
-
-          <div className="dropdown-divider" />
 
           {/* Settings Section */}
           <div className="dropdown-section">
@@ -164,47 +176,40 @@ const AccountDropdown: React.FC = () => {
               className="dropdown-item"
               onClick={() => handleNavigation('/profile#settings')}
             >
-              <span className="item-icon">&#9881;</span>
+              <div className="item-icon-simple">
+                <i className="ri-settings-3-line"></i>
+              </div>
               <span>{t('dropdown_account_settings')}</span>
             </button>
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/reputation')}
             >
-              <span className="item-icon">&#128202;</span>
+              <div className="item-icon-simple">
+                <i className="ri-medal-line"></i>
+              </div>
               <span>{t('dropdown_reputation_activity')}</span>
             </button>
           </div>
 
-          <div className="dropdown-divider" />
-
-          {/* Support Section */}
+          {/* Support & Logout Section */}
           <div className="dropdown-section">
             <button
               className="dropdown-item"
               onClick={() => handleNavigation('/help')}
             >
-              <span className="item-icon">&#10067;</span>
+              <div className="item-icon-simple">
+                <i className="ri-question-line"></i>
+              </div>
               <span>{t('dropdown_help_faq')}</span>
             </button>
-            <button
-              className="dropdown-item"
-              onClick={() => handleNavigation('/feedback')}
-            >
-              <span className="item-icon">&#128172;</span>
-              <span>{t('dropdown_send_feedback')}</span>
-            </button>
-          </div>
-
-          <div className="dropdown-divider" />
-
-          {/* Logout */}
-          <div className="dropdown-section">
             <button
               className="dropdown-item logout-item"
               onClick={handleLogoutClick}
             >
-              <span className="item-icon">&#128682;</span>
+              <div className="item-icon-simple">
+                <i className="ri-logout-box-line"></i>
+              </div>
               <span>{t('dropdown_logout')}</span>
             </button>
           </div>

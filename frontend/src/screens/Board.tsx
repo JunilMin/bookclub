@@ -1396,9 +1396,6 @@ const Board: React.FC = () => {
           isProcessing={isProcessing}
         />
       )}
-
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };
