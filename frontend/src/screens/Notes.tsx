@@ -212,40 +212,48 @@ const Notes: React.FC = () => {
     <div className="notes-page">
       {/* Hero Section */}
       <section className="notes-hero">
-        <div className="notes-hero-bg">
-          <div className="notes-hero-gradient notes-hero-gradient-1" />
-          <div className="notes-hero-gradient notes-hero-gradient-2" />
-        </div>
+        <div className="notes-hero-bg" />
         <div className="notes-hero-content">
-          <span className="notes-hero-badge">
-            <span className="notes-badge-dot" />
-            {t('notes_hero_badge')}
-          </span>
-          <h1 className="notes-hero-title">{t('notes_hero_title')}</h1>
-          <p className="notes-hero-subtitle">{t('notes_hero_subtitle')}</p>
+          <div className="notes-hero-inner">
+            <span className="notes-hero-badge">
+              <span className="notes-badge-dot">
+                <span className="notes-badge-dot-ping" />
+                <span className="notes-badge-dot-core" />
+              </span>
+              {t('notes_hero_badge')}
+            </span>
+            <h1 className="notes-hero-title">{t('notes_hero_title')}</h1>
+            <p className="notes-hero-subtitle">{t('notes_hero_subtitle')}</p>
 
-          {/* Stats Cards */}
-          <div className="notes-stats">
-            <div className="notes-stat-card">
-              <div className="notes-stat-icon">
-                <FiFileText />
+            {/* Stats */}
+            <div className="notes-stats">
+              <div className="notes-stat-card">
+                <div className="notes-stat-icon emerald">
+                  <FiFileText />
+                </div>
+                <div className="notes-stat-info">
+                  <span className="notes-stat-value">{stats.total}</span>
+                  <span className="notes-stat-label">{t('notes_stat_summaries')}</span>
+                </div>
               </div>
-              <span className="notes-stat-value">{stats.total}</span>
-              <span className="notes-stat-label">{t('notes_stat_summaries')}</span>
-            </div>
-            <div className="notes-stat-card">
-              <div className="notes-stat-icon">
-                <FiStar />
+              <div className="notes-stat-card">
+                <div className="notes-stat-icon amber">
+                  <FiStar />
+                </div>
+                <div className="notes-stat-info">
+                  <span className="notes-stat-value">{stats.favorites}</span>
+                  <span className="notes-stat-label">{t('notes_stat_favorites')}</span>
+                </div>
               </div>
-              <span className="notes-stat-value">{stats.favorites}</span>
-              <span className="notes-stat-label">{t('notes_stat_favorites')}</span>
-            </div>
-            <div className="notes-stat-card">
-              <div className="notes-stat-icon">
-                <FiUsers />
+              <div className="notes-stat-card">
+                <div className="notes-stat-icon blue">
+                  <FiUsers />
+                </div>
+                <div className="notes-stat-info">
+                  <span className="notes-stat-value">{stats.total > 0 ? notes.reduce((sum, n) => sum + n.participantCount, 0) : 0}</span>
+                  <span className="notes-stat-label">{t('notes_stat_participants')}</span>
+                </div>
               </div>
-              <span className="notes-stat-value">{stats.hosts}</span>
-              <span className="notes-stat-label">{t('notes_stat_hosts')}</span>
             </div>
           </div>
         </div>
@@ -320,6 +328,9 @@ const Notes: React.FC = () => {
               className={`notes-tab ${activeTab === 'favorites' ? 'active' : ''}`}
               onClick={() => setActiveTab('favorites')}
             >
+              <span className="notes-tab-icon">
+                <FiStar />
+              </span>
               {t('notes_tab_favorites')}
             </button>
           </div>

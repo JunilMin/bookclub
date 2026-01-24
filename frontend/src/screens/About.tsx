@@ -155,6 +155,7 @@ function About() {
 
       {/* Features Section */}
       <section className="about-features">
+        <div className="about-features-bg-pattern"></div>
         <div className="about-features-container">
           {/* Section Header */}
           <div className="about-features-header">
