@@ -305,4 +305,125 @@ public class UserService {
 
         return userRepository.save(user);
     }
+
+    // ===== 관심 도서 (Favorites) 관련 메서드들 =====
+
+    /**
+     * 책 좋아요 추가
+     */
+    public User addFavoriteBook(String userId, String isbn) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        User.Fav fav = user.getFav();
+
+        // 이미 좋아요한 책인지 확인
+        boolean alreadyLiked = fav.getUser().stream()
+            .anyMatch(f -> f.getIsbn().equals(isbn));
+
+        if (alreadyLiked) {
+            throw new RuntimeException("이미 좋아요한 책입니다.");
+        }
+
+        fav.getUser().add(new User.UserFavorite(isbn));
+        return userRepository.save(user);
+    }
+
+    /**
+     * 책 좋아요 제거
+     */
+    public User removeFavoriteBook(String userId, String isbn) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        User.Fav fav = user.getFav();
+        fav.getUser().removeIf(f -> f.getIsbn().equals(isbn));
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 좋아요 상태 토글
+     */
+    public User toggleFavoriteBook(String userId, String isbn) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        User.Fav fav = user.getFav();
+
+        boolean alreadyLiked = fav.getUser().stream()
+            .anyMatch(f -> f.getIsbn().equals(isbn));
+
+        if (alreadyLiked) {
+            fav.getUser().removeIf(f -> f.getIsbn().equals(isbn));
+        } else {
+            fav.getUser().add(new User.UserFavorite(isbn));
+        }
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 특정 책이 좋아요 되어있는지 확인
+     */
+    public boolean isBookFavorited(String userId, String isbn) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        return user.getFav().getUser().stream()
+            .anyMatch(f -> f.getIsbn().equals(isbn));
+    }
+
+    /**
+     * 사용자의 좋아요한 책 목록 조회
+     */
+    public List<User.UserFavorite> getUserFavorites(String userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        return user.getFav().getUser();
+    }
+
+    /**
+     * AI 추천 책 추가
+     */
+    public User addAIRecommendation(String userId, String isbn, String reason) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        User.Fav fav = user.getFav();
+
+        // 이미 추천된 책인지 확인
+        boolean alreadyRecommended = fav.getAi().stream()
+            .anyMatch(r -> r.getIsbn().equals(isbn));
+
+        if (!alreadyRecommended) {
+            fav.getAi().add(new User.AIRecommendation(isbn, reason));
+        }
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * AI 추천 책 제거
+     */
+    public User removeAIRecommendation(String userId, String isbn) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        User.Fav fav = user.getFav();
+        fav.getAi().removeIf(r -> r.getIsbn().equals(isbn));
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * 사용자의 AI 추천 책 목록 조회
+     */
+    public List<User.AIRecommendation> getAIRecommendations(String userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        return user.getFav().getAi();
+    }
 }

@@ -26,7 +26,7 @@ export interface BookData {
   cover?: BookCover;  // 책 표지 이미지 URL (small, medium)
   author?: string; // 책 저자
   genre?: string;  // 책 장르/카테고리
-  api?: 'google' | 'naver'; // 데이터 출처 API
+  ln?: 'en' | 'ko'; // 언어 코드
 }
 
 export interface Post {

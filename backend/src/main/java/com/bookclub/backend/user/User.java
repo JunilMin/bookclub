@@ -76,6 +76,72 @@ public class User {
   // 평가(endorsement) 관련 집계 필드
   private EndorsementStats endorsementStats;
 
+  // 관심 도서 (좋아요 + AI 추천)
+  private Fav fav;
+
+  /**
+   * fav getter - null 방지
+   */
+  public Fav getFav() {
+    if (this.fav == null) {
+      this.fav = new Fav();
+    }
+    return this.fav;
+  }
+
+  // 관심 도서 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Fav {
+    private List<UserFavorite> user;    // 사용자가 좋아요한 책
+    private List<AIRecommendation> ai;  // AI 추천 책
+
+    public List<UserFavorite> getUser() {
+      if (this.user == null) {
+        this.user = new ArrayList<>();
+      }
+      return this.user;
+    }
+
+    public List<AIRecommendation> getAi() {
+      if (this.ai == null) {
+        this.ai = new ArrayList<>();
+      }
+      return this.ai;
+    }
+  }
+
+  // 사용자 좋아요 책
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class UserFavorite {
+    private String isbn;
+    private LocalDateTime likedAt;
+
+    public UserFavorite(String isbn) {
+      this.isbn = isbn;
+      this.likedAt = LocalDateTime.now();
+    }
+  }
+
+  // AI 추천 책
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class AIRecommendation {
+    private String isbn;
+    private String reason;
+    private LocalDateTime recommendedAt;
+
+    public AIRecommendation(String isbn, String reason) {
+      this.isbn = isbn;
+      this.reason = reason;
+      this.recommendedAt = LocalDateTime.now();
+    }
+  }
+
   // 신고 통계 내부 클래스
   @Getter
   @Setter

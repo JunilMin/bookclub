@@ -17,7 +17,8 @@ import {
   FiEdit3
 } from 'react-icons/fi';
 import { useAuth } from '../AuthContext/AuthContext';
-import { getMyNotesEnriched, UserNoteResponse } from '../api/notes';
+import { useNotesStore } from '../store/notesStore';
+import { UserNoteResponse } from '../api/notes';
 import Footer from '../components/Footer';
 import './styles/Notes.css';
 
@@ -99,10 +100,20 @@ const Notes: React.FC = () => {
   const navigate = useNavigate();
   const { accessToken, user } = useAuth();
 
-  // State
-  const [notes, setNotes] = useState<UserNoteResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Zustand Store
+  const {
+    byId,
+    order,
+    isInitialLoading,
+    error: storeError,
+    initNotes,
+    toggleFavorite,
+  } = useNotesStore();
+
+  // Compute notes array from normalized state
+  const notes = useMemo((): UserNoteResponse[] => {
+    return order.map((id) => byId[id]).filter(Boolean);
+  }, [byId, order]);
 
   // Filter/View State
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -110,29 +121,17 @@ const Notes: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortBy>('latest');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Derived state
+  const isLoading = isInitialLoading;
+  const error = storeError ? t('notes_error_fetch') : null;
+
   // ==========================================================================
-  // Data Fetching
+  // Data Fetching (via Store)
   // ==========================================================================
   useEffect(() => {
-    const fetchNotes = async () => {
-      if (!accessToken) return;
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const data = await getMyNotesEnriched(accessToken);
-        setNotes(data);
-      } catch (err) {
-        console.error('Failed to fetch notes:', err);
-        setError(t('notes_error_fetch'));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchNotes();
-  }, [accessToken, t]);
+    if (!accessToken) return;
+    initNotes(accessToken);
+  }, [accessToken, initNotes]);
 
   // ==========================================================================
   // Filtering & Sorting
@@ -383,6 +382,18 @@ const Notes: React.FC = () => {
                 className={`notes-card ${viewMode}`}
                 onClick={() => navigate(`/notes/${note.noteId}`)}
               >
+                {/* List View: Top-right badges container */}
+                {viewMode === 'list' && (
+                  <div className="notes-list-badges">
+                    {note.bookGenre && (
+                      <span className="notes-badge-genre">{note.bookGenre}</span>
+                    )}
+                    <span className="notes-badge-level">
+                      {getLevelLabel(note.level)}
+                    </span>
+                  </div>
+                )}
+
                 {/* 3D Book Cover */}
                 <div className="notes-card-cover">
                   <div className="notes-book-container">
@@ -411,31 +422,33 @@ const Notes: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Badges */}
-                  {note.bookGenre && (
+                  {/* Badges - Grid View Only */}
+                  {viewMode === 'grid' && note.bookGenre && (
                     <span className="notes-badge-genre">{note.bookGenre}</span>
                   )}
                   <button
                     className={`notes-btn-favorite ${note.isFavorite ? 'active' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      // TODO: Toggle favorite
+                      toggleFavorite(note.noteId);
                     }}
                   >
                     <FiStar />
                   </button>
 
-                  {/* Bottom Badges */}
-                  <div className="notes-card-badges">
-                    {note.hostRating > 0 && (
-                      <span className="notes-badge-rating">
-                        <FiStar /> {note.hostRating}
+                  {/* Bottom Badges - Grid View Only */}
+                  {viewMode === 'grid' && (
+                    <div className="notes-card-badges">
+                      {note.hostRating > 0 && (
+                        <span className="notes-badge-rating">
+                          <FiStar /> {note.hostRating}
+                        </span>
+                      )}
+                      <span className="notes-badge-level">
+                        {getLevelLabel(note.level)}
                       </span>
-                    )}
-                    <span className="notes-badge-level">
-                      {getLevelLabel(note.level)}
-                    </span>
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Card Body */}
@@ -502,8 +515,6 @@ const Notes: React.FC = () => {
           </div>
         )}
       </section>
-
-      <Footer />
     </div>
   );
 };

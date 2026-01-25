@@ -689,25 +689,17 @@
   top: 0;
   z-index: 100;
   opacity: 98%;
+  transition: transform 0.3s ease;
 }
 
-.board-sticky-header .board-tabs-section {
-  transition: opacity 0.3s ease;
-}
-
-.board-sticky-header.scrolling-down .board-tabs-section {
+.board-sticky-header.scrolling-down {
+  transform: translateY(-100%);
   pointer-events: none;
 }
 
 .board-sticky-header .board-filters {
   position: relative;
   z-index: 1;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.board-sticky-header.scrolling-down .board-filters {
-  transform: translateY(calc(-1 * var(--tabs-height, 0px)));
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 /* Tabs Section - Above Filters */
@@ -1086,9 +1078,8 @@
 /* Room Cards Grid */
 .board-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
-  justify-content: center;
   max-width: 1000px;
   margin: 0 auto;
 }

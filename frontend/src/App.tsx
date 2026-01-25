@@ -9,9 +9,12 @@ import Meeting from './screens/Meeting';
 import Meet from './screens/Meet';
 import MeetRoom from './screens/MeetRoom';
 import About from './screens/About';
+import Help from './screens/Help';
 import Notes from './screens/Notes';
 import NoteDetail from './screens/NoteDetail';
 import Reputation from './screens/Reputation';
+import Settings from './screens/Settings';
+import Favorites from './screens/Favorites';
 import NavBar from './components/NavBar';
 import Footer from './components/Footer';
 import Login from './screens/Login';
@@ -60,10 +63,13 @@ const AppContent: React.FC = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/set-username" element={<SetUsername />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/reputation" element={<Reputation />} />
           <Route path="/about" element={<About />} />
+          <Route path="/help" element={<Help />} />
           <Route path="/notes" element={<Notes />} />
           <Route path="/notes/:noteId" element={<NoteDetail />} />
+          <Route path="/favorites" element={<Favorites />} />
           <Route path="/login" element={<Login />} />
         </Routes>
       </div>

@@ -88,7 +88,7 @@ public class Post {
     @Getter
     private String genre;     // 책 장르/카테고리
     @Getter
-    private String api;       // 데이터 출처 API ("google" 또는 "naver")
+    private String ln;        // 언어 코드 ("en" 또는 "ko")
 
     /**
      * cover를 BookCover 객체로 반환 (하위 호환성 지원)

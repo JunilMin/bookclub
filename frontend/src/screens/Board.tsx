@@ -74,56 +74,15 @@ async function fetchBookInfoFromGoogle(isbn: string, bookTitle: string): Promise
       cover: {
         small: smallCover,
         medium: mediumCover
-      },
-      api: 'google'
+      }
     };
   } catch {
     return null;
   }
 }
 
-// Fetch book info from Naver Books API (via backend proxy)
-async function fetchBookInfoFromNaver(isbn: string, bookTitle: string): Promise<BookData | null> {
-  if (!isbn) return null;
-
-  try {
-    const response = await fetch(
-      `/api/books/naver/search?query=${encodeURIComponent(isbn)}`
-    );
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    if (!data.items || data.items.length === 0) return null;
-
-    const item = data.items[0];
-    const coverUrl = item.image || '';
-
-    return {
-      title: item.title?.replace(/<[^>]*>/g, '') || bookTitle,
-      isbn: isbn,
-      author: item.author?.replace(/<[^>]*>/g, '') || 'Unknown Author',
-      genre: 'General', // Naver API doesn't provide category in simple search
-      cover: {
-        small: coverUrl,
-        medium: coverUrl  // Naver only provides one size
-      },
-      api: 'naver'
-    };
-  } catch {
-    return null;
-  }
-}
-
-// Fetch book info based on API type
-async function fetchBookInfoByAPI(
-  isbn: string,
-  bookTitle: string,
-  apiType: 'google' | 'naver' = 'google'
-): Promise<BookData | null> {
-  if (apiType === 'naver') {
-    return fetchBookInfoFromNaver(isbn, bookTitle);
-  }
+// Fetch book info (always uses Google Books API)
+async function fetchBookInfo(isbn: string, bookTitle: string): Promise<BookData | null> {
   return fetchBookInfoFromGoogle(isbn, bookTitle);
 }
 
@@ -246,7 +205,7 @@ function postToRoom(
     meetLink: post.meetLink,
     calendarEventId: post.calendarEventId,
     recruit: post.recruit !== undefined ? post.recruit : true,
-    api: post.bookData?.api as 'google' | 'naver' | undefined
+    ln: post.bookData?.ln as 'en' | 'ko' | undefined
   };
 }
 
@@ -354,54 +313,36 @@ const Board: React.FC = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      // Ignore scroll events during transition
-      if (isTransitioningRef.current) return;
-
       const currentScrollY = window.scrollY;
-      const scrollDelta = currentScrollY - lastScrollY.current;
 
-      // Only trigger after significant scroll (50px threshold)
-      if (Math.abs(scrollDelta) < 50) return;
+      // Get sticky header's original position (where it becomes sticky)
+      const stickyHeaderTop = stickyHeaderRef.current?.offsetTop ?? 0;
 
-      // At top of page - always show tabs
-      if (currentScrollY < 100) {
+      // Before sticky header becomes sticky - always show
+      if (currentScrollY < stickyHeaderTop) {
         if (isScrollingDown) {
-          isTransitioningRef.current = true;
           setIsScrollingDown(false);
-          setTimeout(() => { isTransitioningRef.current = false; }, 350);
         }
         lastScrollY.current = currentScrollY;
         return;
       }
 
-      // Clear any pending timeout
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
+      // After sticky header is in sticky mode - apply scroll direction logic
+      // Scrolling down - hide header
+      if (currentScrollY > lastScrollY.current && !isScrollingDown) {
+        setIsScrollingDown(true);
+      }
+      // Scrolling up - show header
+      else if (currentScrollY < lastScrollY.current && isScrollingDown) {
+        setIsScrollingDown(false);
       }
 
-      // Debounce the state change
-      scrollTimeoutRef.current = setTimeout(() => {
-        if (scrollDelta > 50 && !isScrollingDown) {
-          // Scrolling down
-          isTransitioningRef.current = true;
-          setIsScrollingDown(true);
-          setTimeout(() => { isTransitioningRef.current = false; }, 350);
-        } else if (scrollDelta < -50 && isScrollingDown) {
-          // Scrolling up
-          isTransitioningRef.current = true;
-          setIsScrollingDown(false);
-          setTimeout(() => { isTransitioningRef.current = false; }, 350);
-        }
-        lastScrollY.current = window.scrollY;
-      }, 100);
+      lastScrollY.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
     };
   }, [isScrollingDown]);
 
@@ -527,11 +468,9 @@ const Board: React.FC = () => {
         if (needsBookInfoUpdate && accessToken) {
           bookInfoUpdateInProgress.add(post.id);
           try {
-            const apiType = post.bookData?.api || 'google';
-            const bookInfo = await fetchBookInfoByAPI(
+            const bookInfo = await fetchBookInfo(
               post.bookData!.isbn!,
-              post.bookData?.title || 'Unknown Book',
-              apiType
+              post.bookData?.title || 'Unknown Book'
             );
             if (bookInfo) {
               // 백그라운드에서 Post 업데이트 (UI에는 즉시 반영)
@@ -583,11 +522,10 @@ const Board: React.FC = () => {
   const filteredRooms = useMemo(() => {
     let result = [...rooms];
 
-    // Language-based API filter (KR → Naver, EN → Google)
-    // Posts without api field are shown in all languages (legacy support)
-    const currentLang = i18n.language;
-    const targetApi = currentLang === 'ko' ? 'naver' : 'google';
-    result = result.filter(room => !room.api || room.api === targetApi);
+    // Language-based filter (ko → Korean posts, en → English posts)
+    // Posts without ln field are shown in all languages (legacy support)
+    const currentLang = i18n.language === 'ko' ? 'ko' : 'en';
+    result = result.filter(room => !room.ln || room.ln === currentLang);
 
     // Tab filter
     if (activeTab === 'my') {
@@ -673,10 +611,9 @@ const Board: React.FC = () => {
 
     let result = [...rooms];
 
-    // Language-based API filter
-    const currentLang = i18n.language;
-    const targetApi = currentLang === 'ko' ? 'naver' : 'google';
-    result = result.filter(room => !room.api || room.api === targetApi);
+    // Language-based filter
+    const currentLang = i18n.language === 'ko' ? 'ko' : 'en';
+    result = result.filter(room => !room.ln || room.ln === currentLang);
 
     // Tab filter + 종료된 미팅만
     if (activeTab === 'my') {

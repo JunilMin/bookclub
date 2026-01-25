@@ -223,4 +223,159 @@ public class UserController {
             return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
         }
     }
+
+    // ===== 관심 도서 (Favorites) API =====
+
+    /**
+     * 현재 사용자의 좋아요한 책 목록 조회
+     */
+    @GetMapping("/me/favorites")
+    public ResponseEntity<?> getMyFavorites(@RequestHeader("Authorization") String token) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            List<User.UserFavorite> favorites = userService.getUserFavorites(userOpt.get().getId());
+            return ResponseEntity.ok(favorites);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 현재 사용자의 AI 추천 책 목록 조회
+     */
+    @GetMapping("/me/ai-recommendations")
+    public ResponseEntity<?> getMyAIRecommendations(@RequestHeader("Authorization") String token) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            List<User.AIRecommendation> recommendations = userService.getAIRecommendations(userOpt.get().getId());
+            return ResponseEntity.ok(recommendations);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 책 좋아요 추가
+     */
+    @PostMapping("/me/favorites/{isbn}")
+    public ResponseEntity<?> addFavorite(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String isbn) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            User user = userService.addFavoriteBook(userOpt.get().getId(), isbn);
+            return ResponseEntity.ok(user.getFav().getUser());
+        } catch (RuntimeException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 책 좋아요 제거
+     */
+    @DeleteMapping("/me/favorites/{isbn}")
+    public ResponseEntity<?> removeFavorite(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String isbn) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            User user = userService.removeFavoriteBook(userOpt.get().getId(), isbn);
+            return ResponseEntity.ok(user.getFav().getUser());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 책 좋아요 토글
+     */
+    @PostMapping("/me/favorites/{isbn}/toggle")
+    public ResponseEntity<?> toggleFavorite(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String isbn) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            User user = userService.toggleFavoriteBook(userOpt.get().getId(), isbn);
+            boolean isNowFavorited = user.getFav().getUser().stream()
+                .anyMatch(f -> f.getIsbn().equals(isbn));
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("isFavorited", isNowFavorited);
+            result.put("favorites", user.getFav().getUser());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 특정 책이 좋아요 되어있는지 확인
+     */
+    @GetMapping("/me/favorites/{isbn}/check")
+    public ResponseEntity<?> checkFavorite(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String isbn) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            boolean isFavorited = userService.isBookFavorited(userOpt.get().getId(), isbn);
+            Map<String, Boolean> result = new HashMap<>();
+            result.put("isFavorited", isFavorited);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 현재 사용자의 모든 관심 도서 조회 (좋아요 + AI 추천)
+     */
+    @GetMapping("/me/fav")
+    public ResponseEntity<?> getMyFav(@RequestHeader("Authorization") String token) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            User.Fav fav = userOpt.get().getFav();
+            return ResponseEntity.ok(fav);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
 }

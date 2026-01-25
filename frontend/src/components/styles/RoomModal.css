@@ -2,7 +2,7 @@
 .room-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -219,6 +219,13 @@
   gap: 12px;
 }
 
+.room-modal-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .room-modal-section-title {
   font-size: 14px;
   font-weight: 600;
@@ -226,6 +233,43 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0;
+}
+
+/* Like Button */
+.room-modal-like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.room-modal-like-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+
+.room-modal-like-btn.liked {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.room-modal-like-btn.liked:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.room-modal-like-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .room-modal-info-grid {

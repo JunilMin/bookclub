@@ -697,8 +697,6 @@ const NoteDetail: React.FC = () => {
           sessionId={note.sessionId}
         />
       )}
-
-      <Footer />
     </div>
   );
 };

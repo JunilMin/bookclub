@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo, FiEdit2, FiSave, FiXCircle, FiLogOut, FiEdit3, FiArrowRight } from 'react-icons/fi';
+import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo, FiEdit2, FiSave, FiXCircle, FiLogOut, FiEdit3, FiArrowRight, FiHeart } from 'react-icons/fi';
 import { joinSession } from '../api/sessions';
 import { updatePost, leaveBookMeeting } from '../api/posts';
+import { toggleFavorite, checkFavorite } from '../api/favorites';
 import { useAuth } from '../AuthContext/AuthContext';
 import './styles/RoomModal.css';
 
@@ -63,7 +64,7 @@ export interface Room {
   meetLink?: string | null;
   calendarEventId?: string | null;
   recruit?: boolean; // 모집 중 여부 (기본값: true)
-  api?: 'google' | 'naver'; // 도서 검색 API 출처 (언어별 필터링용)
+  ln?: 'en' | 'ko'; // 언어 코드 (언어별 필터링용)
 }
 
 interface RoomModalProps {
@@ -83,6 +84,8 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -95,6 +98,20 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
     tags: room.tags,
     newTag: ''
   });
+
+  // Check if book is favorited
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (!user || !room.book.isbn) return;
+      try {
+        const favorited = await checkFavorite(room.book.isbn);
+        setIsFavorited(favorited);
+      } catch (error) {
+        console.error('Failed to check favorite status:', error);
+      }
+    };
+    checkFavoriteStatus();
+  }, [user, room.book.isbn]);
 
   // Close on Escape key
   useEffect(() => {
@@ -155,6 +172,24 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
       navigate(`/meeting/${room.id}`, { state: { meetLink: room.meetLink, room } });
     } else {
       onJoin(room.id);
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!room.book.isbn) return;
+
+    setIsTogglingFavorite(true);
+    try {
+      const result = await toggleFavorite(room.book.isbn);
+      setIsFavorited(result.isFavorited);
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    } finally {
+      setIsTogglingFavorite(false);
     }
   };
 
@@ -417,7 +452,24 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
 
             {/* Book Info */}
             <div className="room-modal-section">
-              <h3 className="room-modal-section-title">{t('browse_modal_book_info')}</h3>
+              <div className="room-modal-section-header">
+                <h3 className="room-modal-section-title">{t('browse_modal_book_info')}</h3>
+                {room.book.isbn && (
+                  <button
+                    className={`room-modal-like-btn ${isFavorited ? 'liked' : ''}`}
+                    onClick={handleToggleFavorite}
+                    disabled={isTogglingFavorite}
+                    title={isFavorited ? t('favorites_remove') : t('browse_modal_like_book')}
+                  >
+                    <FiHeart
+                      size={18}
+                      fill={isFavorited ? '#ef4444' : 'none'}
+                      stroke={isFavorited ? '#ef4444' : 'currentColor'}
+                    />
+                    <span>{isFavorited ? t('browse_modal_liked') : t('browse_modal_like')}</span>
+                  </button>
+                )}
+              </div>
               <div className="room-modal-info-grid">
                 <div className="room-modal-info-item">
                   <span className="room-modal-info-label">{t('browse_modal_author')}</span>

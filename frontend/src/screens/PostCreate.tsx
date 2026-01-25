@@ -23,6 +23,9 @@ interface PostCreateForm {
   roomVisibility: RoomVisibility;
   aiSummary: boolean;
   aiModerator: boolean;
+  description: string;
+  tags: string[];
+  newTag: string;
 }
 
 const PostCreate: React.FC = () => {
@@ -45,6 +48,9 @@ const PostCreate: React.FC = () => {
     roomVisibility: 'public',
     aiSummary: true,
     aiModerator: false,
+    description: '',
+    tags: [],
+    newTag: '',
   });
 
   const [bookSearch, setBookSearch] = useState('');
@@ -52,8 +58,22 @@ const PostCreate: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const today = new Date().toISOString().split('T')[0];
+
+  // Auto-resize textarea based on content
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [form.description]);
 
   // Load book by ISBN from navigation state
   useEffect(() => {
@@ -64,7 +84,16 @@ const PostCreate: React.FC = () => {
         try {
           const book = await getBookByISBN(state.isbn!);
           if (book) {
-            setForm(prev => ({ ...prev, selectedBook: book }));
+            // Auto-populate tags from book categories
+            const autoTags = book.categories && book.categories.length > 0
+              ? book.categories.slice(0, 5)
+              : [];
+            setForm(prev => ({
+              ...prev,
+              selectedBook: book,
+              description: book.description || '',
+              tags: autoTags,
+            }));
           }
         } catch (error) {
           console.error('Failed to load book by ISBN:', error);
@@ -134,13 +163,45 @@ const PostCreate: React.FC = () => {
   }, [form.bookLanguage]);
 
   const handleBookSelect = (book: BookSearchResult) => {
-    setForm(prev => ({ ...prev, selectedBook: book }));
+    // Auto-populate tags from book categories
+    const autoTags = book.categories && book.categories.length > 0
+      ? book.categories.slice(0, 5) // Limit to 5 categories
+      : [];
+
+    setForm(prev => ({
+      ...prev,
+      selectedBook: book,
+      description: book.description || '',
+      tags: autoTags,
+    }));
     setBookSearch('');
     setBookResults([]);
   };
 
+  const handleAddTag = () => {
+    if (form.newTag.trim() && !form.tags.includes(form.newTag.trim())) {
+      setForm(prev => ({
+        ...prev,
+        tags: [...prev.tags, prev.newTag.trim()],
+        newTag: '',
+      }));
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setForm(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove),
+    }));
+  };
+
   const handleClearBook = () => {
-    setForm(prev => ({ ...prev, selectedBook: null }));
+    setForm(prev => ({
+      ...prev,
+      selectedBook: null,
+      description: '',
+      tags: [],
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -179,9 +240,11 @@ const PostCreate: React.FC = () => {
         cover: form.selectedBook.thumbnail,
         author: form.selectedBook.author,
         genre: form.selectedBook.categories?.[0],
-        api: form.bookLanguage === 'en' ? 'google' : 'naver',
+        ln: form.bookLanguage === 'en' ? 'en' : 'ko',
       },
       duration: duration,
+      description: form.description.trim() || undefined,
+      tags: form.tags.length > 0 ? form.tags : undefined,
     };
 
     try {
@@ -422,6 +485,53 @@ const PostCreate: React.FC = () => {
                   <div className="option-card-title">{t('post_create_invite_only')}</div>
                   <div className="option-card-desc">{t('post_create_coming_soon')}</div>
                 </button>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="form-section">
+              <label className="form-label">{t('post_create_description')}</label>
+              <textarea
+                ref={textareaRef}
+                className="form-textarea"
+                placeholder={t('post_create_description_placeholder')}
+                value={form.description}
+                onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+
+            {/* Tags */}
+            <div className="form-section">
+              <label className="form-label">{t('post_create_tags')}</label>
+              <div className="tags-section">
+                <div className="tag-input-group">
+                  <input
+                    type="text"
+                    className="tag-input"
+                    placeholder={t('post_create_add_tag')}
+                    value={form.newTag}
+                    onChange={(e) => setForm(prev => ({ ...prev, newTag: e.target.value }))}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                  />
+                  <button type="button" className="tag-add-btn" onClick={handleAddTag}>
+                    <i className="ri-add-line"></i>
+                  </button>
+                </div>
+                {form.tags.length > 0 && (
+                  <div className="tags-list">
+                    {form.tags.map((tag, index) => (
+                      <span key={index} className="tag tag-editable">
+                        {tag}
+                        <button type="button" onClick={() => handleRemoveTag(tag)}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

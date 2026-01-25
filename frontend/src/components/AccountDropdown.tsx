@@ -163,7 +163,7 @@ const AccountDropdown: React.FC = () => {
               onClick={() => handleNavigation('/favorites')}
             >
               <div className="item-icon-simple">
-                <i className="ri-heart-line"></i>
+                <i className="ri-bookmark-3-line"></i>
               </div>
               <span>{t('dropdown_favorite_meetings')}</span>
             </button>
@@ -174,7 +174,7 @@ const AccountDropdown: React.FC = () => {
             <span className="section-title">{t('dropdown_setting_management_title')}</span>
             <button
               className="dropdown-item"
-              onClick={() => handleNavigation('/profile#settings')}
+              onClick={() => handleNavigation('/settings')}
             >
               <div className="item-icon-simple">
                 <i className="ri-settings-3-line"></i>

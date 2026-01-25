@@ -53,15 +53,18 @@ const searchBooksViaBackend = async (query: string, lang?: string): Promise<Book
 };
 
 // Google Books API 검색 (영문 책)
-export const searchGoogleBooks = async (query: string): Promise<BookSearchResult[]> => {
+export const searchBooksEN = async (query: string): Promise<BookSearchResult[]> => {
   return searchBooksViaBackend(query, 'en');
 };
 
 // Google Books API 검색 (한글 책)
-export const searchNaverBooks = async (query: string): Promise<BookSearchResult[]> => {
-  // Naver API 대신 Google Books API 사용 (백엔드 프록시 통해)
+export const searchBooksKO = async (query: string): Promise<BookSearchResult[]> => {
   return searchBooksViaBackend(query, 'ko');
 };
+
+// Legacy aliases (for backwards compatibility)
+export const searchGoogleBooks = searchBooksEN;
+export const searchNaverBooks = searchBooksKO;
 
 // ISBN으로 책 직접 조회 (백엔드를 통한 Google Books API)
 export const getBookByISBN = async (isbn: string): Promise<BookSearchResult | null> => {

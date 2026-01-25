@@ -49,85 +49,6 @@
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-/* Hero Section */
-.reputation-hero {
-  position: relative;
-  margin: -20px -20px 40px;
-  padding: 60px 40px;
-  overflow: hidden;
-}
-
-.hero-background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: -1;
-}
-
-.hero-gradient {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
-}
-
-.hero-content {
-  position: relative;
-  z-index: 1;
-}
-
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.profile-avatar-large {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  border: 4px solid rgba(16, 185, 129, 0.5);
-  object-fit: cover;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.profile-info {
-  flex: 1;
-}
-
-.profile-info .profile-username {
-  font-size: 32px;
-  font-weight: 700;
-  color: #f7fafc;
-  margin: 0 0 8px;
-}
-
-.profile-info .profile-email {
-  font-size: 14px;
-  color: #a0aec0;
-  margin: 0 0 12px;
-}
-
-.profile-badge-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(16, 185, 129, 0.15);
-  border-radius: 20px;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.badge-count {
-  font-size: 14px;
-  font-weight: 500;
-  color: #10b981;
-}
-
 /* Section Styles */
 .section-title {
   font-size: 20px;
@@ -208,190 +129,445 @@
   letter-spacing: 0.5px;
 }
 
-/* Endorsement Section */
+/* Endorsement Section - New Design */
 .endorsement-section {
+  padding: 80px 24px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+}
+
+.endorsement-container {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.endorsement-header {
+  text-align: center;
   margin-bottom: 48px;
 }
 
-.endorsement-content {
+.endorsement-title {
+  font-size: 36px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px;
+}
+
+.endorsement-subtitle {
+  font-size: 18px;
+  color: #64748b;
+  max-width: 512px;
+  margin: 0 auto;
+}
+
+.endorsement-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px;
+  gap: 48px;
   align-items: start;
 }
 
+/* Chart Card */
+.endorsement-chart-card {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
 .hexagon-wrapper {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.endorsement-overall {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.overall-score {
-  display: block;
-  font-size: 48px;
-  font-weight: 700;
-  color: #10b981;
-}
-
-.overall-label {
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
   font-size: 14px;
-  color: #94a3b8;
 }
 
-.endorsement-details {
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+}
+
+.legend-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.legend-dot.filled {
+  background: #0f172a;
+}
+
+.legend-dot.outline {
+  border: 2px solid rgba(15, 23, 42, 0.3);
+  background: transparent;
+}
+
+/* Endorsement Cards */
+.endorsement-cards {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
-.endorsement-summary-stats {
+.endorsement-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  transition: all 0.3s ease;
+}
+
+.endorsement-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.endorsement-card-header {
   display: flex;
-  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
 
-.summary-stat {
-  flex: 1;
-  padding: 20px;
-  background: linear-gradient(145deg, #1e293b, #0f172a);
+.endorsement-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.endorsement-card-icon {
+  width: 48px;
+  height: 48px;
+  background: #f1f5f9;
   border-radius: 12px;
-  text-align: center;
-}
-
-.summary-value {
-  display: block;
-  font-size: 32px;
-  font-weight: 700;
-  color: #10b981;
-}
-
-.summary-label {
-  font-size: 12px;
-  color: #94a3b8;
-  text-transform: uppercase;
-}
-
-.category-breakdown {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.category-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  transition: all 0.3s ease;
 }
 
-.category-name {
-  width: 100px;
-  font-size: 13px;
-  color: #cbd5e1;
-  flex-shrink: 0;
+.endorsement-card:hover .endorsement-card-icon {
+  background: #0f172a;
+  transform: scale(1.1);
 }
 
-.category-bar {
-  flex: 1;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
+.endorsement-card-icon i {
+  font-size: 20px;
+  color: #0f172a;
+  transition: color 0.3s ease;
 }
 
-.category-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #10b981, #059669);
-  border-radius: 4px;
-  transition: width 0.5s ease;
+.endorsement-card:hover .endorsement-card-icon i {
+  color: white;
 }
 
-.category-score {
-  width: 40px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #f7fafc;
+.endorsement-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.endorsement-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.endorsement-card-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+.endorsement-card-score {
   text-align: right;
 }
 
-/* Monthly Attendance Section */
+.endorsement-card-score .score-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.endorsement-card-score .score-max {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.endorsement-progress-bar {
+  height: 12px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.endorsement-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f172a, #10b981);
+  border-radius: 6px;
+  transition: width 1s ease;
+}
+
+/* Monthly Attendance Section - New Design */
 .attendance-section {
+  padding: 80px 24px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+}
+
+.attendance-container {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.attendance-header {
+  text-align: center;
   margin-bottom: 48px;
 }
 
-.monthly-chart {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  height: 200px;
-  padding: 20px;
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border-radius: 16px;
-  gap: 8px;
+.attendance-title {
+  font-size: 36px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px;
 }
 
-.month-bar-wrapper {
-  flex: 1;
+.attendance-subtitle {
+  font-size: 18px;
+  color: #64748b;
+  max-width: 512px;
+  margin: 0 auto;
+}
+
+/* Stats Grid */
+.attendance-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.attendance-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 16px;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.attendance-stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.attendance-stat-card.attended {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.attendance-stat-card.absent {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.attendance-stat-card.late {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.attendance-stat-card.total {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.attendance-stat-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+}
+
+.attendance-stat-icon i {
+  font-size: 24px;
+  color: white;
+}
+
+.attendance-stat-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  height: 100%;
 }
 
-.month-bar {
-  width: 100%;
-  max-width: 40px;
-  background: linear-gradient(180deg, #10b981, #059669);
-  border-radius: 4px 4px 0 0;
+.attendance-stat-value {
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.attendance-stat-label {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* Chart Card */
+.attendance-chart-card {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.attendance-chart-bars {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 4px;
-  min-height: 4px;
-  margin-top: auto;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.month-value {
-  font-size: 11px;
+.attendance-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.attendance-month-label {
+  width: 48px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  text-align: right;
+}
+
+.attendance-bar-container {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.attendance-bar-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  transition: width 0.5s ease;
+}
+
+.attendance-bar-segment span {
+  font-size: 12px;
   font-weight: 600;
   color: white;
 }
 
-.month-label {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #94a3b8;
+.attendance-bar-segment.attended {
+  background: linear-gradient(90deg, #10b981, #059669);
 }
 
-/* Badge Section - New Design */
+.attendance-bar-segment.late {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.attendance-bar-segment.absent {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.attendance-bar-empty {
+  flex: 1;
+  background: #e2e8f0;
+  border-radius: 8px;
+}
+
+.attendance-total-label {
+  width: 32px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: left;
+}
+
+/* Legend */
+.attendance-chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.attendance-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.attendance-legend-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.attendance-legend-dot.attended {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.attendance-legend-dot.late {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.attendance-legend-dot.absent {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* Badge Section - New Design (Light Theme) */
 .badges-section-new {
-  margin-bottom: 48px;
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border-radius: 24px;
-  padding: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 80px 24px;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+}
+
+.badges-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
 .badges-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
 }
 
 .badges-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #f7fafc;
-  margin: 0 0 8px;
+  font-size: 36px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px;
 }
 
 .badges-subtitle {
-  font-size: 14px;
-  color: #94a3b8;
-  margin: 0 0 16px;
+  font-size: 18px;
+  color: #64748b;
+  max-width: 512px;
+  margin: 0 auto 24px;
 }
 
 .badges-count-display {
@@ -401,21 +577,18 @@
 }
 
 .earned-count {
-  font-size: 48px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #10b981, #059669);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: 36px;
+  font-weight: 800;
+  color: #10b981;
 }
 
 .total-count {
-  font-size: 18px;
+  font-size: 16px;
   color: #64748b;
 }
 
 .badge-group-new {
-  margin-bottom: 32px;
+  margin-bottom: 64px;
 }
 
 .badge-group-new:last-child {
@@ -426,10 +599,10 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #f7fafc;
-  margin: 0 0 20px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 24px;
 }
 
 .badge-group-icon {
@@ -443,19 +616,19 @@
 }
 
 .badge-group-icon.earned {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: #10b981;
+  color: white;
 }
 
 .badge-group-icon.locked {
-  background: rgba(100, 116, 139, 0.15);
+  background: #cbd5e1;
   color: #64748b;
 }
 
 .badges-grid-new {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 24px;
 }
 
 .badge-card-new {
@@ -463,10 +636,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24px 16px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 24px;
+  background: white;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
   text-align: center;
   overflow: hidden;
@@ -475,49 +649,40 @@
 
 .badge-card-new:hover {
   transform: translateY(-8px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 .badge-card-new.earned:hover {
-  box-shadow: 0 25px 50px -12px rgba(16, 185, 129, 0.3);
-  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 .badge-card-new.locked {
-  opacity: 0.8;
-}
-
-.badge-card-new.locked .badge-icon-new,
-.badge-card-new.locked .badge-name-new,
-.badge-card-new.locked .badge-description-new,
-.badge-card-new.locked .badge-progress-new {
-  transition: filter 0.3s ease;
+  opacity: 1;
 }
 
 .badge-card-new.locked:hover {
   transform: none;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
-  border-color: rgba(100, 116, 139, 0.3);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 .badge-card-new.locked:hover .badge-icon-new,
 .badge-card-new.locked:hover .badge-name-new,
 .badge-card-new.locked:hover .badge-description-new,
 .badge-card-new.locked:hover .badge-progress-new {
-  filter: blur(2px);
+  filter: none;
 }
 
 .badge-icon-new {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  font-size: 28px;
+  font-size: 36px;
   color: white;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  margin-bottom: 16px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
 }
 
@@ -526,35 +691,46 @@
 }
 
 .badge-card-new.locked .badge-icon-new {
-  filter: grayscale(0.3);
-  opacity: 0.7;
+  opacity: 0.3;
 }
 
 .badge-name-new {
   font-size: 14px;
-  font-weight: 600;
-  color: #f7fafc;
-  margin: 0 0 4px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.badge-card-new.locked .badge-name-new {
+  color: #64748b;
 }
 
 .badge-description-new {
   font-size: 12px;
-  color: #94a3b8;
-  margin: 0;
+  color: #64748b;
+  margin: 0 0 12px;
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.badge-card-new.locked .badge-description-new {
+  color: #94a3b8;
 }
 
 .badge-earned-date-new {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   color: #10b981;
-  margin-top: 8px;
 }
 
 .badge-earned-date-new i {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* Lock Overlay */
@@ -564,7 +740,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(1px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -584,16 +761,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(100, 116, 139, 0.3);
+  background: white;
   border-radius: 50%;
-  color: #94a3b8;
-  font-size: 20px;
+  color: #64748b;
+  font-size: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
 }
 
 .badge-card-new.locked:hover .lock-icon-circle {
   transform: scale(1.1);
-  background: rgba(100, 116, 139, 0.5);
 }
 
 /* Progress Bar */
@@ -605,22 +782,22 @@
 .badge-progress-new .progress-header {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
   margin-bottom: 6px;
 }
 
 .progress-bar-new {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .progress-fill-new {
   height: 100%;
-  border-radius: 3px;
-  transition: width 0.5s ease;
+  border-radius: 4px;
+  transition: width 1s ease;
 }
 
 /* Old Badge Section (keep for backwards compatibility) */
@@ -737,167 +914,477 @@
   color: #64748b;
 }
 
-/* Activity Section */
+/* Activity Section - New Design */
 .activity-section {
+  padding: 80px 24px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+}
+
+.activity-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.activity-header-section {
+  text-align: center;
   margin-bottom: 48px;
 }
 
+.activity-title {
+  font-size: 36px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px;
+}
+
+.activity-subtitle {
+  font-size: 18px;
+  color: #64748b;
+  max-width: 512px;
+  margin: 0 auto;
+}
+
 .activity-empty {
-  padding: 40px;
+  padding: 60px 40px;
   text-align: center;
   color: #64748b;
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border-radius: 16px;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.activity-timeline-wrapper {
+  position: relative;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.activity-timeline-line {
+  position: absolute;
+  left: 32px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, #0f172a, #10b981, #0f172a);
 }
 
 .activity-timeline {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 32px;
 }
 
 .activity-item {
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-  background: linear-gradient(145deg, #1e293b, #0f172a);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  padding-left: 80px;
   cursor: pointer;
-  transition: transform 0.2s, border-color 0.2s;
 }
 
-.activity-item:hover {
-  transform: translateX(4px);
-  border-color: rgba(16, 185, 129, 0.3);
+.activity-icon-box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+  z-index: 1;
 }
 
-.activity-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #10b981;
-  flex-shrink: 0;
-  margin-top: 4px;
+.activity-icon-box i {
+  font-size: 28px;
+  color: white;
 }
 
-.activity-content {
+.activity-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  transition: all 0.3s ease;
+}
+
+.activity-item:hover .activity-card {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.activity-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.activity-card-info {
   flex: 1;
 }
 
-.activity-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 4px;
+.activity-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+  transition: color 0.3s ease;
 }
 
-.activity-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #f7fafc;
+.activity-item:hover .activity-card-title {
+  color: #10b981;
 }
 
-.activity-date {
-  font-size: 12px;
+.activity-card-desc {
+  font-size: 14px;
   color: #64748b;
-  flex-shrink: 0;
+  margin: 0;
 }
 
-.activity-description {
-  font-size: 13px;
-  color: #94a3b8;
-  margin: 0 0 8px;
+.activity-rating-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 20px;
+}
+
+.activity-rating-badge i {
+  font-size: 14px;
+  color: #f59e0b;
+}
+
+.activity-rating-badge span {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+.activity-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.activity-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.activity-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.activity-meta-item i {
+  font-size: 16px;
 }
 
 .activity-participants {
-  font-size: 12px;
-  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.activity-participants i {
+  font-size: 16px;
+}
+
+.activity-load-more {
+  text-align: center;
+  margin-top: 48px;
 }
 
 .load-more-btn {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  margin-top: 16px;
-  background: transparent;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 8px;
-  color: #10b981;
-  font-size: 14px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 32px;
+  background: #0f172a;
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
 }
 
 .load-more-btn:hover {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: #10b981;
+  background: #1e293b;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+.load-more-btn i {
+  font-size: 18px;
 }
 
 /* Responsive */
+@media (max-width: 1200px) {
+  .attendance-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .badges-grid-new {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .badges-grid-new {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .badges-grid-new {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .badge-group-new {
+    margin-bottom: 48px;
+  }
+}
+
 @media (max-width: 900px) {
-  .endorsement-content {
+  .endorsement-grid {
     grid-template-columns: 1fr;
   }
 
-  .profile-header {
-    flex-direction: column;
-    text-align: center;
+  .endorsement-chart-card {
+    order: -1;
   }
 
-  .profile-info .profile-username {
-    font-size: 24px;
+  .endorsement-title {
+    font-size: 28px;
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .endorsement-subtitle {
+    font-size: 16px;
   }
 }
 
 @media (max-width: 600px) {
-  .reputation-hero {
-    padding: 40px 20px;
-    margin: -20px -20px 32px;
+  /* Endorsement Section - Mobile */
+  .endorsement-section {
+    padding: 48px 16px;
   }
 
-  .profile-avatar-large {
-    width: 80px;
-    height: 80px;
+  .endorsement-container {
+    padding: 0;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
+  .endorsement-title {
+    font-size: 24px;
+  }
+
+  .endorsement-subtitle {
+    font-size: 14px;
+  }
+
+  .endorsement-chart-card {
+    padding: 24px 16px;
+    border-radius: 16px;
+  }
+
+  .endorsement-card {
+    padding: 16px;
+  }
+
+  .endorsement-card-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .endorsement-card-icon i {
+    font-size: 18px;
+  }
+
+  .endorsement-card-title {
+    font-size: 16px;
+  }
+
+  .endorsement-card-score .score-value {
+    font-size: 24px;
+  }
+
+  /* Attendance Section - Mobile */
+  .attendance-section {
+    padding: 48px 16px;
+  }
+
+  .attendance-container {
+    padding: 0;
+  }
+
+  .attendance-title {
+    font-size: 24px;
+  }
+
+  .attendance-subtitle {
+    font-size: 14px;
+  }
+
+  .attendance-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
 
-  .stat-card {
+  .attendance-stat-card {
     padding: 16px;
-  }
-
-  .stat-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 20px;
-  }
-
-  .stat-value {
-    font-size: 20px;
-  }
-
-  .monthly-chart {
-    height: 150px;
-    padding: 16px;
-  }
-
-  .badges-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .activity-header {
     flex-direction: column;
-    gap: 4px;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .attendance-stat-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .attendance-stat-icon i {
+    font-size: 20px;
+  }
+
+  .attendance-stat-value {
+    font-size: 24px;
+  }
+
+  .attendance-stat-label {
+    font-size: 12px;
+  }
+
+  .attendance-chart-card {
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .attendance-month-label {
+    width: 36px;
+    font-size: 12px;
+  }
+
+  .attendance-bar-container {
+    height: 24px;
+  }
+
+  .attendance-bar-segment span {
+    font-size: 10px;
+  }
+
+  .attendance-total-label {
+    width: 24px;
+    font-size: 12px;
+  }
+
+  .attendance-chart-legend {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .attendance-legend-item {
+    font-size: 12px;
+  }
+
+  .attendance-legend-dot {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Activity Section - Mobile */
+  .activity-section {
+    padding: 48px 16px;
+  }
+
+  .activity-container {
+    padding: 0;
+  }
+
+  .activity-title {
+    font-size: 24px;
+  }
+
+  .activity-subtitle {
+    font-size: 14px;
+  }
+
+  .activity-timeline-line {
+    left: 24px;
+  }
+
+  .activity-item {
+    padding-left: 64px;
+  }
+
+  .activity-icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+
+  .activity-icon-box i {
+    font-size: 20px;
+  }
+
+  .activity-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .activity-card-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .activity-card-title {
+    font-size: 16px;
+  }
+
+  .activity-card-desc {
+    font-size: 13px;
+  }
+
+  .activity-rating-badge {
+    align-self: flex-start;
+  }
+
+  .activity-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .activity-meta {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .activity-meta-item,
+  .activity-participants {
+    font-size: 12px;
+  }
+
+  .activity-timeline {
+    gap: 24px;
+  }
+
+  .load-more-btn {
+    padding: 14px 24px;
+    font-size: 14px;
   }
 
   .endorsement-summary-stats {
@@ -912,18 +1399,59 @@
 
   /* Badge Section Responsive */
   .badges-section-new {
-    padding: 24px 16px;
-    border-radius: 16px;
+    padding: 48px 16px;
+  }
+
+  .badges-container {
+    padding: 0;
   }
 
   .badges-title {
-    font-size: 22px;
+    font-size: 24px;
+  }
+
+  .badges-subtitle {
+    font-size: 14px;
   }
 
   .earned-count {
-    font-size: 36px;
+    font-size: 28px;
   }
 
+  .badge-group-header {
+    font-size: 20px;
+  }
+
+  .badges-grid-new {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .badge-card-new {
+    padding: 20px 16px;
+  }
+
+  .badge-icon-new {
+    width: 64px;
+    height: 64px;
+    font-size: 28px;
+    border-radius: 12px;
+  }
+
+  .badge-name-new {
+    font-size: 13px;
+  }
+
+  .badge-description-new {
+    font-size: 11px;
+  }
+
+  .badge-earned-date-new {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 400px) {
   .badges-grid-new {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
@@ -934,10 +1462,9 @@
   }
 
   .badge-icon-new {
-    width: 48px;
-    height: 48px;
-    font-size: 22px;
-    border-radius: 12px;
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
   }
 
   .badge-name-new {
@@ -946,26 +1473,6 @@
 
   .badge-description-new {
     font-size: 10px;
-  }
-}
-
-@media (max-width: 400px) {
-  .badges-grid-new {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .badge-card-new {
-    padding: 12px 8px;
-  }
-
-  .badge-icon-new {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
-
-  .badge-description-new {
-    display: none;
+    -webkit-line-clamp: 2;
   }
 }
