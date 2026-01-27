@@ -105,6 +105,10 @@ public class SpeakingQueueController {
                 message.getPhotoUrl()
         );
 
+        // Broadcast to WebSocket
+        logger.info("Broadcasting raise-hand to /topic/session/{}/queue - user: {}", sessionId, message.getUserId());
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
         // Track attendance - handle hand raise
         try {
             AttendanceRecord attendance = attendanceService.handleHandRaise(sessionId, message.getUserId());
@@ -139,6 +143,11 @@ public class SpeakingQueueController {
 
         SpeakingQueue queue = speakingQueueService.nextSpeaker(sessionId);
 
+        // Broadcast to WebSocket
+        logger.info("Broadcasting next-speaker to /topic/session/{}/queue - currentSpeaker: {}",
+                sessionId, queue.getCurrentSpeaker() != null ? queue.getCurrentSpeaker().getUsername() : "none");
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
         // Track new speaker start
         if (queue.getCurrentSpeaker() != null) {
             try {
@@ -165,6 +174,11 @@ public class SpeakingQueueController {
             @PathVariable String sessionId,
             @RequestBody QueueActionMessage message) {
         SpeakingQueue queue = speakingQueueService.removeFromQueue(sessionId, message.getUserId());
+
+        // Broadcast to WebSocket
+        logger.info("Broadcasting remove-from-queue to /topic/session/{}/queue - user: {}", sessionId, message.getUserId());
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
         return ResponseEntity.ok(queue);
     }
 

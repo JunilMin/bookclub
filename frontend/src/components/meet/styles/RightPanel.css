@@ -403,3 +403,139 @@
     height: 28px;
   }
 }
+
+/* ========================================
+   AI Summary Panel (Compact Version)
+   ======================================== */
+.ai-summary-panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.ai-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfccb 100%);
+  cursor: pointer;
+  border-bottom: 1px solid #d1fae5;
+}
+
+.ai-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #166534;
+}
+
+.ai-summary-title h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ai-summary-toggle {
+  background: none;
+  border: none;
+  color: #166534;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-summary-content {
+  padding: 12px 16px;
+}
+
+.ai-summary-empty {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.ai-summary-empty p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0 0 12px 0;
+}
+
+/* Compact summary blocks */
+.summary-block.compact {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.summary-block.compact:last-of-type {
+  margin-bottom: 0;
+}
+
+.summary-list.compact li {
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.summary-list.compact .summary-more {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.summary-list.compact .summary-more::before {
+  display: none;
+}
+
+.summary-agreements.compact li {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+/* AI Summary Actions */
+.ai-summary-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ai-summary-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-summary-btn.generate,
+.ai-summary-btn.regenerate {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.ai-summary-btn.generate:hover:not(:disabled),
+.ai-summary-btn.regenerate:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.ai-summary-btn.insert {
+  background: #10b981;
+  color: white;
+}
+
+.ai-summary-btn.insert:hover {
+  background: #059669;
+}
+
+.ai-summary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

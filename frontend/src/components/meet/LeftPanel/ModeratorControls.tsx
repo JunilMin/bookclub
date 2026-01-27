@@ -14,6 +14,9 @@ import {
   FiFlag,
   FiChevronDown,
   FiChevronUp,
+  FiMic,
+  FiMicOff,
+  FiStopCircle,
 } from 'react-icons/fi';
 import { RiHandHeartLine } from 'react-icons/ri';
 import {
@@ -51,8 +54,12 @@ interface ModeratorControlsProps {
   hasRaisedHand: boolean;
   blockedUsers?: BlockedUser[];  // 강퇴된 유저 목록
   reportedUserIds?: string[];    // 이미 신고한 유저 ID 목록
+  // Utterance recording props
+  isRecordingUtterance?: boolean;  // 현재 발언 녹음 중인지
+  recordingElapsedSeconds?: number;  // 녹음 경과 시간 (초)
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
+  onEndTurn?: () => void;  // 발언 종료 (녹음 종료 + 업로드)
   onRemoveFromQueue: (userId: string) => void;
   onAddParticipantToQueue: (userId: string, username: string, photoUrl: string) => void;
   onReorderQueue: (userIds: string[]) => void;
@@ -140,8 +147,11 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   hasRaisedHand,
   blockedUsers,
   reportedUserIds,
+  isRecordingUtterance,
+  recordingElapsedSeconds,
   onRaiseHand,
   onNextSpeaker,
+  onEndTurn,
   onRemoveFromQueue,
   onAddParticipantToQueue,
   onReorderQueue,
@@ -278,11 +288,37 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
               </div>
             )}
             <span className="speaker-name">{queue.currentSpeaker.username}</span>
+            {queue.currentSpeaker.userId === queue.moderatorId && (
+              <span className="speaker-moderator-badge">{t('meet_moderator') || 'Moderator'}</span>
+            )}
           </div>
-          {isHost && (
-            <button className="next-speaker-btn" onClick={onNextSpeaker}>
-              {t('meet_next_speaker') || 'Next Speaker'}
-            </button>
+
+          {/* Recording status indicator */}
+          {isRecordingUtterance && (
+            <div className="utterance-recording-status">
+              <span className="recording-indicator-dot"></span>
+              <FiMic size={14} />
+              <span className="recording-time">
+                {Math.floor((recordingElapsedSeconds || 0) / 60)}:
+                {((recordingElapsedSeconds || 0) % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+          )}
+
+          {/* Host controls or current speaker controls */}
+          {(isHost || currentUserId === queue.currentSpeaker?.userId) && (
+            <div className="speaker-controls">
+              {isRecordingUtterance ? (
+                <button className="end-turn-btn recording" onClick={onEndTurn}>
+                  <FiStopCircle size={16} />
+                  {t('meet_end_turn') || 'End Turn'}
+                </button>
+              ) : isHost ? (
+                <button className="next-speaker-btn" onClick={onNextSpeaker}>
+                  {t('meet_next_speaker') || 'Next Speaker'}
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
       )}

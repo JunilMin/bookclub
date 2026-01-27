@@ -25,6 +25,9 @@ public class SpeakingQueue {
 
     private VoiceChatMode voiceChatMode = VoiceChatMode.RULES;  // Default to rules mode
 
+    // In RULES mode: after a speaker finishes, moderator gets a turn before the next speaker
+    private boolean isModeratorTurn = false;
+
     private CurrentSpeaker currentSpeaker;
 
     // Voice Chat Mode enum

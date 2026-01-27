@@ -68,7 +68,7 @@ public class AttendanceController {
     }
 
     /**
-     * 현재 사용자의 세션 출석 기록 조회
+     * 현재 사용자의 세션 출석 기록 조회 (없으면 자동 생성)
      */
     @GetMapping("/{sessionId}/attendance/me")
     public ResponseEntity<?> getMyAttendance(
@@ -93,19 +93,49 @@ public class AttendanceController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("error", "User not found"));
             }
-            String userId = userOpt.get().getId();
+            User user = userOpt.get();
+            String userId = user.getId();
 
-            Optional<AttendanceRecord> record = attendanceService.getUserAttendance(sessionId, userId);
-            if (record.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "Attendance record not found"));
+            logger.info("[getMyAttendance] Looking for existing attendance - sessionId: {}, userId: {}", sessionId, userId);
+
+            // 기존 기록 조회
+            Optional<AttendanceRecord> existingRecord = attendanceService.getUserAttendance(sessionId, userId);
+            if (existingRecord.isPresent()) {
+                logger.info("[getMyAttendance] Found existing record - id: {}, status: {}",
+                    existingRecord.get().getId(), existingRecord.get().getStatus());
+                return ResponseEntity.ok(existingRecord.get());
             }
 
-            return ResponseEntity.ok(record.get());
-        } catch (Exception e) {
-            logger.error("Error getting my attendance", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            // 기록이 없으면 자동 생성 (getOrCreate 패턴)
+            logger.info("[getMyAttendance] No existing record found. Creating new one for user {} in session {}", userId, sessionId);
+            AttendanceRecord newRecord = attendanceService.handleJoin(
+                    sessionId,
+                    userId,
+                    user.getUsername(),
+                    user.getPhotoUrl()
+            );
+
+            // 새로 생성된 출석 기록 브로드캐스트
+            if (newRecord != null) {
+                logger.info("[getMyAttendance] Created new record - id: {}", newRecord.getId());
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", newRecord);
+            } else {
+                logger.warn("[getMyAttendance] handleJoin returned null for sessionId: {}, userId: {}", sessionId, userId);
+            }
+
+            return ResponseEntity.ok(newRecord);
+        } catch (IllegalArgumentException e) {
+            logger.error("[getMyAttendance] Invalid session for attendance - sessionId: {}, error: {}", sessionId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            logger.error("[getMyAttendance] Duplicate key error - sessionId: {}, error: {}", sessionId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Duplicate attendance record detected. Please retry."));
+        } catch (Exception e) {
+            logger.error("[getMyAttendance] Unexpected error - sessionId: {}", sessionId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
     }
 

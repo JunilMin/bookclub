@@ -662,6 +662,8 @@ const ko = {
   meet_summary_empty: '토론 노트에서 AI 요약이 생성됩니다',
   meet_generating: '생성 중...',
   meet_generate_summary: 'AI 요약 생성',
+  meet_regenerate: '다시 생성',
+  meet_summary_empty_short: '토론 노트에서 AI 요약을 생성하세요',
   meet_how_it_works: '작동 방식',
   meet_how_it_works_desc: 'AI가 토론 노트를 분석하여 핵심 포인트, 인용문, 후속 질문이 포함된 요약을 생성합니다.',
   browse_modal_enter_meeting: '미팅 입장',
@@ -960,6 +962,9 @@ const ko = {
   attendance_optional: '선택 보너스',
   attendance_tip: '2분 발언 또는 25자 이상 노트 작성 시 출석 확정됩니다.',
   attendance_initializing: '출석 체크 준비 중...',
+  attendance_waiting: '미팅 대기 중',
+  attendance_time_remaining: '후 미팅이 시작됩니다',
+  attendance_countdown_hint: '미팅 시작 10분 전부터 출석 체크가 활성화됩니다.',
 
   // Voice Chat (WebRTC)
   voice_chat_title: '음성 채팅',
@@ -986,6 +991,7 @@ const ko = {
   voice_chat_mode_free: '자유 모드',
   voice_chat_mode_free_desc: '모두 자유롭게 발언',
   voice_chat_mode_host_only: '사회자만 변경 가능',
+  voice_chat_rules_mute_locked: '규칙 모드에서는 발언자 또는 사회자만 음소거를 해제할 수 있습니다',
   voice_chat_rules_title: '토론 규칙',
   voice_chat_rule_1: '한 번에 한 명씩 발언',
   voice_chat_rule_2: '사회자가 진행 관리',
@@ -996,6 +1002,27 @@ const ko = {
   voice_comm_mode_title: '음성 채팅 모드',
   voice_comm_mode_webrtc: '자체 음성 채팅',
   voice_comm_mode_meet: 'Google Meet',
+
+  // Utterance (STT Transcription)
+  meet_end_turn: '발언 종료',
+  utterance_panel_title: '발언 전사',
+  utterance_auto_insert: '노트에 자동 삽입',
+  utterance_uploading: '오디오 업로드 중...',
+  utterance_transcribing: '음성 인식 중...',
+  utterance_refining: '텍스트 정리 중...',
+  utterance_summarizing: '요약 생성 중...',
+  utterance_error: '처리 실패',
+  utterance_refined: '정리됨',
+  utterance_raw: '원문 STT',
+  utterance_key_points: '핵심 포인트',
+  utterance_issues: '제기된 문제',
+  utterance_insert_text: '텍스트 삽입',
+  utterance_insert_summary: '요약 삽입',
+  utterance_inserted: '삽입됨',
+  utterance_empty_title: '아직 전사된 발언이 없습니다',
+  utterance_empty_hint: '규칙 모드에서 발언자가 발언을 마치면 전사 내용이 여기에 표시됩니다.',
+  utterance_summary: '요약',
+  transcription_section_title: '발언 전사',
 };
 
 export default ko;

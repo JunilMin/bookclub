@@ -199,6 +199,39 @@
   color: #854d0e;
 }
 
+/* Countdown */
+.attendance-progress.countdown {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #93c5fd;
+}
+
+.attendance-countdown {
+  text-align: center;
+  padding: 16px 0;
+  margin-bottom: 12px;
+}
+
+.attendance-countdown-time {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e40af;
+  margin-bottom: 4px;
+}
+
+.countdown-segment {
+  display: inline-block;
+}
+
+.attendance-countdown-label {
+  font-size: 13px;
+  color: #3b82f6;
+  margin: 0;
+}
+
+.attendance-progress.countdown .attendance-progress-icon.pending {
+  color: #3b82f6;
+}
+
 /* Loading */
 .attendance-progress-loading {
   display: flex;

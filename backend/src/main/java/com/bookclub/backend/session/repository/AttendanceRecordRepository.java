@@ -21,6 +21,11 @@ public interface AttendanceRecordRepository extends MongoRepository<AttendanceRe
     Optional<AttendanceRecord> findBySessionIdAndUserId(String sessionId, String userId);
 
     /**
+     * 특정 세션의 특정 사용자 출석 기록 조회 (중복 감지용 - 모든 기록 반환)
+     */
+    List<AttendanceRecord> findAllBySessionIdAndUserId(String sessionId, String userId);
+
+    /**
      * 특정 Post의 모든 출석 기록 조회
      */
     List<AttendanceRecord> findAllByPostId(String postId);
@@ -29,6 +34,11 @@ public interface AttendanceRecordRepository extends MongoRepository<AttendanceRe
      * 특정 Post의 특정 사용자 출석 기록 조회
      */
     Optional<AttendanceRecord> findByPostIdAndUserId(String postId, String userId);
+
+    /**
+     * 특정 Post의 특정 사용자 출석 기록 조회 (중복 감지용 - 모든 기록 반환)
+     */
+    List<AttendanceRecord> findAllByPostIdAndUserId(String postId, String userId);
 
     /**
      * 특정 사용자의 모든 출석 기록 조회 (최신순)

@@ -31,6 +31,7 @@ import {
   PresenceMessage,
   VoiceChatMode,
   CommunicationMode,
+  SessionUtterance,
 } from '../types/meetRoom';
 import './styles/MeetRoom.css';
 
@@ -41,6 +42,11 @@ import VoiceChat from '../components/meet/VoiceChat';
 import CollaborativeNotes, { CollaborativeNotesRef } from '../components/meet/CenterPanel/CollaborativeNotes';
 // Right Panel Components
 import RecordingPanel from '../components/meet/RightPanel/RecordingPanel';
+import AISummaryPanel from '../components/meet/RightPanel/AISummaryPanel';
+import UtterancePanel from '../components/meet/RightPanel/UtterancePanel';
+// Utterance Hooks
+import { useUtteranceRecorder, formatRecordingTime } from '../hooks/useUtteranceRecorder';
+import { useUtterances } from '../hooks/useUtterances';
 
 const MeetRoom: React.FC = () => {
   const { t } = useTranslation();
@@ -50,6 +56,12 @@ const MeetRoom: React.FC = () => {
 
   // Refs
   const notesRef = useRef<CollaborativeNotesRef>(null);
+  // Store the speaker info when recording starts (to avoid race condition with handleEndTurn)
+  const recordingSpeakerRef = useRef<{
+    userId: string;
+    username: string;
+    photoUrl: string;
+  } | null>(null);
 
   // State (note 상태 제거 - CollaborativeNotes가 자체 관리)
   const [session, setSession] = useState<GetSessionResponse | null>(null);
@@ -113,6 +125,120 @@ const MeetRoom: React.FC = () => {
     isWsConnected: isConnected,
   });
 
+  // Utterance auto-insert handler
+  const handleAutoInsertUtterance = useCallback((utterance: SessionUtterance) => {
+    if (notesRef.current) {
+      // Get translated section title
+      const sectionTitle = t('transcription_section_title') || 'Transcriptions';
+
+      // Build content to insert: speaker name, refined text, and summary
+      const content = [
+        {
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: `${utterance.speakerName} (#${utterance.utteranceIndex})` }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: utterance.refinedText }],
+        },
+      ];
+
+      // Add summary if available
+      if (utterance.summary?.keyPoints?.length > 0) {
+        content.push({
+          type: 'bulletList',
+          content: utterance.summary.keyPoints.map((point) => ({
+            type: 'listItem',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
+          })) as any,
+        });
+      }
+
+      // Insert to dedicated transcription section at the bottom
+      notesRef.current.insertTranscription(content, sectionTitle);
+    }
+  }, [t]);
+
+  // Utterances hook (for STT transcriptions)
+  const {
+    utterances,
+    processingState: utteranceProcessingState,
+    autoInsertEnabled,
+    uploadAndProcess: uploadUtterance,
+    markAsInserted: markUtteranceAsInserted,
+    toggleAutoInsert,
+  } = useUtterances({
+    sessionId: sessionId || '',
+    accessToken,
+    subscribe,
+    isWsConnected: isConnected,
+    onAutoInsert: handleAutoInsertUtterance,
+  });
+
+  // Utterance recorder hook
+  const handleRecordingComplete = useCallback(
+    async (audioBlob: Blob, startAt: Date, endAt: Date) => {
+      // Use the stored speaker info from when recording started
+      const speaker = recordingSpeakerRef.current;
+
+      // Check minimum duration (10 seconds)
+      const durationMs = endAt.getTime() - startAt.getTime();
+      const MIN_DURATION_MS = 10000; // 10 seconds
+
+      console.log('[Utterance] handleRecordingComplete called', {
+        blobSize: audioBlob.size,
+        durationMs,
+        hasSavedSpeaker: !!speaker,
+        speakerName: speaker?.username,
+      });
+
+      if (durationMs < MIN_DURATION_MS) {
+        console.log(`[Utterance] Recording too short (${(durationMs / 1000).toFixed(1)}s < 10s), skipping transcription`);
+        recordingSpeakerRef.current = null;
+        return;
+      }
+
+      if (!speaker || !accessToken) {
+        console.warn('[Utterance] Cannot upload: missing speaker info or accessToken');
+        return;
+      }
+
+      const currentLanguage = t('code') || 'auto';
+
+      console.log('[Utterance] Uploading audio for:', speaker.username, 'language:', currentLanguage);
+
+      try {
+        await uploadUtterance(
+          audioBlob,
+          speaker.userId,
+          speaker.username,
+          speaker.photoUrl || '',
+          startAt,
+          endAt,
+          currentLanguage
+        );
+        console.log('[Utterance] Upload completed successfully');
+      } catch (uploadErr) {
+        console.error('[Utterance] Upload failed:', uploadErr);
+      } finally {
+        // Clear the stored speaker info after upload
+        recordingSpeakerRef.current = null;
+      }
+    },
+    [accessToken, uploadUtterance, t]
+  );
+
+  const {
+    isRecording: isRecordingUtterance,
+    elapsedSeconds: utteranceRecordingSeconds,
+    startRecording: startUtteranceRecording,
+    stopRecording: stopUtteranceRecording,
+    error: utteranceRecordingError,
+  } = useUtteranceRecorder({
+    onRecordingComplete: handleRecordingComplete,
+  });
+
   // Set meeting status when entering/leaving
   useEffect(() => {
     setInMeeting(true);
@@ -141,14 +267,20 @@ const MeetRoom: React.FC = () => {
 
     const fetchData = async () => {
       try {
+        console.log('[MeetRoom] fetchData - sessionId:', sessionId);
         const [sessionData, noteData, queueData, recordingData, reportedIds, attendanceData] = await Promise.all([
           getSession(sessionId, accessToken),
           getNotes(sessionId, accessToken).catch(() => null),
           getQueue(sessionId, accessToken).catch(() => null),
           getRecording(sessionId, accessToken).catch(() => null),
           getReportedUserIds(sessionId, accessToken).catch(() => []),
-          getMyAttendance(sessionId, accessToken).catch(() => null),
+          getMyAttendance(sessionId, accessToken).catch((err) => {
+            console.error('[Attendance] getMyAttendance failed:', err?.response?.status, err?.response?.data || err?.message);
+            return null;
+          }),
         ]);
+
+        console.log('[MeetRoom] attendanceData received:', attendanceData);
 
         // Set reported user IDs
         setReportedUserIds(reportedIds);
@@ -156,6 +288,20 @@ const MeetRoom: React.FC = () => {
         // Set attendance data
         if (attendanceData) {
           setAttendance(attendanceData);
+        } else {
+          // Retry attendance fetch after a short delay (race condition handling)
+          console.log('[MeetRoom] attendanceData is null, retrying in 1 second...');
+          setTimeout(async () => {
+            try {
+              const retryAttendance = await getMyAttendance(sessionId, accessToken);
+              console.log('[MeetRoom] Retry attendance result:', retryAttendance);
+              if (retryAttendance) {
+                setAttendance(retryAttendance);
+              }
+            } catch (retryErr: any) {
+              console.error('[Attendance] Retry also failed:', retryErr?.response?.status, retryErr?.response?.data || retryErr?.message);
+            }
+          }, 1000);
         }
 
         setSession(sessionData);
@@ -511,10 +657,40 @@ const MeetRoom: React.FC = () => {
     try {
       const result = await nextSpeaker(sessionId, accessToken);
       setQueue(result);
+
+      // Start recording in RULES mode when there's a new current speaker
+      // Only for WebRTC mode - Google Meet mode doesn't support utterance transcription
+      console.log('[Utterance] Next speaker result:', {
+        hasCurrentSpeaker: !!result.currentSpeaker,
+        speakerName: result.currentSpeaker?.username,
+        voiceChatMode: result.voiceChatMode,
+        communicationMode,
+      });
+
+      if (result.currentSpeaker && result.voiceChatMode === 'RULES' && communicationMode === 'webrtc') {
+        // Store speaker info before starting recording (to avoid race condition)
+        recordingSpeakerRef.current = {
+          userId: result.currentSpeaker.userId,
+          username: result.currentSpeaker.username,
+          photoUrl: result.currentSpeaker.photoUrl || '',
+        };
+
+        console.log('[Utterance] Starting recording for:', result.currentSpeaker.username);
+        try {
+          await startUtteranceRecording();
+          console.log('[Utterance] Recording started successfully');
+        } catch (recordingErr) {
+          console.error('[Utterance] Failed to start recording:', recordingErr);
+          // Clear speaker info if recording failed
+          recordingSpeakerRef.current = null;
+        }
+      } else if (communicationMode === 'google-meet') {
+        console.log('[Utterance] Skipping recording - Google Meet mode');
+      }
     } catch (err) {
       console.error('Failed to move to next speaker:', err);
     }
-  }, [sessionId, accessToken]);
+  }, [sessionId, accessToken, startUtteranceRecording, communicationMode]);
 
   const handleRemoveFromQueue = useCallback(async (userId: string) => {
     if (!sessionId || !accessToken) return;
@@ -697,6 +873,92 @@ const MeetRoom: React.FC = () => {
       console.error('Failed to change voice chat mode:', err);
     }
   }, [sessionId, accessToken]);
+
+  // Handle End Turn (stop recording and move to next speaker)
+  const handleEndTurn = useCallback(async () => {
+    console.log('[Utterance] handleEndTurn called');
+
+    // Stop recording first - this waits for recording to fully stop
+    // and onRecordingComplete to be called before continuing
+    console.log('[Utterance] Stopping recording...');
+    await stopUtteranceRecording();
+    console.log('[Utterance] Recording stopped, moving to next speaker...');
+
+    // Then move to next speaker (this will also start recording for the new speaker)
+    await handleNextSpeaker();
+  }, [stopUtteranceRecording, handleNextSpeaker]);
+
+  // Handle inserting utterance text to notes
+  const handleInsertUtteranceText = useCallback((utterance: SessionUtterance) => {
+    if (!notesRef.current) return;
+
+    const content = [
+      {
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: `${utterance.speakerName} (#${utterance.utteranceIndex})` }],
+      },
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: utterance.refinedText }],
+      },
+    ];
+
+    // Add summary if available
+    if (utterance.summary?.keyPoints?.length > 0) {
+      content.push({
+        type: 'bulletList',
+        content: utterance.summary.keyPoints.map((point) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
+        })) as any,
+      });
+    }
+
+    notesRef.current.insertContentAtEnd(content);
+    markUtteranceAsInserted(utterance.utteranceIndex);
+  }, [markUtteranceAsInserted]);
+
+  // Handle inserting utterance summary only to notes
+  const handleInsertUtteranceSummary = useCallback((utterance: SessionUtterance) => {
+    if (!notesRef.current || !utterance.summary) return;
+
+    const content: any[] = [
+      {
+        type: 'heading',
+        attrs: { level: 4 },
+        content: [{ type: 'text', text: `${utterance.speakerName} - ${t('utterance_summary') || 'Summary'}` }],
+      },
+    ];
+
+    // Key points
+    if (utterance.summary.keyPoints?.length > 0) {
+      content.push({
+        type: 'bulletList',
+        content: utterance.summary.keyPoints.map((point) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
+        })),
+      });
+    }
+
+    // Issues
+    if (utterance.summary.issues?.length > 0) {
+      content.push({
+        type: 'paragraph',
+        content: [{ type: 'text', marks: [{ type: 'bold' }], text: t('utterance_issues') || 'Issues:' }],
+      });
+      content.push({
+        type: 'bulletList',
+        content: utterance.summary.issues.map((issue) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: issue }] }],
+        })),
+      });
+    }
+
+    notesRef.current.insertContentAtEnd(content);
+  }, [t]);
 
   const handleKickParticipant = useCallback(async (targetUserId: string) => {
     if (!session?.post?.id || !accessToken || !user?.id || !sessionId) return;
@@ -894,7 +1156,10 @@ const MeetRoom: React.FC = () => {
         <aside className="meetroom-left-panel">
           {/* Attendance Progress - hide when confirmed */}
           {attendance?.status !== 'CONFIRMED' && (
-            <AttendanceProgress attendance={attendance} />
+            <AttendanceProgress
+              attendance={attendance}
+              meetingStartTime={session?.post?.due}
+            />
           )}
 
           {/* Voice Chat */}
@@ -911,6 +1176,8 @@ const MeetRoom: React.FC = () => {
             currentPhotoUrl={user?.photoUrl}
             voiceChatMode={queue?.voiceChatMode || 'RULES'}
             isHost={isHost || false}
+            currentSpeakerId={queue?.currentSpeaker?.userId || null}
+            moderatorId={queue?.moderatorId || null}
             audioInputDevices={audioInputDevices}
             audioOutputDevices={audioOutputDevices}
             currentInputDeviceId={currentInputDeviceId}
@@ -942,8 +1209,11 @@ const MeetRoom: React.FC = () => {
             hasRaisedHand={hasRaisedHand}
             blockedUsers={blockedUsers}
             reportedUserIds={reportedUserIds}
+            isRecordingUtterance={isRecordingUtterance}
+            recordingElapsedSeconds={utteranceRecordingSeconds}
             onRaiseHand={handleRaiseHand}
             onNextSpeaker={handleNextSpeaker}
+            onEndTurn={handleEndTurn}
             onRemoveFromQueue={handleRemoveFromQueue}
             onAddParticipantToQueue={handleAddParticipantToQueue}
             onReorderQueue={handleReorderQueue}
@@ -970,14 +1240,23 @@ const MeetRoom: React.FC = () => {
           )}
         </main>
 
-        {/* Right Panel - Recording & AI Summary */}
+        {/* Right Panel - Recording, AI Summary & Utterances */}
         <aside className="meetroom-right-panel">
-          <RecordingPanel
+          {/* AI Summary Panel */}
+          <AISummaryPanel
             recording={recording}
-            isHost={isHost}
-            onToggleRecording={handleToggleRecording}
             onGenerateSummary={handleGenerateSummary}
             onInsertToNotes={handleInsertToNotes}
+          />
+
+          {/* Utterance Panel */}
+          <UtterancePanel
+            utterances={utterances}
+            processingState={utteranceProcessingState}
+            autoInsertEnabled={autoInsertEnabled}
+            onToggleAutoInsert={toggleAutoInsert}
+            onInsertTextToNotes={handleInsertUtteranceText}
+            onInsertSummaryToNotes={handleInsertUtteranceSummary}
           />
         </aside>
       </div>

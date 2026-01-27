@@ -117,6 +117,51 @@ public class SpeakingQueueService {
                     .ifPresent(p -> p.setHasRaisedHand(false));
         }
 
+        // RULES mode: After NON-MODERATOR speaker finishes, moderator gets a turn before next speaker
+        // Skip moderator turn if:
+        // - No one was speaking (currentSpeaker is null)
+        // - The moderator was the previous speaker (from queue OR from moderator turn)
+        boolean isRulesMode = queue.getVoiceChatMode() == SpeakingQueue.VoiceChatMode.RULES;
+        String moderatorId = queue.getModeratorId();
+
+        // Check if a non-moderator just finished speaking
+        boolean nonModeratorJustSpoke = queue.getCurrentSpeaker() != null
+                && moderatorId != null
+                && !queue.getCurrentSpeaker().getUserId().equals(moderatorId);
+
+        if (isRulesMode && !queue.isModeratorTurn() && nonModeratorJustSpoke) {
+            // Non-moderator speaker just finished -> Moderator's turn
+            SessionParticipant moderator = queue.getParticipants().stream()
+                    .filter(p -> p.getUserId().equals(moderatorId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (moderator != null) {
+                CurrentSpeaker moderatorSpeaker = new CurrentSpeaker(
+                        moderator.getUserId(),
+                        moderator.getUsername(),
+                        moderator.getPhotoUrl(),
+                        DEFAULT_SPEAKING_TIME
+                );
+                queue.setCurrentSpeaker(moderatorSpeaker);
+                queue.setModeratorTurn(true);
+
+                // Remove moderator from queue if they were in it (raised hand)
+                queue.getQueue().removeIf(q -> q.getUserId().equals(moderatorId));
+                // Update hand status
+                moderator.setHasRaisedHand(false);
+                // Recalculate positions
+                for (int i = 0; i < queue.getQueue().size(); i++) {
+                    queue.getQueue().get(i).setPosition(i + 1);
+                }
+
+                return speakingQueueRepository.save(queue);
+            }
+        }
+
+        // Reset moderator turn flag
+        queue.setModeratorTurn(false);
+
         if (queue.getQueue().isEmpty()) {
             queue.setCurrentSpeaker(null);
         } else {

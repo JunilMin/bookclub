@@ -662,6 +662,8 @@ const en = {
   meet_summary_empty: 'AI summary will be generated from your discussion notes',
   meet_generating: 'Generating...',
   meet_generate_summary: 'Generate AI Summary',
+  meet_regenerate: 'Regenerate',
+  meet_summary_empty_short: 'Generate AI summary from discussion notes',
   meet_how_it_works: 'How it works',
   meet_how_it_works_desc: 'The AI analyzes your discussion notes and generates a summary with key points, quotes, and follow-up questions.',
   browse_modal_enter_meeting: 'Enter Meeting',
@@ -960,6 +962,9 @@ const en = {
   attendance_optional: 'Optional bonus',
   attendance_tip: 'Speak for 2 minutes or write 25 characters in notes to confirm.',
   attendance_initializing: 'Preparing attendance tracking...',
+  attendance_waiting: 'Waiting for Meeting',
+  attendance_time_remaining: 'remaining until meeting starts',
+  attendance_countdown_hint: 'Attendance tracking will begin 10 minutes before the meeting starts.',
 
   // Voice Chat (WebRTC)
   voice_chat_title: 'Voice Chat',
@@ -986,6 +991,7 @@ const en = {
   voice_chat_mode_free: 'Free Mode',
   voice_chat_mode_free_desc: 'Everyone can speak freely',
   voice_chat_mode_host_only: 'Only moderator can change',
+  voice_chat_rules_mute_locked: 'Only speaker or moderator can unmute in Rules mode',
   voice_chat_rules_title: 'Discussion Rules',
   voice_chat_rule_1: 'One speaker at a time',
   voice_chat_rule_2: 'Moderator controls the flow',
@@ -996,6 +1002,27 @@ const en = {
   voice_comm_mode_title: 'Voice Chat Mode',
   voice_comm_mode_webrtc: 'Built-in Voice',
   voice_comm_mode_meet: 'Google Meet',
+
+  // Utterance (STT Transcription)
+  meet_end_turn: 'End Turn',
+  utterance_panel_title: 'Speech Transcriptions',
+  utterance_auto_insert: 'Auto-insert to notes',
+  utterance_uploading: 'Uploading audio...',
+  utterance_transcribing: 'Transcribing speech...',
+  utterance_refining: 'Refining text...',
+  utterance_summarizing: 'Generating summary...',
+  utterance_error: 'Processing failed',
+  utterance_refined: 'Refined',
+  utterance_raw: 'Raw STT',
+  utterance_key_points: 'Key Points',
+  utterance_issues: 'Issues Raised',
+  utterance_insert_text: 'Insert Text',
+  utterance_insert_summary: 'Insert Summary',
+  utterance_inserted: 'Inserted',
+  utterance_empty_title: 'No transcriptions yet',
+  utterance_empty_hint: 'Transcriptions will appear here when speakers finish their turns in Rules mode.',
+  utterance_summary: 'Summary',
+  transcription_section_title: 'Transcriptions',
 };
 
 export default en;

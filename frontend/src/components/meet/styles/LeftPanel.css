@@ -189,6 +189,16 @@
   font-weight: 600;
 }
 
+.speaker-moderator-badge {
+  padding: 2px 8px;
+  background: rgba(254, 243, 199, 0.9);
+  color: #92400e;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
 .next-speaker-btn {
   width: 100%;
   padding: 10px;
@@ -861,4 +871,84 @@
 .offline-participants-list .participant-more-wrapper {
   position: relative;
   z-index: 150;
+}
+
+/* Utterance Recording Status */
+.utterance-recording-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  margin-top: 12px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.recording-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+}
+
+.recording-time {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* Speaker Controls */
+.speaker-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.end-turn-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.end-turn-btn:hover {
+  background: #b91c1c;
+}
+
+.end-turn-btn.recording {
+  animation: pulse-btn 2s ease-in-out infinite;
+}
+
+@keyframes pulse-btn {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(220, 38, 38, 0);
+  }
 }

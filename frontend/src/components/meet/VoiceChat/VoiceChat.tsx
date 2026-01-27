@@ -51,6 +51,9 @@ interface VoiceChatProps {
   // Voice chat mode (RULES/FREE)
   voiceChatMode: VoiceChatMode;
   isHost: boolean;
+  // Rules mode - current speaker and moderator info
+  currentSpeakerId?: string | null;
+  moderatorId?: string | null;
   // Device management
   audioInputDevices: AudioDevice[];
   audioOutputDevices: AudioDevice[];
@@ -85,10 +88,13 @@ const VoiceChat: React.FC<VoiceChatProps> = ({
   isMuted,
   error,
   remotePeers,
+  currentUserId,
   currentUsername,
   currentPhotoUrl,
   voiceChatMode,
   isHost,
+  currentSpeakerId,
+  moderatorId,
   audioInputDevices,
   audioOutputDevices,
   currentInputDeviceId,
@@ -123,6 +129,21 @@ const VoiceChat: React.FC<VoiceChatProps> = ({
     audioRefs.current.forEach((audio) => {
       audio.muted = !newEnabled;
     });
+  };
+
+  // Rules mode: Check if user can unmute
+  const isCurrentSpeaker = currentSpeakerId === currentUserId;
+  const isModerator = moderatorId === currentUserId;
+
+  // In RULES mode, only the current speaker or moderator can unmute
+  const canUnmute = voiceChatMode === 'FREE' || isCurrentSpeaker || isModerator;
+
+  // Get reason why mute is disabled
+  const getMuteDisabledReason = (): string => {
+    if (voiceChatMode !== 'RULES') return '';
+    if (isCurrentSpeaker) return '';
+    if (isModerator) return '';
+    return t('voice_chat_rules_mute_locked') || 'Only speaker or moderator can unmute in Rules mode';
   };
 
   // Get quality indicator for a peer
@@ -383,12 +404,21 @@ const VoiceChat: React.FC<VoiceChatProps> = ({
                         <span>{t('voice_chat_microphone') || 'Microphone'}</span>
                       </div>
                       <button
-                        className={`voice-toggle-btn ${isMuted ? 'off' : 'on'}`}
+                        className={`voice-toggle-btn ${isMuted ? 'off' : 'on'} ${!canUnmute && isMuted ? 'disabled' : ''}`}
                         onClick={onToggleMute}
+                        disabled={!canUnmute && isMuted}
+                        title={!canUnmute && isMuted ? getMuteDisabledReason() : ''}
                       >
                         {isMuted ? 'OFF' : 'ON'}
                       </button>
                     </div>
+                    {/* Rules mode warning when mute is locked */}
+                    {voiceChatMode === 'RULES' && !canUnmute && isMuted && (
+                      <div className="voice-control-warning">
+                        <FiAlertCircle size={14} />
+                        <span>{getMuteDisabledReason()}</span>
+                      </div>
+                    )}
 
                     <div className="voice-control-row">
                       <div className="voice-control-label">

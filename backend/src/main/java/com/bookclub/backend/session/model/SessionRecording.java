@@ -29,9 +29,46 @@ public class SessionRecording {
 
     private AISummary aiSummary;
 
+    // STT/Utterance settings
+    /** Language policy for STT: "auto", "ko", or "en" */
+    private String languagePolicy;
+
+    /** Whether to automatically insert utterances to collaborative notes */
+    private boolean autoInsertToNotes;
+
+    /** Total number of utterances in this session */
+    private int utteranceCount;
+
+    /** Timestamp of the last utterance */
+    private LocalDateTime lastUtteranceAt;
+
+    /** Total audio duration processed (in milliseconds) for cost tracking */
+    private long totalAudioDurationMs;
+
+    /** Total LLM tokens used for cost tracking */
+    private int totalTokensUsed;
+
     public SessionRecording(String sessionId) {
         this.sessionId = sessionId;
         this.isRecording = false;
+        this.languagePolicy = "auto";
+        this.autoInsertToNotes = false;
+        this.utteranceCount = 0;
+        this.totalAudioDurationMs = 0;
+        this.totalTokensUsed = 0;
+    }
+
+    public void incrementUtteranceCount() {
+        this.utteranceCount++;
+        this.lastUtteranceAt = LocalDateTime.now();
+    }
+
+    public void addAudioDuration(long durationMs) {
+        this.totalAudioDurationMs += durationMs;
+    }
+
+    public void addTokensUsed(int tokens) {
+        this.totalTokensUsed += tokens;
     }
 
     public void startRecording() {

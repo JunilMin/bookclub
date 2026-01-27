@@ -65,6 +65,7 @@ export interface SpeakingQueue {
   sessionId: string;
   moderatorId: string | null;  // Current moderator's userId (can be delegated)
   voiceChatMode: VoiceChatMode;  // RULES = hand-raise only, FREE = everyone can speak
+  isModeratorTurn: boolean;  // In RULES mode: true when it's moderator's turn between speakers
   currentSpeaker: CurrentSpeaker | null;
   queue: QueuedParticipant[];
   participants: SessionParticipant[];
@@ -97,6 +98,75 @@ export interface PresenceMessage {
 export interface Agreement {
   point: string;
   isAgreement: boolean;
+}
+
+// ============================================
+// Utterance Types (STT-based speech transcription)
+// ============================================
+
+/**
+ * Structured summary of an utterance
+ */
+export interface UtteranceSummary {
+  keyPoints: string[];
+  issues: string[];
+  topics: string[];
+}
+
+/**
+ * A single utterance (speech turn) with STT and LLM results
+ */
+export interface SessionUtterance {
+  id: string;
+  sessionId: string;
+  utteranceIndex: number;
+  // Speaker info
+  speakerId: string;
+  speakerName: string;
+  speakerPhotoUrl: string;
+  // Time info
+  startAt: string;
+  endAt: string;
+  durationMs: number;
+  // STT results
+  language: string;
+  confidence: number;
+  rawText: string;
+  // LLM results
+  refinedText: string;
+  summary: UtteranceSummary;
+  // Status
+  insertedToNotes: boolean;
+  insertedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Processing state for utterance
+ */
+export type UtteranceProcessingStatus =
+  | 'idle'
+  | 'recording'
+  | 'uploading'
+  | 'transcribing'
+  | 'refining'
+  | 'summarizing'
+  | 'complete'
+  | 'error';
+
+export interface UtteranceProcessingState {
+  status: UtteranceProcessingStatus;
+  progress: number; // 0-100
+  error?: string;
+}
+
+/**
+ * Utterance settings
+ */
+export interface UtteranceSettings {
+  autoInsertToNotes: boolean;
+  languagePolicy: 'auto' | 'ko' | 'en';
 }
 
 export interface AISummary {

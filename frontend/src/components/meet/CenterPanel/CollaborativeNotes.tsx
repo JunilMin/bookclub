@@ -32,6 +32,7 @@ interface CollaborativeNotesProps {
 
 export interface CollaborativeNotesRef {
   insertContentAtEnd: (content: any) => void;
+  insertTranscription: (content: any, sectionTitle: string) => void;
 }
 
 const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesProps>(({
@@ -75,22 +76,36 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     placeholder: t('meet_notes_placeholder') || 'Start taking notes...',
   });
 
-  // Track character count for attendance
-  const lastCharCountRef = useRef<number>(0);
+  // Track character count for attendance (only counts NEW characters typed by the user)
+  const lastCharCountRef = useRef<number>(-1); // -1 means not initialized yet
+  const baseCharCountRef = useRef<number>(0);  // Initial content length (not counted)
   useEffect(() => {
     if (!editor || !onCharCountChange) return;
 
     const updateCharCount = () => {
       const text = editor.getText();
-      const charCount = text.length;
+      const currentCharCount = text.length;
+
+      // On first call, set the base count (existing content is not counted for attendance)
+      if (lastCharCountRef.current === -1) {
+        baseCharCountRef.current = currentCharCount;
+        lastCharCountRef.current = currentCharCount;
+        // Don't call onCharCountChange on initial load
+        return;
+      }
+
+      // Calculate new characters added (relative to base)
+      const newCharsAdded = Math.max(0, currentCharCount - baseCharCountRef.current);
+
       // Only call callback if changed significantly (debounce small changes)
-      if (Math.abs(charCount - lastCharCountRef.current) >= 5 || charCount === 0) {
-        lastCharCountRef.current = charCount;
-        onCharCountChange(charCount);
+      if (Math.abs(currentCharCount - lastCharCountRef.current) >= 5) {
+        lastCharCountRef.current = currentCharCount;
+        // Report only the NEW characters added by this user
+        onCharCountChange(newCharsAdded);
       }
     };
 
-    // Initial count
+    // Initialize with current text length
     updateCharCount();
 
     // Listen to updates
@@ -160,6 +175,51 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
 
       // Insert the content
       editor.commands.insertContent(content);
+    },
+    insertTranscription: (content: any, sectionTitle: string) => {
+      if (!editor) return;
+
+      const docContent = editor.getJSON();
+      const TRANSCRIPTION_MARKER = '📝 ' + sectionTitle;
+
+      // Check if transcription section already exists
+      let hasTranscriptionSection = false;
+      if (docContent.content) {
+        for (const node of docContent.content) {
+          if (node.type === 'heading' && node.content) {
+            const text = node.content.map((c: any) => c.text || '').join('');
+            if (text.includes(TRANSCRIPTION_MARKER)) {
+              hasTranscriptionSection = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // Move cursor to end
+      editor.commands.focus('end');
+
+      // If no transcription section, create it first
+      if (!hasTranscriptionSection) {
+        editor.commands.insertContent([
+          { type: 'paragraph', content: [] }, // Empty line
+          { type: 'horizontalRule' },
+          {
+            type: 'heading',
+            attrs: { level: 2 },
+            content: [{ type: 'text', text: TRANSCRIPTION_MARKER }],
+          },
+          { type: 'paragraph', content: [] }, // Empty line after heading
+        ]);
+      }
+
+      // Insert the transcription content
+      editor.commands.insertContent(content);
+
+      // Add empty line after content for separation
+      editor.commands.insertContent([
+        { type: 'paragraph', content: [] },
+      ]);
     },
   }), [editor]);
 
