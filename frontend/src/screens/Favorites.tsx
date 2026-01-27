@@ -173,22 +173,7 @@ const Favorites: React.FC = () => {
     });
   };
 
-  // Filter books based on search query
-  const filterBooks = <T extends { bookInfo?: BookSearchResult }>(books: T[]) => {
-    if (!searchQuery.trim()) return books;
-    const query = searchQuery.toLowerCase();
-    return books.filter(item => {
-      const title = item.bookInfo?.title?.toLowerCase() || '';
-      const author = item.bookInfo?.author?.toLowerCase() || '';
-      const categories = item.bookInfo?.categories?.join(' ').toLowerCase() || '';
-      return title.includes(query) || author.includes(query) || categories.includes(query);
-    });
-  };
-
-  const filteredUserFavorites = filterBooks(userFavorites);
-  const filteredAIRecommendations = filterBooks(aiRecommendations);
-
-  const currentItems = activeTab === 'liked' ? filteredUserFavorites : filteredAIRecommendations;
+  const currentItems = activeTab === 'liked' ? userFavorites : aiRecommendations;
   const totalCount = activeTab === 'liked' ? userFavorites.length : aiRecommendations.length;
 
   if (!user) {
@@ -396,7 +381,7 @@ const Favorites: React.FC = () => {
           ) : (
             <div className="favorites-grid">
               {activeTab === 'liked' ? (
-                filteredUserFavorites.map((item) => (
+                userFavorites.map((item) => (
                   <div key={item.isbn} className="favorites-card group">
                     {/* Book Cover */}
                     <div className="favorites-card-cover">
@@ -459,7 +444,7 @@ const Favorites: React.FC = () => {
                   </div>
                 ))
               ) : (
-                filteredAIRecommendations.map((item) => (
+                aiRecommendations.map((item) => (
                   <div key={item.isbn} className="favorites-card group">
                     {/* Book Cover */}
                     <div className="favorites-card-cover">

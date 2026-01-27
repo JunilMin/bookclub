@@ -7,29 +7,36 @@ import {
   FiLoader,
   FiUsers,
   FiXCircle,
+  FiCheckCircle,
 } from 'react-icons/fi';
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
-import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator, joinQueueRest } from '../api/speakingQueue';
+import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator, joinQueueRest, changeVoiceChatMode } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
 import { getUserById } from '../api/user';
 import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
 import { getReportedUserIds } from '../api/reports';
+import { getMyAttendance, updateNoteAttendance, AttendanceRecord } from '../api/attendance';
 import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
+import AttendanceProgress from '../components/meet/LeftPanel/AttendanceProgress';
 import ReportModal from '../components/meet/ReportModal';
 import EndMeetingModal from '../components/meet/EndMeetingModal';
 import EndorsementFeedbackModal from '../components/meet/EndorsementFeedbackModal';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebRTC } from '../hooks/useWebRTC';
 import {
   SpeakingQueue,
   SessionRecording,
   PresenceMessage,
+  VoiceChatMode,
+  CommunicationMode,
 } from '../types/meetRoom';
 import './styles/MeetRoom.css';
 
 // Left Panel Components
 import ModeratorControls from '../components/meet/LeftPanel/ModeratorControls';
+import VoiceChat from '../components/meet/VoiceChat';
 // Center Panel Components
 import CollaborativeNotes, { CollaborativeNotesRef } from '../components/meet/CenterPanel/CollaborativeNotes';
 // Right Panel Components
@@ -62,12 +69,49 @@ const MeetRoom: React.FC = () => {
   const [isMeetingEnded, setIsMeetingEnded] = useState(false);
   const [_meetingEndedBy, setMeetingEndedBy] = useState<string | null>(null);
   const [showEndorsementModal, setShowEndorsementModal] = useState(false);
+  const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
+  const [communicationMode, setCommunicationMode] = useState<CommunicationMode>('google-meet');
 
   // WebSocket에서 queue 업데이트를 받았는지 추적 (race condition 방지)
   const hasReceivedWebSocketQueue = useRef(false);
 
   // WebSocket (발언 대기열, presence용 - 노트는 CollaborativeNotes에서 별도 처리)
   const { isConnected, subscribe, send } = useWebSocket(sessionId || '');
+
+  // WebRTC Voice Chat
+  const {
+    isJoined: isVoiceJoined,
+    isMuted: isVoiceMuted,
+    error: voiceError,
+    remotePeers,
+    currentInputDeviceId,
+    currentOutputDeviceId,
+    audioInputDevices,
+    audioOutputDevices,
+    volume: voiceVolume,
+    hasSinkIdSupport,
+    isSpeaking,
+    peerSpeakingStatus,
+    connectionQualities,
+    meshWarning,
+    joinVoice,
+    leaveVoice,
+    toggleMute: toggleVoiceMute,
+    changeInputDevice,
+    changeOutputDevice,
+    setVolume: setVoiceVolume,
+    registerAudioElement,
+    unregisterAudioElement,
+  } = useWebRTC({
+    sessionId: sessionId || '',
+    userId: user?.id || '',
+    username: user?.username || '',
+    photoUrl: user?.photoUrl,
+    participants: queue?.participants || [],
+    subscribe,
+    send,
+    isWsConnected: isConnected,
+  });
 
   // Set meeting status when entering/leaving
   useEffect(() => {
@@ -97,16 +141,22 @@ const MeetRoom: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const [sessionData, noteData, queueData, recordingData, reportedIds] = await Promise.all([
+        const [sessionData, noteData, queueData, recordingData, reportedIds, attendanceData] = await Promise.all([
           getSession(sessionId, accessToken),
           getNotes(sessionId, accessToken).catch(() => null),
           getQueue(sessionId, accessToken).catch(() => null),
           getRecording(sessionId, accessToken).catch(() => null),
           getReportedUserIds(sessionId, accessToken).catch(() => []),
+          getMyAttendance(sessionId, accessToken).catch(() => null),
         ]);
 
         // Set reported user IDs
         setReportedUserIds(reportedIds);
+
+        // Set attendance data
+        if (attendanceData) {
+          setAttendance(attendanceData);
+        }
 
         setSession(sessionData);
 
@@ -303,6 +353,16 @@ const MeetRoom: React.FC = () => {
       }, 500);
     });
 
+    // Subscribe to attendance updates (for current user)
+    const unsubAttendance = subscribe(`/topic/session/${sessionId}/attendance`, (message) => {
+      const attendanceUpdate: AttendanceRecord = JSON.parse(message.body);
+      // Only update if it's for the current user
+      if (attendanceUpdate.userId === user.id) {
+        console.log('Attendance updated via WebSocket:', attendanceUpdate);
+        setAttendance(attendanceUpdate);
+      }
+    });
+
     // Send JOIN message (DocEditController pattern - dedicated endpoint)
     console.log('=== Sending Session JOIN ===', {
       sessionId,
@@ -325,6 +385,7 @@ const MeetRoom: React.FC = () => {
       unsubPresence();
       unsubKick();
       unsubEnded();
+      unsubAttendance();
       // Send LEAVE message (DocEditController pattern - dedicated endpoint)
       console.log('=== Sending Session LEAVE ===', {
         sessionId,
@@ -343,11 +404,15 @@ const MeetRoom: React.FC = () => {
     };
   }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, subscribe, send, navigate, t]);
 
-  // Handle beforeunload (tab close/refresh) - send leave message
+  // Handle beforeunload (tab close/refresh) - send leave message and cleanup voice
   useEffect(() => {
     if (!isConnected || !sessionId || !user?.id) return;
 
     const handleBeforeUnload = () => {
+      // Leave voice chat first
+      if (isVoiceJoined) {
+        leaveVoice();
+      }
       // Send leave message synchronously before page unloads
       console.log('=== beforeunload: Sending Session LEAVE ===');
       try {
@@ -366,7 +431,15 @@ const MeetRoom: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send]);
+  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send, isVoiceJoined, leaveVoice]);
+
+  // Leave voice chat when meeting ends
+  useEffect(() => {
+    if (isMeetingEnded && isVoiceJoined) {
+      console.log('[WebRTC] Meeting ended, leaving voice chat');
+      leaveVoice();
+    }
+  }, [isMeetingEnded, isVoiceJoined, leaveVoice]);
 
   // Periodic heartbeat to keep presence alive (every 30 seconds)
   useEffect(() => {
@@ -592,11 +665,18 @@ const MeetRoom: React.FC = () => {
     notesRef.current.insertContentAtEnd(summaryContent);
   }, [recording?.aiSummary]);
 
-  const handleOpenMeet = useCallback(() => {
-    if (session?.meetLink) {
-      window.open(session.meetLink, '_blank', 'noopener,noreferrer');
+  // Handle note character count change for attendance tracking
+  const handleNoteCharCountChange = useCallback(async (charCount: number) => {
+    if (!sessionId || !accessToken) return;
+    try {
+      const updatedAttendance = await updateNoteAttendance(sessionId, charCount, accessToken);
+      if (updatedAttendance) {
+        setAttendance(updatedAttendance);
+      }
+    } catch (err) {
+      console.error('Failed to update attendance note count:', err);
     }
-  }, [session]);
+  }, [sessionId, accessToken]);
 
   const handleDelegateModerator = useCallback(async (newModeratorId: string) => {
     if (!sessionId || !accessToken) return;
@@ -605,6 +685,16 @@ const MeetRoom: React.FC = () => {
       setQueue(result);
     } catch (err) {
       console.error('Failed to delegate moderator:', err);
+    }
+  }, [sessionId, accessToken]);
+
+  const handleChangeVoiceChatMode = useCallback(async (mode: VoiceChatMode) => {
+    if (!sessionId || !accessToken) return;
+    try {
+      const result = await changeVoiceChatMode(sessionId, mode, accessToken);
+      setQueue(result);
+    } catch (err) {
+      console.error('Failed to change voice chat mode:', err);
     }
   }, [sessionId, accessToken]);
 
@@ -754,7 +844,15 @@ const MeetRoom: React.FC = () => {
             <FiArrowLeft size={20} />
           </button>
           <div className="meetroom-title-section">
-            <h1 className="meetroom-title">{session.post.book}</h1>
+            <div className="meetroom-title-row">
+              <h1 className="meetroom-title">{session.post.book}</h1>
+              {attendance?.status === 'CONFIRMED' && (
+                <span className="meetroom-attendance-badge">
+                  <FiCheckCircle size={14} />
+                  {t('attendance_confirmed') || 'Attendance Confirmed'}
+                </span>
+              )}
+            </div>
             <span className="meetroom-subtitle">
               {t('browse_modal_host')}: {hostUsername || 'Loading...'}
             </span>
@@ -794,16 +892,56 @@ const MeetRoom: React.FC = () => {
       <div className="meetroom-content">
         {/* Left Panel - Moderator Controls */}
         <aside className="meetroom-left-panel">
+          {/* Attendance Progress - hide when confirmed */}
+          {attendance?.status !== 'CONFIRMED' && (
+            <AttendanceProgress attendance={attendance} />
+          )}
+
+          {/* Voice Chat */}
+          <VoiceChat
+            communicationMode={communicationMode}
+            onCommunicationModeChange={setCommunicationMode}
+            meetLink={session?.meetLink || undefined}
+            isJoined={isVoiceJoined}
+            isMuted={isVoiceMuted}
+            error={voiceError}
+            remotePeers={remotePeers}
+            currentUserId={user?.id || ''}
+            currentUsername={user?.username || 'Anonymous'}
+            currentPhotoUrl={user?.photoUrl}
+            voiceChatMode={queue?.voiceChatMode || 'RULES'}
+            isHost={isHost || false}
+            audioInputDevices={audioInputDevices}
+            audioOutputDevices={audioOutputDevices}
+            currentInputDeviceId={currentInputDeviceId}
+            currentOutputDeviceId={currentOutputDeviceId}
+            volume={voiceVolume}
+            hasSinkIdSupport={hasSinkIdSupport}
+            isSpeaking={isSpeaking}
+            peerSpeakingStatus={peerSpeakingStatus}
+            connectionQualities={connectionQualities}
+            meshWarning={meshWarning}
+            isWsConnected={isConnected}
+            onJoin={joinVoice}
+            onLeave={leaveVoice}
+            onToggleMute={toggleVoiceMute}
+            onChangeInputDevice={changeInputDevice}
+            onChangeOutputDevice={changeOutputDevice}
+            onVolumeChange={setVoiceVolume}
+            onChangeChatMode={handleChangeVoiceChatMode}
+            registerAudioElement={registerAudioElement}
+            unregisterAudioElement={unregisterAudioElement}
+          />
+
           <ModeratorControls
-            meetLink={session.meetLink}
             queue={queue}
+            voiceChatMode={queue?.voiceChatMode || 'RULES'}
             isHost={isHost}
             isCreator={isCreator}
             currentUserId={user?.id || ''}
             hasRaisedHand={hasRaisedHand}
             blockedUsers={blockedUsers}
             reportedUserIds={reportedUserIds}
-            onOpenMeet={handleOpenMeet}
             onRaiseHand={handleRaiseHand}
             onNextSpeaker={handleNextSpeaker}
             onRemoveFromQueue={handleRemoveFromQueue}
@@ -827,6 +965,7 @@ const MeetRoom: React.FC = () => {
               photoUrl={user.photoUrl || ''}
               initialContent={initialNoteContent}
               initialTitle={initialNoteTitle}
+              onCharCountChange={handleNoteCharCountChange}
             />
           )}
         </main>

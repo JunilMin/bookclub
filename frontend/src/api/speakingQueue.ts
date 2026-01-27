@@ -1,5 +1,5 @@
 import axiosInstance, { setAccessToken } from './axiosInstance';
-import { SpeakingQueue, QueueActionMessage } from '../types/meetRoom';
+import { SpeakingQueue, QueueActionMessage, VoiceChatMode } from '../types/meetRoom';
 
 /**
  * Get speaking queue
@@ -130,5 +130,19 @@ export const delegateModerator = async (
     photoUrl: '',
   };
   const response = await axiosInstance.post(`/sessions/${sessionId}/queue/delegate-moderator`, message);
+  return response.data;
+};
+
+/**
+ * Change voice chat mode (moderator only)
+ * @param mode 'RULES' (hand-raise only) or 'FREE' (everyone can speak)
+ */
+export const changeVoiceChatMode = async (
+  sessionId: string,
+  mode: VoiceChatMode,
+  token: string
+): Promise<SpeakingQueue> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/sessions/${sessionId}/queue/voice-chat-mode`, { mode });
   return response.data;
 };

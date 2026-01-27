@@ -323,6 +323,18 @@ public class SpeakingQueueService {
     }
 
     /**
+     * Change the voice chat mode
+     * @param sessionId The session ID
+     * @param mode The new voice chat mode (RULES or FREE)
+     * @return Updated SpeakingQueue
+     */
+    public SpeakingQueue changeVoiceChatMode(String sessionId, SpeakingQueue.VoiceChatMode mode) {
+        SpeakingQueue queue = getOrCreateQueue(sessionId);
+        queue.setVoiceChatMode(mode);
+        return speakingQueueRepository.save(queue);
+    }
+
+    /**
      * Get the current moderator ID for a session
      */
     public String getModeratorId(String sessionId) {

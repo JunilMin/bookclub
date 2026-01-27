@@ -3,7 +3,9 @@ package com.bookclub.backend.session.controller;
 import com.bookclub.backend.session.dto.PresenceMessage;
 import com.bookclub.backend.session.dto.QueueActionMessage;
 import com.bookclub.backend.session.dto.ReorderQueueRequest;
+import com.bookclub.backend.session.model.AttendanceRecord;
 import com.bookclub.backend.session.model.SpeakingQueue;
+import com.bookclub.backend.session.service.AttendanceService;
 import com.bookclub.backend.session.service.SpeakingQueueService;
 import com.bookclub.backend.websocket.WebSocketSessionRegistry;
 import org.slf4j.Logger;
@@ -26,6 +28,9 @@ public class SpeakingQueueController {
 
     @Autowired
     private SpeakingQueueService speakingQueueService;
+
+    @Autowired
+    private AttendanceService attendanceService;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -68,6 +73,21 @@ public class SpeakingQueueController {
         // Broadcast to WebSocket subscribers
         messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
 
+        // Track attendance - handle join
+        try {
+            AttendanceRecord attendance = attendanceService.handleJoin(
+                    sessionId,
+                    message.getUserId(),
+                    message.getUsername(),
+                    message.getPhotoUrl()
+            );
+            if (attendance != null) {
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+            }
+        } catch (Exception e) {
+            logger.error("Error tracking attendance join via REST: {}", e.getMessage());
+        }
+
         return ResponseEntity.ok(queue);
     }
 
@@ -84,6 +104,17 @@ public class SpeakingQueueController {
                 message.getUsername(),
                 message.getPhotoUrl()
         );
+
+        // Track attendance - handle hand raise
+        try {
+            AttendanceRecord attendance = attendanceService.handleHandRaise(sessionId, message.getUserId());
+            if (attendance != null) {
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+            }
+        } catch (Exception e) {
+            logger.error("Error tracking attendance hand raise via REST: {}", e.getMessage());
+        }
+
         return ResponseEntity.ok(queue);
     }
 
@@ -92,7 +123,37 @@ public class SpeakingQueueController {
      */
     @PostMapping("/{sessionId}/queue/next-speaker")
     public ResponseEntity<SpeakingQueue> nextSpeaker(@PathVariable String sessionId) {
+        // Get current speaker before moving to next (to end their speaking time)
+        SpeakingQueue beforeQueue = speakingQueueService.getOrCreateQueue(sessionId);
+        if (beforeQueue.getCurrentSpeaker() != null) {
+            String prevSpeakerId = beforeQueue.getCurrentSpeaker().getUserId();
+            try {
+                AttendanceRecord attendance = attendanceService.handleSpeakEnd(sessionId, prevSpeakerId);
+                if (attendance != null) {
+                    messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                }
+            } catch (Exception e) {
+                logger.error("Error tracking attendance speak end via REST: {}", e.getMessage());
+            }
+        }
+
         SpeakingQueue queue = speakingQueueService.nextSpeaker(sessionId);
+
+        // Track new speaker start
+        if (queue.getCurrentSpeaker() != null) {
+            try {
+                AttendanceRecord attendance = attendanceService.handleSpeakStart(
+                        sessionId,
+                        queue.getCurrentSpeaker().getUserId()
+                );
+                if (attendance != null) {
+                    messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                }
+            } catch (Exception e) {
+                logger.error("Error tracking attendance speak start via REST: {}", e.getMessage());
+            }
+        }
+
         return ResponseEntity.ok(queue);
     }
 
@@ -164,6 +225,33 @@ public class SpeakingQueueController {
     }
 
     /**
+     * REST: Change voice chat mode (moderator only)
+     */
+    @PostMapping("/{sessionId}/queue/voice-chat-mode")
+    public ResponseEntity<SpeakingQueue> changeVoiceChatMode(
+            @PathVariable String sessionId,
+            @RequestBody java.util.Map<String, String> body) {
+        try {
+            String modeStr = body.get("mode");
+            if (modeStr == null) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            SpeakingQueue.VoiceChatMode mode = SpeakingQueue.VoiceChatMode.valueOf(modeStr.toUpperCase());
+            SpeakingQueue queue = speakingQueueService.changeVoiceChatMode(sessionId, mode);
+
+            // Broadcast to WebSocket
+            logger.info("Broadcasting voice chat mode change to /topic/session/{}/queue - new mode: {}",
+                    sessionId, mode);
+            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", queue);
+
+            return ResponseEntity.ok(queue);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
      * WebSocket: Handle session join (similar to DocEditController pattern)
      */
     @MessageMapping("/session/{sessionId}/join")
@@ -193,6 +281,21 @@ public class SpeakingQueueController {
 
         // Broadcast updated queue
         messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", updatedQueue);
+
+        // Track attendance - handle join
+        try {
+            AttendanceRecord attendance = attendanceService.handleJoin(
+                    sessionId,
+                    message.getUserId(),
+                    message.getUsername(),
+                    message.getPhotoUrl()
+            );
+            if (attendance != null) {
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+            }
+        } catch (Exception e) {
+            logger.error("Error tracking attendance join: {}", e.getMessage());
+        }
     }
 
     /**
@@ -215,6 +318,16 @@ public class SpeakingQueueController {
 
         // Broadcast updated queue
         messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/queue", updatedQueue);
+
+        // Track attendance - handle leave
+        try {
+            AttendanceRecord attendance = attendanceService.handleLeave(sessionId, message.getUserId());
+            if (attendance != null) {
+                messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+            }
+        } catch (Exception e) {
+            logger.error("Error tracking attendance leave: {}", e.getMessage());
+        }
     }
 
     /**
@@ -226,16 +339,55 @@ public class SpeakingQueueController {
             @DestinationVariable String sessionId,
             QueueActionMessage message) {
 
+        SpeakingQueue result;
         switch (message.getAction()) {
             case "RAISE_HAND":
-                return speakingQueueService.raiseHand(
+                result = speakingQueueService.raiseHand(
                         sessionId,
                         message.getUserId(),
                         message.getUsername(),
                         message.getPhotoUrl()
                 );
+                // Track attendance - handle hand raise
+                try {
+                    AttendanceRecord attendance = attendanceService.handleHandRaise(sessionId, message.getUserId());
+                    if (attendance != null) {
+                        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error tracking attendance hand raise: {}", e.getMessage());
+                }
+                return result;
             case "NEXT_SPEAKER":
-                return speakingQueueService.nextSpeaker(sessionId);
+                // Get current speaker before moving to next (to end their speaking time)
+                SpeakingQueue beforeQueue = speakingQueueService.getOrCreateQueue(sessionId);
+                if (beforeQueue.getCurrentSpeaker() != null) {
+                    String prevSpeakerId = beforeQueue.getCurrentSpeaker().getUserId();
+                    try {
+                        AttendanceRecord attendance = attendanceService.handleSpeakEnd(sessionId, prevSpeakerId);
+                        if (attendance != null) {
+                            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error tracking attendance speak end: {}", e.getMessage());
+                    }
+                }
+                result = speakingQueueService.nextSpeaker(sessionId);
+                // Track new speaker start
+                if (result.getCurrentSpeaker() != null) {
+                    try {
+                        AttendanceRecord attendance = attendanceService.handleSpeakStart(
+                                sessionId,
+                                result.getCurrentSpeaker().getUserId()
+                        );
+                        if (attendance != null) {
+                            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error tracking attendance speak start: {}", e.getMessage());
+                    }
+                }
+                return result;
             case "REMOVE":
                 return speakingQueueService.removeFromQueue(sessionId, message.getUserId());
             default:
@@ -271,15 +423,46 @@ public class SpeakingQueueController {
             );
             logger.info("User {} added to session {}. Total participants: {}",
                     message.getUsername(), sessionId, updatedQueue.getParticipants().size());
+
+            // Track attendance - handle join
+            try {
+                AttendanceRecord attendance = attendanceService.handleJoin(
+                        sessionId,
+                        message.getUserId(),
+                        message.getUsername(),
+                        message.getPhotoUrl()
+                );
+                if (attendance != null) {
+                    messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                }
+            } catch (Exception e) {
+                logger.error("Error tracking attendance join via presence: {}", e.getMessage());
+            }
         } else if ("LEAVE".equals(message.getAction())) {
             // Unregister this meeting session from the WebSocket session registry
             sessionRegistry.unregisterMeetingSession(wsSessionId, sessionId);
 
             updatedQueue = speakingQueueService.setParticipantOffline(sessionId, message.getUserId());
             logger.info("User {} left session {}.", message.getUsername(), sessionId);
+
+            // Track attendance - handle leave
+            try {
+                AttendanceRecord attendance = attendanceService.handleLeave(sessionId, message.getUserId());
+                if (attendance != null) {
+                    messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/attendance", attendance);
+                }
+            } catch (Exception e) {
+                logger.error("Error tracking attendance leave via presence: {}", e.getMessage());
+            }
         } else if ("HEARTBEAT".equals(message.getAction())) {
             // Update heartbeat timestamp for the user
             speakingQueueService.updateHeartbeat(sessionId, message.getUserId());
+            // Also update attendance heartbeat
+            try {
+                attendanceService.handleHeartbeat(sessionId, message.getUserId());
+            } catch (Exception e) {
+                logger.debug("Error tracking attendance heartbeat: {}", e.getMessage());
+            }
             logger.debug("Heartbeat received from user {} in session {}", message.getUserId(), sessionId);
             // Don't broadcast heartbeats to reduce traffic
             return message;

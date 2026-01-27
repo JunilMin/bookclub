@@ -224,13 +224,38 @@ const PostCreate: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const dueDateTime = new Date(`${form.date}T${form.time}`);
     const duration = parseInt(form.discussionLength);
+
+    // 현재 시간 처리
+    const now = new Date();
+    let currentDateStr: string;
+    let dueDateStr: string;
+
+    if (form.bookLanguage === 'kr') {
+      // 한국어 선택 시 KST(UTC+9) 기준으로 저장
+      // 입력된 시간을 그대로 KST로 해석하여 저장
+      const kstOffset = 9 * 60; // KST는 UTC+9
+      const localOffset = now.getTimezoneOffset(); // 로컬 시간대 오프셋 (분)
+      const offsetDiff = kstOffset + localOffset; // KST와 로컬 시간 차이
+
+      // 현재 시간을 KST로 변환
+      const nowKST = new Date(now.getTime() + offsetDiff * 60 * 1000);
+      currentDateStr = nowKST.toISOString().slice(0, -5);
+
+      // due 시간: 입력된 날짜/시간을 KST로 간주하고 저장
+      // 사용자가 입력한 시간이 KST라고 가정하므로, 그대로 문자열로 저장
+      dueDateStr = `${form.date}T${form.time}:00`;
+    } else {
+      // 영어 선택 시 로컬 시간대 → UTC로 변환
+      const dueDateTime = new Date(`${form.date}T${form.time}`);
+      currentDateStr = now.toISOString().slice(0, -5);
+      dueDateStr = dueDateTime.toISOString().slice(0, -5);
+    }
 
     const newPost: Partial<Post> = {
       createrId: user.id!,
-      date: new Date().toISOString().slice(0, -5),
-      due: dueDateTime.toISOString().slice(0, -5),
+      date: currentDateStr,
+      due: dueDateStr,
       capacity: form.capacity,
       memberIds: [user.id!],
       level: form.level,

@@ -27,6 +27,7 @@ interface CollaborativeNotesProps {
   photoUrl?: string;
   initialContent?: any;
   initialTitle?: string;
+  onCharCountChange?: (charCount: number) => void;
 }
 
 export interface CollaborativeNotesRef {
@@ -40,6 +41,7 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
   photoUrl = '',
   initialContent,
   initialTitle = 'Discussion Notes',
+  onCharCountChange,
 }, ref) => {
   const { t } = useTranslation();
   const { accessToken } = useAuth();
@@ -72,6 +74,32 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     initialContent,
     placeholder: t('meet_notes_placeholder') || 'Start taking notes...',
   });
+
+  // Track character count for attendance
+  const lastCharCountRef = useRef<number>(0);
+  useEffect(() => {
+    if (!editor || !onCharCountChange) return;
+
+    const updateCharCount = () => {
+      const text = editor.getText();
+      const charCount = text.length;
+      // Only call callback if changed significantly (debounce small changes)
+      if (Math.abs(charCount - lastCharCountRef.current) >= 5 || charCount === 0) {
+        lastCharCountRef.current = charCount;
+        onCharCountChange(charCount);
+      }
+    };
+
+    // Initial count
+    updateCharCount();
+
+    // Listen to updates
+    editor.on('update', updateCharCount);
+
+    return () => {
+      editor.off('update', updateCharCount);
+    };
+  }, [editor, onCharCountChange]);
 
   // === Title Editing Handlers ===
   const handleTitleDoubleClick = () => {

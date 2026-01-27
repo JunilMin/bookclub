@@ -1,0 +1,219 @@
+.attendance-progress {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.attendance-progress.confirmed {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #a7f3d0;
+}
+
+/* Header */
+.attendance-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.attendance-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #334155;
+}
+
+.attendance-progress-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.attendance-progress-icon.confirmed {
+  color: #10b981;
+}
+
+.attendance-progress-icon.pending {
+  color: #f59e0b;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.attendance-progress-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* Progress Bar */
+.attendance-progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.attendance-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.attendance-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease-out;
+}
+
+.attendance-progress-percent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Message */
+.attendance-progress-message {
+  margin-bottom: 12px;
+}
+
+.attendance-progress-success {
+  font-size: 13px;
+  color: #059669;
+  margin: 0;
+}
+
+.attendance-progress-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Milestones */
+.attendance-progress-milestones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attendance-milestone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.attendance-milestone.achieved {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.attendance-milestone.achieved .attendance-milestone-icon {
+  color: #10b981;
+}
+
+.attendance-milestone.bonus {
+  border-style: dashed;
+}
+
+.attendance-milestone.bonus.achieved {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.attendance-milestone.bonus.achieved .attendance-milestone-icon {
+  color: #f59e0b;
+}
+
+.attendance-milestone-icon {
+  width: 16px;
+  height: 16px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.attendance-milestone-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attendance-milestone-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.attendance-milestone-value {
+  font-size: 13px;
+  color: #334155;
+}
+
+.attendance-milestone-remaining {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.attendance-milestone-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.attendance-milestone-bonus {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+/* Tip */
+.attendance-progress-tip {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: #fefce8;
+  border-radius: 6px;
+  border: 1px solid #fef08a;
+}
+
+.attendance-progress-tip span {
+  font-size: 11px;
+  color: #854d0e;
+}
+
+/* Loading */
+.attendance-progress-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: #64748b;
+}
+
+.attendance-progress-loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -23,7 +23,15 @@ public class SpeakingQueue {
 
     private String moderatorId;  // Current moderator's userId (can be delegated)
 
+    private VoiceChatMode voiceChatMode = VoiceChatMode.RULES;  // Default to rules mode
+
     private CurrentSpeaker currentSpeaker;
+
+    // Voice Chat Mode enum
+    public enum VoiceChatMode {
+        RULES,  // Hand-raise only mode - only current speaker can speak
+        FREE    // Free mode - everyone can speak freely
+    }
 
     private List<QueuedParticipant> queue = new ArrayList<>();
 
@@ -33,6 +41,7 @@ public class SpeakingQueue {
 
     public SpeakingQueue(String sessionId) {
         this.sessionId = sessionId;
+        this.voiceChatMode = VoiceChatMode.RULES;
         this.queue = new ArrayList<>();
         this.participants = new ArrayList<>();
         this.speakingHistory = new ArrayList<>();
@@ -41,6 +50,7 @@ public class SpeakingQueue {
     public SpeakingQueue(String sessionId, String moderatorId) {
         this.sessionId = sessionId;
         this.moderatorId = moderatorId;
+        this.voiceChatMode = VoiceChatMode.RULES;
         this.queue = new ArrayList<>();
         this.participants = new ArrayList<>();
         this.speakingHistory = new ArrayList<>();

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  FiVideo,
-  FiInfo,
   FiX,
   FiUser,
   FiClock,
@@ -17,6 +15,7 @@ import {
   FiChevronDown,
   FiChevronUp,
 } from 'react-icons/fi';
+import { RiHandHeartLine } from 'react-icons/ri';
 import {
   DndContext,
   closestCenter,
@@ -34,7 +33,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { SpeakingQueue, QueuedParticipant } from '../../../types/meetRoom';
+import { SpeakingQueue, QueuedParticipant, VoiceChatMode } from '../../../types/meetRoom';
 import '../styles/LeftPanel.css';
 
 // 강퇴된 유저 정보
@@ -44,15 +43,14 @@ export interface BlockedUser {
 }
 
 interface ModeratorControlsProps {
-  meetLink: string | null;
   queue: SpeakingQueue | null;
+  voiceChatMode: VoiceChatMode;
   isHost: boolean;
   isCreator: boolean;  // 방 생성자 여부 (강퇴 권한)
   currentUserId: string;
   hasRaisedHand: boolean;
   blockedUsers?: BlockedUser[];  // 강퇴된 유저 목록
   reportedUserIds?: string[];    // 이미 신고한 유저 ID 목록
-  onOpenMeet: () => void;
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
   onRemoveFromQueue: (userId: string) => void;
@@ -134,15 +132,14 @@ const SortableQueueItem: React.FC<SortableQueueItemProps> = ({
 };
 
 const ModeratorControls: React.FC<ModeratorControlsProps> = ({
-  meetLink,
   queue,
+  voiceChatMode,
   isHost,
   isCreator,
   currentUserId,
   hasRaisedHand,
   blockedUsers,
   reportedUserIds,
-  onOpenMeet,
   onRaiseHand,
   onNextSpeaker,
   onRemoveFromQueue,
@@ -248,46 +245,21 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
 
   return (
     <div className="moderator-controls">
-      {/* Google Meet Button */}
-      <button
-        className="meet-join-button"
-        onClick={onOpenMeet}
-        disabled={!meetLink}
-      >
-        <FiVideo size={20} />
-        <span>{t('meet_join_google_meet') || 'Join Google Meet'}</span>
-      </button>
-      {meetLink && (
-        <p className="meet-join-hint">
-          {t('meet_join_hint') || 'Opens video conference in new tab'}
-        </p>
+      {/* Raise Hand Button - only in RULES mode */}
+      {voiceChatMode === 'RULES' && (
+        <button
+          className={`raise-hand-button ${hasRaisedHand ? 'active' : ''}`}
+          onClick={onRaiseHand}
+        >
+          <div className="hand-icon">
+            <RiHandHeartLine size={24} />
+          </div>
+          <span>{hasRaisedHand ? t('meet_hand_raised') || 'Hand Raised!' : t('meet_raise_hand') || 'Raise Hand!'}</span>
+        </button>
       )}
 
-      {/* Discussion Rules */}
-      <div className="rules-card">
-        <div className="rules-header">
-          <FiInfo size={16} />
-          <h3>{t('meet_discussion_rules') || 'Discussion Rules'}</h3>
-        </div>
-        <ul className="rules-list">
-          <li>{t('meet_rule_1') || 'One person speaks at a time'}</li>
-          <li>{t('meet_rule_2') || 'Moderator manages the queue'}</li>
-          <li>{t('meet_rule_3') || 'Raise hand to speak'}</li>
-          <li>{t('meet_rule_4') || '3 minute speaking limit'}</li>
-        </ul>
-      </div>
-
-      {/* Raise Hand Button */}
-      <button
-        className={`raise-hand-button ${hasRaisedHand ? 'active' : ''}`}
-        onClick={onRaiseHand}
-      >
-        <span className="hand-icon">{hasRaisedHand ? '✋' : '🖐️'}</span>
-        <span>{hasRaisedHand ? t('meet_hand_raised') || 'Hand Raised!' : t('meet_raise_hand') || 'Raise Hand!'}</span>
-      </button>
-
-      {/* Current Speaker */}
-      {queue?.currentSpeaker && (
+      {/* Current Speaker - only in RULES mode */}
+      {voiceChatMode === 'RULES' && queue?.currentSpeaker && (
         <div className="current-speaker-card">
           <div className="speaker-header">
             <span className="speaker-label">{t('meet_current_speaker') || 'Current Speaker'}</span>
@@ -315,43 +287,45 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
         </div>
       )}
 
-      {/* Speaking Queue */}
-      <div className="queue-section">
-        <div className="queue-header">
-          <h3>{t('meet_speaking_queue') || 'Speaking Queue'} ({queue?.queue?.length || 0})</h3>
-          {isHost && queue?.queue?.length && queue.queue.length > 0 && (
-            <button className="queue-next-btn" onClick={onNextSpeaker}>
-              {t('meet_next') || 'Next'}
-            </button>
+      {/* Speaking Queue - only in RULES mode */}
+      {voiceChatMode === 'RULES' && (
+        <div className="queue-section">
+          <div className="queue-header">
+            <h3>{t('meet_speaking_queue') || 'Speaking Queue'} ({queue?.queue?.length || 0})</h3>
+            {isHost && queue?.queue?.length && queue.queue.length > 0 && (
+              <button className="queue-next-btn" onClick={onNextSpeaker}>
+                {t('meet_next') || 'Next'}
+              </button>
+            )}
+          </div>
+          {queue?.queue && queue.queue.length > 0 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={queue.queue.map((p) => p.userId)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="queue-list">
+                  {queue.queue.map((participant, index) => (
+                    <SortableQueueItem
+                      key={participant.userId}
+                      participant={participant}
+                      index={index}
+                      isHost={isHost}
+                      onRemove={onRemoveFromQueue}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <p className="queue-empty">{t('meet_queue_empty') || 'No one in queue'}</p>
           )}
         </div>
-        {queue?.queue && queue.queue.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={queue.queue.map((p) => p.userId)}
-              strategy={verticalListSortingStrategy}
-            >
-              <ul className="queue-list">
-                {queue.queue.map((participant, index) => (
-                  <SortableQueueItem
-                    key={participant.userId}
-                    participant={participant}
-                    index={index}
-                    isHost={isHost}
-                    onRemove={onRemoveFromQueue}
-                  />
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
-        ) : (
-          <p className="queue-empty">{t('meet_queue_empty') || 'No one in queue'}</p>
-        )}
-      </div>
+      )}
 
       {/* Participants - only show online participants */}
       <div className="participants-section" ref={dropdownRef}>

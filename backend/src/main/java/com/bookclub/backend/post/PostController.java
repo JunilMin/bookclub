@@ -3,6 +3,7 @@ package com.bookclub.backend.post;
 import com.bookclub.backend.post.dto.EndPostResponse;
 import com.bookclub.backend.session.dto.KickEventMessage;
 import com.bookclub.backend.session.dto.MeetingEndedMessage;
+import com.bookclub.backend.session.service.AttendanceService;
 import com.bookclub.backend.session.service.UserSessionNoteService;
 import com.bookclub.backend.user.User;
 import com.bookclub.backend.user.UserService;
@@ -38,6 +39,9 @@ public class PostController {
 
     @Autowired
     private UserSessionNoteService userSessionNoteService;
+
+    @Autowired
+    private AttendanceService attendanceService;
 
     /**
      * 모든 게시물 조회 (강퇴된 사용자에게는 해당 게시물 미표시)
@@ -277,6 +281,15 @@ public class PostController {
                 } catch (Exception e) {
                     logger.error("Failed to fork notes to participants for session {}: {}", sessionId, e.getMessage());
                     // Note forking 실패해도 미팅 종료는 성공으로 처리
+                }
+
+                // 세션 종료 시 출석 기록 최종화
+                try {
+                    attendanceService.finalizeSessionAttendance(sessionId);
+                    logger.info("Finalized attendance for session: {}", sessionId);
+                } catch (Exception e) {
+                    logger.error("Failed to finalize attendance for session {}: {}", sessionId, e.getMessage());
+                    // 출석 기록 최종화 실패해도 미팅 종료는 성공으로 처리
                 }
             }
 

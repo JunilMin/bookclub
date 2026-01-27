@@ -20,7 +20,9 @@
       "Bash(taskkill:*)",
       "Bash(npm install:*)",
       "WebSearch",
-      "Bash(timeout 10 npm run dev)"
+      "Bash(timeout 10 npm run dev)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(timeout 8 npm run dev)"
     ]
   }
 }

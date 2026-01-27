@@ -18,6 +18,12 @@ export interface NoteUpdateMessage {
   timestamp: number;
 }
 
+// Voice Chat Mode Types
+export type VoiceChatMode = 'RULES' | 'FREE';
+
+// Communication Mode Types (WebRTC vs Google Meet)
+export type CommunicationMode = 'webrtc' | 'google-meet';
+
 // Speaking Queue Types
 export interface CurrentSpeaker {
   userId: string;
@@ -58,6 +64,7 @@ export interface SpeakingQueue {
   id: string;
   sessionId: string;
   moderatorId: string | null;  // Current moderator's userId (can be delegated)
+  voiceChatMode: VoiceChatMode;  // RULES = hand-raise only, FREE = everyone can speak
   currentSpeaker: CurrentSpeaker | null;
   queue: QueuedParticipant[];
   participants: SessionParticipant[];
@@ -123,3 +130,111 @@ export interface MeetRoomState {
   isLoading: boolean;
   error: string | null;
 }
+
+// ============================================
+// WebRTC Voice Chat Types
+// ============================================
+
+/**
+ * WebRTC signal types
+ */
+export type SignalType = 'OFFER' | 'ANSWER' | 'ICE' | 'JOIN' | 'LEAVE';
+
+/**
+ * WebRTC signaling message for peer-to-peer connection
+ */
+export interface SignalMessage {
+  type: SignalType;
+  sessionId: string;
+  fromUserId: string;
+  toUserId?: string;
+  fromUsername?: string;
+  payload?: RTCSessionDescriptionInit | RTCIceCandidateInit | null;
+}
+
+/**
+ * Remote peer connection state
+ */
+export interface RemotePeer {
+  odUserId: string;
+  username: string;
+  photoUrl?: string;
+  peerConnection: RTCPeerConnection;
+  audioStream?: MediaStream;
+  isMuted: boolean;
+}
+
+/**
+ * Voice chat state
+ */
+export interface VoiceChatState {
+  isJoined: boolean;
+  isMuted: boolean;
+  localStream: MediaStream | null;
+  remotePeers: Map<string, RemotePeer>;
+  error: string | null;
+}
+
+/**
+ * ICE server configuration
+ * Includes STUN and free TURN servers for better NAT traversal
+ */
+export const ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    // Google STUN servers
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    // OpenRelay TURN servers (free tier)
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+  ],
+  // ICE transport policy: 'all' tries all candidates, 'relay' forces TURN only
+  iceTransportPolicy: 'all',
+  // Bundle all media on a single connection
+  bundlePolicy: 'max-bundle',
+  // Use unified plan for modern SDP handling
+  rtcpMuxPolicy: 'require',
+};
+
+/**
+ * WebRTC browser capability detection
+ */
+export interface WebRTCCapabilities {
+  hasWebRTC: boolean;
+  hasGetUserMedia: boolean;
+  hasEnumerateDevices: boolean;
+  hasSinkId: boolean;
+  hasAudioContext: boolean;
+}
+
+export function detectWebRTCCapabilities(): WebRTCCapabilities {
+  return {
+    hasWebRTC: typeof RTCPeerConnection !== 'undefined',
+    hasGetUserMedia: !!(navigator.mediaDevices?.getUserMedia),
+    hasEnumerateDevices: !!(navigator.mediaDevices?.enumerateDevices),
+    hasSinkId: 'setSinkId' in HTMLAudioElement.prototype,
+    hasAudioContext: typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined',
+  };
+}
+
+/**
+ * Mesh P2P configuration limits
+ */
+export const MESH_P2P_CONFIG = {
+  maxParticipants: 6, // Maximum participants for mesh topology
+  warnThreshold: 4,   // Show warning at this many participants
+};
