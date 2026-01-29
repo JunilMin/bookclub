@@ -52,6 +52,9 @@ export interface Post {
   blockedIds?: string[]; // 강퇴된 User ObjectId 리스트
   // 종료 상태 필드
   end?: EndStatus;
+  // 호스트 정보 (서버에서 조회 시 동적으로 채워짐)
+  hostUsername?: string; // 호스트 닉네임
+  hostPhotoUrl?: string; // 호스트 프로필 사진 URL
 }
 
 // 미팅 종료 응답 인터페이스

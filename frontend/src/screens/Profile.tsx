@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
-import { getAllPosts, Post } from '../api/posts';
-import { getMyReputation, UserReputationResponse } from '../api/user';
-import { changeLanguage, Languages } from '../language/i18n';
+import { getMyReputation, UserReputationResponse, getDisplayPhotoUrl } from '../api/user';
+import { useBoardStore } from '../store/boardStore';
 import './styles/Profile.css';
 
 const Profile: React.FC = () => {
@@ -13,14 +12,33 @@ const Profile: React.FC = () => {
   const location = useLocation();
   const { user, accessToken } = useAuth();
 
+  // boardStore에서 posts 가져오기 (데이터 재사용)
+  const { byId, order, initBoard, isInitialLoading: isBoardLoading } = useBoardStore();
+
   const [activeSection, setActiveSection] = useState<string>('overview');
-  const [createdMeetings, setCreatedMeetings] = useState<Post[]>([]);
-  const [participatingMeetings, setParticipatingMeetings] = useState<Post[]>([]);
   const [reputationData, setReputationData] = useState<UserReputationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showAllCreated, setShowAllCreated] = useState(false);
   const [showAllParticipating, setShowAllParticipating] = useState(false);
   const [showAllActivities, setShowAllActivities] = useState(false);
+
+  // boardStore의 posts를 배열로 변환
+  const allPosts = useMemo(() => {
+    return order.map((id) => byId[id]).filter(Boolean);
+  }, [byId, order]);
+
+  // 내가 만든 미팅 / 참여 중인 미팅 필터링 (메모이제이션)
+  const createdMeetings = useMemo(() => {
+    if (!user?.id) return [];
+    return allPosts.filter(post => post.createrId === user.id);
+  }, [allPosts, user?.id]);
+
+  const participatingMeetings = useMemo(() => {
+    if (!user?.id) return [];
+    return allPosts.filter(
+      post => post.memberIds?.includes(user.id!) && post.createrId !== user.id
+    );
+  }, [allPosts, user?.id]);
 
   // Handle hash navigation
   useEffect(() => {
@@ -30,40 +48,31 @@ const Profile: React.FC = () => {
     }
   }, [location.hash]);
 
-  // Fetch user's meetings and reputation data
+  // boardStore 초기화 (데이터가 없는 경우에만)
   useEffect(() => {
-    const fetchData = async () => {
+    if (accessToken && order.length === 0) {
+      initBoard(accessToken, user?.id);
+    }
+  }, [accessToken, user?.id, order.length, initBoard]);
+
+  // Fetch reputation data only (posts는 boardStore에서 가져옴)
+  useEffect(() => {
+    const fetchReputationData = async () => {
       if (!accessToken || !user) return;
 
       setIsLoading(true);
       try {
-        // Fetch meetings
-        const allPosts = await getAllPosts(accessToken);
-
-        // Filter created meetings
-        const created = allPosts.filter(
-          post => post.createrId === user.id
-        );
-        setCreatedMeetings(created);
-
-        // Filter participating meetings (where user is a member but not the creator)
-        const participating = allPosts.filter(
-          post => post.memberIds?.includes(user.id!) && post.createrId !== user.id
-        );
-        setParticipatingMeetings(participating);
-
-        // Fetch reputation data for badges
         const locale = i18n.language === 'ko' ? 'ko' : 'en';
         const repData = await getMyReputation(accessToken, locale);
         setReputationData(repData);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching reputation data:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
+    fetchReputationData();
   }, [accessToken, user, i18n.language]);
 
   if (!user) {
@@ -96,7 +105,7 @@ const Profile: React.FC = () => {
 
   // Default avatar as data URI
   const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+';
-  const avatarUrl = user.photoUrl || defaultAvatar;
+  const avatarUrl = getDisplayPhotoUrl(user) || defaultAvatar;
 
   // Calculate top rating from endorsement category scores
   const getTopRating = () => {
@@ -277,7 +286,7 @@ const Profile: React.FC = () => {
 
       {/* Content Sections */}
       <div className="profile-content">
-        {isLoading ? (
+        {(isLoading || isBoardLoading) ? (
           <div className="profile-loading">{t('loading')}</div>
         ) : (
           <>
@@ -430,6 +439,24 @@ const Profile: React.FC = () => {
                             <div className="profile-contact-label">{t('profile_email')}</div>
                           </div>
                         </div>
+                        {/* Location - only show if visibility is enabled and location exists */}
+                        {user.setting?.visibility?.elements?.location && user.profile?.introduce?.location && (
+                          user.profile.introduce.location.city || user.profile.introduce.location.country
+                        ) && (
+                          <div className="profile-contact-item">
+                            <div className="profile-contact-icon">
+                              <i className="ri-map-pin-line"></i>
+                            </div>
+                            <div className="profile-contact-content">
+                              <div className="profile-contact-value">
+                                {[user.profile.introduce.location.city, user.profile.introduce.location.country]
+                                  .filter(Boolean)
+                                  .join(', ')}
+                              </div>
+                              <div className="profile-contact-label">{t('profile_location')}</div>
+                            </div>
+                          </div>
+                        )}
                         <div className="profile-contact-item">
                           <div className="profile-contact-icon">
                             <i className="ri-calendar-line"></i>

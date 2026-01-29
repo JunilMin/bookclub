@@ -8,8 +8,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -36,6 +40,22 @@ public class UserService {
      */
     public Optional<User> getUserById(String id) {
         return userRepository.findById(id);
+    }
+
+    /**
+     * 여러 ID로 사용자 일괄 조회 (배치)
+     * N+1 문제 방지를 위한 메서드
+     *
+     * @param ids 조회할 사용자 ID 목록
+     * @return ID를 키로 하는 User 맵
+     */
+    public Map<String, User> getUsersByIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        List<User> users = userRepository.findAllById(ids);
+        return users.stream()
+            .collect(Collectors.toMap(User::getId, Function.identity()));
     }
 
     /**
@@ -90,7 +110,17 @@ public class UserService {
         user.setLate(0);
         user.setKicked(0);
         user.setPosts(new User.UserPosts(new ArrayList<>(), new ArrayList<>()));
-        user.setPhotoUrl(user.getPhotoUrl()); // Google 프로필 사진 URL (null 허용)
+
+        // Photo 구조 설정 (새 구조 + 레거시 호환)
+        String googlePhotoUrl = user.getPhotoUrl(); // 입력받은 photoUrl (Google 프로필 사진)
+        if (googlePhotoUrl != null && !googlePhotoUrl.isEmpty()) {
+            User.Photo photo = new User.Photo();
+            photo.setGoogle(googlePhotoUrl);
+            user.setPhoto(photo);
+        }
+        // 레거시 호환성을 위해 photoUrl도 유지
+        user.setPhotoUrl(googlePhotoUrl);
+
         user.setCreatedAt(LocalDateTime.now()); // 회원가입 날짜
 
         return userRepository.save(user);
@@ -126,7 +156,14 @@ public class UserService {
             user.setAbsent(updatedUser.getAbsent());
             user.setFriends(updatedUser.getFriends());
             user.setLate(updatedUser.getLate());
+
+            // Photo 구조 업데이트 (새 구조 우선)
+            if (updatedUser.getPhoto() != null) {
+                user.setPhoto(updatedUser.getPhoto());
+            }
+            // 레거시 호환성을 위해 photoUrl도 유지
             user.setPhotoUrl(updatedUser.getPhotoUrl());
+
             if (updatedUser.getPosts() != null) {
                 user.setPosts(updatedUser.getPosts());
             }

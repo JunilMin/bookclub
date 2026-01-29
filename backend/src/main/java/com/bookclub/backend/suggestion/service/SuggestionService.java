@@ -53,7 +53,7 @@ public class SuggestionService {
         suggestion.setTags(request.getTags() != null ? request.getTags() : List.of());
         suggestion.setAuthorId(userId);
         suggestion.setAuthorName(user.getUsername());
-        suggestion.setAuthorPhotoUrl(user.getPhotoUrl());
+        suggestion.setAuthorPhotoUrl(user.getDisplayPhotoUrl());
         suggestion.setStatus("open");
         suggestion.setCreatedAt(LocalDateTime.now());
         suggestion.setUpdatedAt(LocalDateTime.now());
@@ -162,7 +162,7 @@ public class SuggestionService {
         comment.setSuggestionId(suggestionId);
         comment.setAuthorId(userId);
         comment.setAuthorName(user.getUsername());
-        comment.setAuthorPhotoUrl(user.getPhotoUrl());
+        comment.setAuthorPhotoUrl(user.getDisplayPhotoUrl());
         comment.setContent(request.getContent());
         comment.setCreatedAt(LocalDateTime.now());
         comment.setUpdatedAt(LocalDateTime.now());

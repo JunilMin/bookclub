@@ -64,6 +64,7 @@ export type BoardStore = BoardState & BoardActions;
 
 const POLL_INTERVAL = 15000; // 15 seconds
 const MAX_CONSECUTIVE_FAILURES = 3;
+const INIT_COOLDOWN_MS = 3000; // 초기 로딩 후 3초간 refresh 무시
 
 // =============================================================================
 // Initial State
@@ -165,6 +166,15 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     if (state.inFlight) {
       set({ pendingRefresh: true });
       return;
+    }
+
+    // Cooldown: 초기 로딩 직후 일정 시간 내 refresh 무시 (polling 제외)
+    if (reason !== 'polling' && state.lastFetchTime) {
+      const timeSinceLastFetch = Date.now() - state.lastFetchTime;
+      if (timeSinceLastFetch < INIT_COOLDOWN_MS) {
+        console.debug(`[boardStore] refreshNow skipped due to cooldown, reason: ${reason}, timeSince: ${timeSinceLastFetch}ms`);
+        return;
+      }
     }
 
     set({ isRefreshingSilent: true, inFlight: true });

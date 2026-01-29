@@ -230,7 +230,7 @@ public class SessionService {
                 if (hostOpt.isPresent()) {
                     User host = hostOpt.get();
                     hostUsername = host.getUsername();
-                    hostPhotoUrl = host.getPhotoUrl();
+                    hostPhotoUrl = host.getDisplayPhotoUrl();
                     hostRating = host.getRating();
                 }
             }

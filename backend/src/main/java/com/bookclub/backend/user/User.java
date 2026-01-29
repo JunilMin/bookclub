@@ -30,7 +30,9 @@ public class User {
   private int late;
   private int kicked;  // 강퇴 당한 횟수
   private UserPosts posts;  // 북미팅 관련 필드 (생성/참여)
-  private String photoUrl;  // Google 프로필 사진 URL
+  private String photoUrl;  // [Legacy] Google 프로필 사진 URL - 마이그레이션 후 제거 예정
+  private String customPhotoUrl;  // [Legacy] 커스텀 사진 URL - 마이그레이션 후 제거 예정
+  private Photo photo;  // 프로필 사진 (Google + Custom)
   private LocalDateTime createdAt;  // 회원가입 날짜
 
   // Legacy fields for backward compatibility (MongoDB에 저장된 기존 데이터 읽기용)
@@ -114,6 +116,37 @@ public class User {
       this.setting = new UserSetting();
     }
     return this.setting;
+  }
+
+  /**
+   * photo getter - legacy photoUrl 마이그레이션 지원
+   * 1. photo가 null이고 photoUrl이 있으면 자동 변환
+   * 2. photo도 null이고 photoUrl도 null이면 빈 Photo 생성
+   */
+  public Photo getPhoto() {
+    if (this.photo == null) {
+      this.photo = new Photo();
+      // Legacy photoUrl 마이그레이션
+      if (this.photoUrl != null) {
+        this.photo.setGoogle(this.photoUrl);
+      }
+      // Legacy customPhotoUrl 마이그레이션
+      if (this.customPhotoUrl != null) {
+        this.photo.setCustom(this.customPhotoUrl);
+      }
+    }
+    return this.photo;
+  }
+
+  /**
+   * 프로필 사진 URL 가져오기 (custom 우선, 없으면 google)
+   */
+  public String getDisplayPhotoUrl() {
+    Photo p = getPhoto();
+    if (p.getCustom() != null && !p.getCustom().isEmpty()) {
+      return p.getCustom();
+    }
+    return p.getGoogle();
   }
 
   // 관심 도서 내부 클래스
@@ -263,6 +296,7 @@ public class User {
     private Styles styles;                  // 스타일 설정
     private List<String> keywords;          // 관심 키워드
     private Goals goals;                    // 목표
+    private Location location;              // 위치 정보
 
     public List<String> getPreferredGenre() {
       if (this.preferredGenre == null) {
@@ -291,6 +325,19 @@ public class User {
       }
       return this.goals;
     }
+  }
+
+  // 위치 정보 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Location {
+    private String city;          // 도시
+    private String country;       // 국가
+    private String countryCode;   // 국가 코드
+    private Double latitude;      // 위도
+    private Double longitude;     // 경도
+    private String updatedAt;     // 업데이트 시간
   }
 
   // 스타일 설정 내부 클래스
@@ -354,5 +401,14 @@ public class User {
     private boolean email = true;
     private boolean location = true;
     private boolean activeStatus = true;
+  }
+
+  // 프로필 사진 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Photo {
+    private String google;   // Google 프로필 사진 URL (원본, 삭제 불가)
+    private String custom;   // 사용자가 업로드한 커스텀 사진 URL (Firebase Storage)
   }
 }

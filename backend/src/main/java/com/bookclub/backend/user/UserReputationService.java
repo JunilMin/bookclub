@@ -67,7 +67,7 @@ public class UserReputationService {
             .userId(user.getId())
             .username(user.getUsername())
             .email(user.getEmail())
-            .photoUrl(user.getPhotoUrl())
+            .photoUrl(user.getDisplayPhotoUrl())
             .joinedAt(user.getCreatedAt())
             .participationStats(calculateParticipationStats(user, participatedPosts, createdPosts))
             .endorsementStats(calculateEndorsementStats(user))

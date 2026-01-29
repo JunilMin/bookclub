@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward, FiWifiOff, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { Post, BookData, joinBookMeeting, deletePost, updatePostBookData } from '../api/posts';
-import { getUserById, getUserCount } from '../api/user';
+import { getUserCount } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import RoomModal, { Room } from '../components/RoomModal';
@@ -30,9 +30,6 @@ const PAGE_SIZE = 9;
 // =============================================================================
 // Helper Functions
 // =============================================================================
-
-// Host username cache
-const hostUsernameCache = new Map<string, string>();
 
 // Book info cache (for posts being updated)
 const bookInfoUpdateInProgress = new Set<string>();
@@ -434,71 +431,51 @@ const Board: React.FC = () => {
   }, [activeTab, selectedGenre, selectedStatus, sortBy, sortOrder]);
 
   // ==========================================================================
-  // Convert Posts to Rooms (with book info lookup)
+  // Convert Posts to Rooms (optimized - no N+1 requests)
   // ==========================================================================
   useEffect(() => {
-    const convertPostsToRooms = async () => {
+    const convertPostsToRooms = () => {
       if (allPosts.length === 0) {
         setRooms([]);
         return;
       }
 
-      const roomPromises = allPosts.map(async (post) => {
-        // Fetch host username (with cache)
-        let hostUsername = 'Unknown';
-        if (post.createrId) {
-          if (hostUsernameCache.has(post.createrId)) {
-            hostUsername = hostUsernameCache.get(post.createrId)!;
-          } else if (accessToken) {
-            try {
-              const hostUser = await getUserById(post.createrId, accessToken);
-              hostUsername = hostUser.username;
-              hostUsernameCache.set(post.createrId, hostUsername);
-            } catch (error) {
-              console.error('Failed to fetch host username:', error);
-            }
-          }
-        }
-
-        // bookData에 cover/author 등이 누락된 경우 ISBN으로 조회 후 업데이트
-        const needsBookInfoUpdate = post.bookData?.isbn &&
-          (!post.bookData?.cover || !post.bookData?.author) &&
-          !bookInfoUpdateInProgress.has(post.id);
-
-        if (needsBookInfoUpdate && accessToken) {
-          bookInfoUpdateInProgress.add(post.id);
-          try {
-            const bookInfo = await fetchBookInfo(
-              post.bookData!.isbn!,
-              post.bookData?.title || 'Unknown Book'
-            );
-            if (bookInfo) {
-              // 백그라운드에서 Post 업데이트 (UI에는 즉시 반영)
-              updatePostBookData(post.id, bookInfo, accessToken)
-                .then(() => {
-                  console.log(`Updated bookData for post ${post.id}`);
-                })
-                .catch((err) => {
-                  console.error(`Failed to update bookData for post ${post.id}:`, err);
-                })
-                .finally(() => {
-                  bookInfoUpdateInProgress.delete(post.id);
-                });
-              // 현재 렌더링에는 fetch한 데이터 사용
-              post.bookData = bookInfo;
-            }
-          } catch (error) {
-            console.error('Failed to fetch book info:', error);
-            bookInfoUpdateInProgress.delete(post.id);
-          }
-        }
-
+      // 동기적으로 즉시 변환 (hostUsername은 백엔드에서 제공)
+      const convertedRooms = allPosts.map((post) => {
+        // 백엔드에서 제공하는 hostUsername 사용 (N+1 제거)
+        const hostUsername = post.hostUsername || 'Unknown';
         const activeParticipants = roomStatuses[post.id]?.activeParticipants || 0;
         return postToRoom(post, user?.id, hostUsername, activeParticipants);
       });
 
-      const convertedRooms = await Promise.all(roomPromises);
       setRooms(convertedRooms);
+
+      // bookData 보강이 필요한 포스트만 비동기로 처리 (lazy)
+      if (accessToken) {
+        allPosts.forEach((post) => {
+          const needsBookInfoUpdate = post.bookData?.isbn &&
+            (!post.bookData?.cover || !post.bookData?.author) &&
+            !bookInfoUpdateInProgress.has(post.id);
+
+          if (needsBookInfoUpdate) {
+            bookInfoUpdateInProgress.add(post.id);
+            fetchBookInfo(post.bookData!.isbn!, post.bookData?.title || 'Unknown Book')
+              .then((bookInfo) => {
+                if (bookInfo) {
+                  // 백그라운드에서 Post 업데이트
+                  updatePostBookData(post.id, bookInfo, accessToken)
+                    .then(() => console.log(`Updated bookData for post ${post.id}`))
+                    .catch((err) => console.error(`Failed to update bookData for post ${post.id}:`, err))
+                    .finally(() => bookInfoUpdateInProgress.delete(post.id));
+                }
+              })
+              .catch((error) => {
+                console.error('Failed to fetch book info:', error);
+                bookInfoUpdateInProgress.delete(post.id);
+              });
+          }
+        });
+      }
     };
 
     if (!isInitialLoading) {
@@ -891,49 +868,6 @@ const Board: React.FC = () => {
                 <i className="ri-calendar-check-line"></i>
               </div>
               <span>{t('browse_feature_one_time')}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="board-stats">
-          <div className="board-stat-card">
-            <div className="stat-hover-bg stat-bg-primary"></div>
-            <div className="stat-content">
-              <div className="stat-icon-wrapper stat-icon-primary">
-                <i className="ri-group-line"></i>
-              </div>
-              <div className="stat-value">{userCount.toLocaleString()}+</div>
-              <div className="stat-label">{t('browse_stat_readers_grid')}</div>
-              <div className="stat-subtitle">{t('browse_stat_readers_sub')}</div>
-            </div>
-          </div>
-          <div className="board-stat-card">
-            <div className="stat-hover-bg stat-bg-secondary"></div>
-            <div className="stat-content">
-              <div className="stat-icon-wrapper stat-icon-secondary">
-                <i className="ri-book-open-line"></i>
-              </div>
-              <div className="stat-value">5,000+</div>
-              <div className="stat-label">{t('browse_stat_discussions')}</div>
-              <div className="stat-subtitle">{t('browse_stat_discussions_sub')}</div>
-            </div>
-          </div>
-          <div className="board-stat-card">
-            <div className="stat-hover-bg stat-bg-accent"></div>
-            <div className="stat-content">
-              <div className="stat-icon-wrapper stat-icon-accent">
-                <i className="ri-star-fill"></i>
-              </div>
-              <div className="stat-value">4.9</div>
-              <div className="stat-label">{t('browse_stat_rating')}</div>
-              <div className="stat-stars">
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-              </div>
             </div>
           </div>
         </div>

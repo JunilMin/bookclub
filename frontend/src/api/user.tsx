@@ -43,6 +43,32 @@ export interface ProfileGoals {
   create?: number;        // 생성 목표
 }
 
+// 위치 정보 타입
+export interface UserLocation {
+  city?: string;
+  country?: string;
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
+  updatedAt?: string;
+}
+
+// 프로필 사진 타입
+export interface UserPhoto {
+  google?: string;  // Google 프로필 사진 URL (원본)
+  custom?: string;  // 사용자 커스텀 사진 URL (Firebase Storage)
+}
+
+// 프로필 사진 표시 헬퍼 함수 (custom 우선, 없으면 google, 없으면 legacy photoUrl)
+export const getDisplayPhotoUrl = (user: User | null): string | undefined => {
+  if (!user) return undefined;
+  // 새 구조 우선
+  if (user.photo?.custom) return user.photo.custom;
+  if (user.photo?.google) return user.photo.google;
+  // Legacy fallback
+  return user.photoUrl;
+};
+
 // 프로필 자기소개 타입
 export interface ProfileIntroduce {
   introduction?: string;       // 소개글
@@ -50,6 +76,7 @@ export interface ProfileIntroduce {
   styles?: ProfileStyles;      // 스타일 설정
   keywords?: string[];         // 관심 키워드
   goals?: ProfileGoals;        // 목표
+  location?: UserLocation;     // 위치 정보
 }
 
 // 프로필 타입
@@ -91,7 +118,9 @@ export interface User {
   kicked?: number;  // 강퇴 당한 횟수
   isEmailVerified?: boolean; // 이메일 인증 여부
   verificationToken?: string; // 이메일 인증 토큰
-  photoUrl?: string; // Google 프로필 사진 URL
+  photoUrl?: string; // [Legacy] Google 프로필 사진 URL
+  customPhotoUrl?: string; // [Legacy] 커스텀 사진 URL
+  photo?: UserPhoto; // 프로필 사진 (Google + Custom)
   endorsementStats?: EndorsementStats;  // 평가 통계
   reported?: ReportedStats;  // 신고 통계
   createdAt?: string;  // 회원가입 날짜

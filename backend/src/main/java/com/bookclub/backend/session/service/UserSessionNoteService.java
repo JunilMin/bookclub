@@ -121,7 +121,7 @@ public class UserSessionNoteService {
             if (hostOpt.isPresent()) {
                 User host = hostOpt.get();
                 hostUsername = host.getUsername();
-                hostPhotoUrl = host.getPhotoUrl();
+                hostPhotoUrl = host.getDisplayPhotoUrl();
                 hostRating = host.getRating();
             }
         }
@@ -188,7 +188,7 @@ public class UserSessionNoteService {
                         UserNoteResponse.ParticipantInfo memberInfo = new UserNoteResponse.ParticipantInfo(
                             memberId,
                             member.getUsername(),
-                            member.getPhotoUrl(),
+                            member.getDisplayPhotoUrl(),
                             member.getRating(),
                             false
                         );

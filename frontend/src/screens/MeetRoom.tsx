@@ -13,7 +13,7 @@ import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator, joinQueueRest, changeVoiceChatMode } from '../api/speakingQueue';
 import { getRecording, toggleRecording, generateAISummary, organizeNotes } from '../api/aiSummary';
-import { getUserById } from '../api/user';
+import { getUserById, getDisplayPhotoUrl } from '../api/user';
 import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
 import { getReportedUserIds } from '../api/reports';
 import { getMyAttendance, updateNoteAttendance, AttendanceRecord } from '../api/attendance';
@@ -128,7 +128,7 @@ const MeetRoom: React.FC = () => {
     sessionId: sessionId || '',
     userId: user?.id || '',
     username: user?.username || '',
-    photoUrl: user?.photoUrl,
+    photoUrl: getDisplayPhotoUrl(user),
     participants: queue?.participants || [],
     subscribe,
     send,
@@ -442,7 +442,7 @@ const MeetRoom: React.FC = () => {
               sessionId!,
               user.id,
               user.username,
-              user.photoUrl || '',
+              getDisplayPhotoUrl(user) || '',
               accessToken
             );
             if (!hasReceivedWebSocketQueue.current) {
@@ -577,7 +577,7 @@ const MeetRoom: React.FC = () => {
       send(`/app/session/${sessionId}/join`, {
         userId: user.id,
         username: user.username,
-        photoUrl: user.photoUrl || '',
+        photoUrl: getDisplayPhotoUrl(user) || '',
       });
       console.log('Session JOIN sent successfully');
     } catch (err) {
@@ -599,14 +599,14 @@ const MeetRoom: React.FC = () => {
         send(`/app/session/${sessionId}/leave`, {
           userId: user.id,
           username: user.username,
-          photoUrl: user.photoUrl || '',
+          photoUrl: getDisplayPhotoUrl(user) || '',
         });
         console.log('Session LEAVE sent successfully');
       } catch (err) {
         console.error('Failed to send Session LEAVE:', err);
       }
     };
-  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, subscribe, send, navigate, t]);
+  }, [isConnected, sessionId, user?.id, user?.username, getDisplayPhotoUrl(user), subscribe, send, navigate, t]);
 
   // Handle beforeunload (tab close/refresh) - send leave message and cleanup voice
   useEffect(() => {
@@ -623,7 +623,7 @@ const MeetRoom: React.FC = () => {
         send(`/app/session/${sessionId}/leave`, {
           userId: user.id,
           username: user.username,
-          photoUrl: user.photoUrl || '',
+          photoUrl: getDisplayPhotoUrl(user) || '',
         });
       } catch (err) {
         console.error('Failed to send leave on beforeunload:', err);
@@ -635,7 +635,7 @@ const MeetRoom: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send, isVoiceJoined, leaveVoice]);
+  }, [isConnected, sessionId, user?.id, user?.username, getDisplayPhotoUrl(user), send, isVoiceJoined, leaveVoice]);
 
   // Leave voice chat when meeting ends
   useEffect(() => {
@@ -689,7 +689,7 @@ const MeetRoom: React.FC = () => {
         action: 'HEARTBEAT',
         userId: user.id,
         username: user.username,
-        photoUrl: user.photoUrl || '',
+        photoUrl: getDisplayPhotoUrl(user) || '',
       });
     };
 
@@ -702,7 +702,7 @@ const MeetRoom: React.FC = () => {
     return () => {
       clearInterval(intervalId);
     };
-  }, [isConnected, sessionId, user?.id, user?.username, user?.photoUrl, send]);
+  }, [isConnected, sessionId, user?.id, user?.username, getDisplayPhotoUrl(user), send]);
 
   // Poll for meeting end state (fallback if WebSocket misses the event)
   useEffect(() => {
@@ -736,7 +736,7 @@ const MeetRoom: React.FC = () => {
       return;
     }
     try {
-      const result = await raiseHand(sessionId, user.id, user.username, user.photoUrl || '', accessToken);
+      const result = await raiseHand(sessionId, user.id, user.username, getDisplayPhotoUrl(user) || '', accessToken);
       setQueue(result);
     } catch (err) {
       console.error('Failed to raise hand:', err);
@@ -1357,7 +1357,7 @@ const MeetRoom: React.FC = () => {
             remotePeers={remotePeers}
             currentUserId={user?.id || ''}
             currentUsername={user?.username || 'Anonymous'}
-            currentPhotoUrl={user?.photoUrl}
+            currentPhotoUrl={getDisplayPhotoUrl(user)}
             voiceChatMode={queue?.voiceChatMode || 'RULES'}
             isHost={isHost || false}
             currentSpeakerId={queue?.currentSpeaker?.userId || null}
@@ -1419,7 +1419,7 @@ const MeetRoom: React.FC = () => {
               docId={sessionId}
               userId={user.id!}
               username={user.username || 'Anonymous'}
-              photoUrl={user.photoUrl || ''}
+              photoUrl={getDisplayPhotoUrl(user) || ''}
               initialContent={initialNoteContent}
               initialTitle={initialNoteTitle}
               aiContent={aiNoteContent}

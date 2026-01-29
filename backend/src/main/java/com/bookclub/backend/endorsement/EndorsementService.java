@@ -165,7 +165,7 @@ public class EndorsementService {
                 return new EndorsementResponse.PendingParticipant(
                     userId,
                     user != null ? user.getUsername() : "Unknown",
-                    user != null ? user.getPhotoUrl() : null,
+                    user != null ? user.getDisplayPhotoUrl() : null,
                     alreadyEndorsedIds.contains(userId)
                 );
             })

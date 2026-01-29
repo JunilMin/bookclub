@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.AllArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.bson.types.ObjectId;
 
@@ -20,6 +21,12 @@ public class Post {
   @Id
   private String id;  // MongoDB의 ObjectId
   private String createrId;  // 작성자 User ObjectId
+
+  // 조회 시 동적으로 채워지는 필드 (DB에 저장되지 않음)
+  @Transient
+  private String hostUsername;  // 호스트 닉네임
+  @Transient
+  private String hostPhotoUrl;  // 호스트 프로필 사진 URL
   private LocalDateTime date;  // 생성 날짜
   private LocalDateTime due;   // 기한 날짜
   private int capacity;  // 인원 수

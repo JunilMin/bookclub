@@ -8,6 +8,9 @@ import {
   sendEmailVerification,
   GoogleAuthProvider,
   signInWithPopup,
+  unlink,
+  EmailAuthProvider,
+  linkWithCredential,
 } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 import { registerUser, User, getByUID } from "../api/user";
@@ -88,6 +91,10 @@ interface AuthContextProps {
   completeGoogleRegistration: (username: string) => Promise<void>; // Google 회원가입 완료 (닉네임 설정 후)
   cancelGoogleRegistration: () => Promise<void>; // Google 회원가입 취소
   setInMeeting: (inMeeting: boolean) => void; // 미팅 참여 상태 설정
+  unlinkGoogle: () => Promise<void>; // Google 연동 해제
+  hasPasswordProvider: () => boolean; // 비밀번호 로그인 연결 여부 확인
+  isGoogleLinked: () => boolean; // Google 연동 여부 확인
+  setPasswordForGoogleUser: (newPassword: string) => Promise<void>; // Google 사용자에게 비밀번호 설정
 }
 
 const app = initializeApp(firebaseConfig);
@@ -495,6 +502,80 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log("Google 회원가입 취소됨");
   };
 
+  // 비밀번호 provider 연결 여부 확인
+  const hasPasswordProvider = (): boolean => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return false;
+    return firebaseUser.providerData.some(
+      (provider) => provider.providerId === 'password'
+    );
+  };
+
+  // Google 연동 여부 확인
+  const isGoogleLinked = (): boolean => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return false;
+    return firebaseUser.providerData.some(
+      (provider) => provider.providerId === 'google.com'
+    );
+  };
+
+  // Google 사용자에게 비밀번호 설정 (연동 해제 전 필수)
+  const setPasswordForGoogleUser = async (newPassword: string): Promise<void> => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser || !firebaseUser.email) {
+      throw new Error("No user is currently logged in");
+    }
+
+    // 이미 비밀번호 provider가 있으면 스킵
+    if (hasPasswordProvider()) {
+      console.log("Password provider already linked");
+      return;
+    }
+
+    try {
+      const credential = EmailAuthProvider.credential(firebaseUser.email, newPassword);
+      await linkWithCredential(firebaseUser, credential);
+      console.log("Password provider linked successfully");
+    } catch (error: any) {
+      console.error("Failed to link password provider:", error);
+      throw new Error(`비밀번호 설정 실패: ${error.message}`);
+    }
+  };
+
+  // Google 연동 해제
+  const unlinkGoogle = async (): Promise<void> => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) {
+      throw new Error("No user is currently logged in");
+    }
+
+    // Google 연동 여부 확인
+    if (!isGoogleLinked()) {
+      throw new Error("Google is not linked to this account");
+    }
+
+    // 비밀번호 provider 확인 - 없으면 연동 해제 불가
+    if (!hasPasswordProvider()) {
+      throw new Error("PASSWORD_REQUIRED");
+    }
+
+    try {
+      // Firebase에서 Google provider 연결 해제
+      await unlink(firebaseUser, 'google.com');
+      console.log("Google provider unlinked successfully");
+
+      // Google Access Token 초기화
+      setGoogleAccessToken("");
+
+      // 사용자 정보 새로고침 (photoUrl 등 업데이트 반영)
+      await refreshUserData();
+    } catch (error: any) {
+      console.error("Failed to unlink Google:", error);
+      throw new Error(`Google 연동 해제 실패: ${error.message}`);
+    }
+  };
+
   const handleLogout = async (): Promise<void> => {
     // 타이머 정리
     if (inactivityTimerRef.current) {
@@ -561,6 +642,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         completeGoogleRegistration,
         cancelGoogleRegistration,
         setInMeeting,
+        unlinkGoogle,
+        hasPasswordProvider,
+        isGoogleLinked,
+        setPasswordForGoogleUser,
       }}
     >
       {children}

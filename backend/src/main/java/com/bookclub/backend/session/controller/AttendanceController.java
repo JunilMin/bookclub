@@ -112,7 +112,7 @@ public class AttendanceController {
                     sessionId,
                     userId,
                     user.getUsername(),
-                    user.getPhotoUrl()
+                    user.getDisplayPhotoUrl()
             );
 
             // 새로 생성된 출석 기록 브로드캐스트

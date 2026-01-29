@@ -10,7 +10,10 @@ import com.bookclub.backend.user.UserService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class PostService {
@@ -25,10 +28,45 @@ public class PostService {
     private GoogleCalendarService googleCalendarService;
 
     /**
-     * 모든 게시물 조회
+     * 모든 게시물 조회 (호스트 정보 포함)
      */
     public List<Post> getAllPosts() {
-        return postRepository.findAll();
+        List<Post> posts = postRepository.findAll();
+        enrichPostsWithHostInfo(posts);
+        return posts;
+    }
+
+    /**
+     * 게시물 목록에 호스트 정보(username, photoUrl) 추가
+     * 배치로 한 번에 조회하여 N+1 문제 방지
+     */
+    private void enrichPostsWithHostInfo(List<Post> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return;
+        }
+
+        // 모든 고유 createrId 수집
+        Set<String> createrIds = posts.stream()
+            .map(Post::getCreaterId)
+            .filter(id -> id != null && !id.isEmpty())
+            .collect(Collectors.toSet());
+
+        if (createrIds.isEmpty()) {
+            return;
+        }
+
+        // 배치로 사용자 조회
+        Map<String, User> userMap = userService.getUsersByIds(createrIds);
+
+        // 각 Post에 호스트 정보 설정
+        for (Post post : posts) {
+            String createrId = post.getCreaterId();
+            if (createrId != null && userMap.containsKey(createrId)) {
+                User host = userMap.get(createrId);
+                post.setHostUsername(host.getUsername());
+                post.setHostPhotoUrl(host.getDisplayPhotoUrl());
+            }
+        }
     }
 
     /**
@@ -380,16 +418,20 @@ public class PostService {
     }
 
     /**
-     * 특정 유저에게 보이지 않는 게시물 제외하고 조회
+     * 특정 유저에게 보이지 않는 게시물 제외하고 조회 (호스트 정보 포함)
      */
     public List<Post> getAllPostsExcludingBlocked(String userId) {
         List<Post> allPosts = postRepository.findAll();
+        List<Post> filteredPosts;
         if (userId == null || userId.isEmpty()) {
-            return allPosts;
+            filteredPosts = allPosts;
+        } else {
+            filteredPosts = allPosts.stream()
+                .filter(post -> post.getBlockedIds() == null || !post.getBlockedIds().contains(userId))
+                .collect(Collectors.toList());
         }
-        return allPosts.stream()
-            .filter(post -> post.getBlockedIds() == null || !post.getBlockedIds().contains(userId))
-            .collect(java.util.stream.Collectors.toList());
+        enrichPostsWithHostInfo(filteredPosts);
+        return filteredPosts;
     }
 
     /**

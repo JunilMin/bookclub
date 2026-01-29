@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
+import { getDisplayPhotoUrl } from '../api/user';
 import './styles/AccountDropdown.css';
 
 const AccountDropdown: React.FC = () => {
@@ -65,9 +66,9 @@ const AccountDropdown: React.FC = () => {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        {user.photoUrl ? (
+        {getDisplayPhotoUrl(user) ? (
           <img
-            src={user.photoUrl}
+            src={getDisplayPhotoUrl(user)}
             alt={user.username}
             className="account-avatar"
             onError={(e) => {
@@ -88,9 +89,9 @@ const AccountDropdown: React.FC = () => {
           <div className="dropdown-user-summary" onClick={() => handleNavigation('/profile')}>
             <div className="user-summary-header">
               <div className="user-avatar-wrapper">
-                {user.photoUrl ? (
+                {getDisplayPhotoUrl(user) ? (
                   <img
-                    src={user.photoUrl}
+                    src={getDisplayPhotoUrl(user)}
                     alt={user.username}
                     className="user-avatar"
                   />
