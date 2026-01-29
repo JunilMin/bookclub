@@ -54,4 +54,18 @@ public class SessionNoteService {
     public Optional<SessionNote> getNoteBySessionId(String sessionId) {
         return sessionNoteRepository.findBySessionId(sessionId);
     }
+
+    /**
+     * Update AI organized content for a session note
+     * @param sessionId The session ID
+     * @param aiContent The AI organized content in TipTap JSON format
+     * @return Updated SessionNote
+     */
+    public SessionNote updateAiContent(String sessionId, String aiContent) {
+        SessionNote note = getOrCreateNote(sessionId);
+        note.setAiContent(aiContent);
+        note.setAiContentGeneratedAt(LocalDateTime.now());
+        note.setUpdatedAt(LocalDateTime.now());
+        return sessionNoteRepository.save(note);
+    }
 }

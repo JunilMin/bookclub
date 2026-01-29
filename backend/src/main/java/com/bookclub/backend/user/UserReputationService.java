@@ -1,7 +1,12 @@
 package com.bookclub.backend.user;
 
+import com.bookclub.backend.endorsement.EndorsementRepository;
 import com.bookclub.backend.post.Post;
 import com.bookclub.backend.post.PostRepository;
+import com.bookclub.backend.session.model.AttendanceRecord;
+import com.bookclub.backend.session.model.AttendanceRecord.AttendanceStatus;
+import com.bookclub.backend.session.model.AttendanceRecord.AttendanceType;
+import com.bookclub.backend.session.repository.AttendanceRecordRepository;
 import com.bookclub.backend.user.dto.UserReputationResponse;
 import com.bookclub.backend.user.dto.UserReputationResponse.*;
 import com.bookclub.backend.user.model.UserBadge;
@@ -31,6 +36,12 @@ public class UserReputationService {
     @Autowired
     private UserBadgeService userBadgeService;
 
+    @Autowired
+    private AttendanceRecordRepository attendanceRecordRepository;
+
+    @Autowired
+    private EndorsementRepository endorsementRepository;
+
     // 6개 endorsement 카테고리
     private static final List<String> ENDORSEMENT_CATEGORIES = Arrays.asList(
         "ENGAGEMENT", "COMMUNICATION", "RESPECT", "RULE_ADHERENCE", "PREPARATION", "REMATCH"
@@ -49,50 +60,215 @@ public class UserReputationService {
         List<Post> participatedPosts = getParticipatedPosts(user);
         List<Post> createdPosts = getCreatedPosts(user);
 
+        // 배지 정보 조회 (활동 타임라인에서도 사용)
+        UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
+
         return UserReputationResponse.builder()
             .userId(user.getId())
             .username(user.getUsername())
             .email(user.getEmail())
             .photoUrl(user.getPhotoUrl())
-            .joinedAt(null) // MongoDB에서 createdAt이 없으므로 null
+            .joinedAt(user.getCreatedAt())
             .participationStats(calculateParticipationStats(user, participatedPosts, createdPosts))
             .endorsementStats(calculateEndorsementStats(user))
-            .badgeInfo(calculateBadgeInfo(user, participatedPosts, createdPosts, isKorean))
-            .recentActivities(calculateRecentActivities(user, participatedPosts, isKorean))
-            .monthlyAttendance(calculateMonthlyAttendance(participatedPosts, isKorean))
+            .badgeInfo(calculateBadgeInfo(user, participatedPosts, createdPosts, isKorean, userBadge))
+            .recentActivities(calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean))
+            .monthlyAttendance(calculateMonthlyAttendance(user, participatedPosts, createdPosts, isKorean))
             .build();
     }
 
     /**
-     * 참여 통계 계산
+     * 참여 통계 계산 (attendance_records 기반)
      */
     private ParticipationStats calculateParticipationStats(User user, List<Post> participatedPosts, List<Post> createdPosts) {
-        int totalParticipated = participatedPosts.size();
-        int absent = user.getAbsent() != 0 ? user.getAbsent() : 0;
-        int late = user.getLate() != 0 ? user.getLate() : 0;
+        String odUserId = user.getId();
         int kicked = user.getKicked() != 0 ? user.getKicked() : 0;
-        int created = createdPosts.size();
 
-        // 참석 = 총 참여 - 불참
-        int attended = Math.max(0, totalParticipated - absent);
+        // 생성한 포스트 ID 목록
+        List<String> createdPostIds = createdPosts.stream()
+            .map(Post::getId)
+            .collect(Collectors.toList());
 
-        // 출석률 = (참석 / 총 참여) * 100
-        double attendanceRate = totalParticipated > 0 ? ((double) attended / totalParticipated) * 100 : 100;
+        // 참여한 포스트 ID 목록
+        List<String> participatedPostIds = participatedPosts.stream()
+            .map(Post::getId)
+            .collect(Collectors.toList());
 
-        // 정시 출석률 = ((참석 - 지각) / 총 참여) * 100
-        int onTime = Math.max(0, attended - late);
-        double onTimeRate = totalParticipated > 0 ? ((double) onTime / totalParticipated) * 100 : 100;
+        // 모든 포스트 ID (생성 + 참여)
+        Set<String> allPostIds = new HashSet<>();
+        allPostIds.addAll(createdPostIds);
+        allPostIds.addAll(participatedPostIds);
+
+        int totalMeetings = allPostIds.size();
+
+        // 각 통계 초기화
+        int createdAndAttended = 0;  // 생성&참여: created에서 CONFIRMED
+        int participated = 0;        // 참여: participated에서 CONFIRMED
+        int absent = 0;              // 불참: 기록 없음 OR status != CONFIRMED
+        int late = 0;                // 지각: attendanceType == LATE
+        int onTimeCount = 0;         // 정시/일찍: EARLY or ON_TIME
+
+        // 생성한 포스트에 대한 출석 기록 확인
+        for (String postId : createdPostIds) {
+            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(postId, odUserId);
+
+            if (recordOpt.isPresent()) {
+                AttendanceRecord record = recordOpt.get();
+                if (record.getStatus() == AttendanceStatus.CONFIRMED) {
+                    createdAndAttended++;
+
+                    // 지각/정시 체크
+                    if (record.getAttendanceType() == AttendanceType.LATE) {
+                        late++;
+                    } else if (record.getAttendanceType() == AttendanceType.EARLY ||
+                               record.getAttendanceType() == AttendanceType.ON_TIME) {
+                        onTimeCount++;
+                    }
+                } else {
+                    absent++;
+                }
+            } else {
+                // 출석 기록이 없으면 불참
+                absent++;
+            }
+        }
+
+        // 참여한 포스트에 대한 출석 기록 확인 (생성 포스트와 중복 제외)
+        for (String postId : participatedPostIds) {
+            // 이미 생성 포스트로 처리된 경우 건너뛰기
+            if (createdPostIds.contains(postId)) {
+                continue;
+            }
+
+            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(postId, odUserId);
+
+            if (recordOpt.isPresent()) {
+                AttendanceRecord record = recordOpt.get();
+                if (record.getStatus() == AttendanceStatus.CONFIRMED) {
+                    participated++;
+
+                    // 지각/정시 체크
+                    if (record.getAttendanceType() == AttendanceType.LATE) {
+                        late++;
+                    } else if (record.getAttendanceType() == AttendanceType.EARLY ||
+                               record.getAttendanceType() == AttendanceType.ON_TIME) {
+                        onTimeCount++;
+                    }
+                } else {
+                    absent++;
+                }
+            } else {
+                // 출석 기록이 없으면 불참
+                absent++;
+            }
+        }
+
+        // 총 확정 출석 수
+        int totalConfirmed = createdAndAttended + participated;
+
+        // 출석률 = (confirmed / total) * 100
+        double attendanceRate = totalMeetings > 0 ? ((double) totalConfirmed / totalMeetings) * 100 : 100;
+
+        // 정시 출석률 = (EARLY + ON_TIME) / confirmed * 100
+        double onTimeRate = totalConfirmed > 0 ? ((double) onTimeCount / totalConfirmed) * 100 : 100;
+
+        // 연속 참여 기록 계산 (불참 없이 연속 참석한 횟수)
+        int currentStreak = calculateCurrentStreak(user, participatedPosts, createdPosts);
+
+        // 피드백 통계 계산
+        int feedbackGivenCount = (int) endorsementRepository.countByEvaluatorUserId(odUserId);
+        int feedbackReceivedCount = 0;
+        if (user.getEndorsementStats() != null) {
+            feedbackReceivedCount = user.getEndorsementStats().getCount() != 0 ? user.getEndorsementStats().getCount() : 0;
+        }
+
+        // 피드백 가능 인원 계산 (참석한 모든 토론의 (참가자 수 - 1)의 합)
+        int feedbackPossibleCount = calculateFeedbackPossibleCount(user, participatedPosts, createdPosts);
 
         return ParticipationStats.builder()
-            .totalParticipated(totalParticipated)
-            .attended(attended)
+            .createdAndAttended(createdAndAttended)
+            .participated(participated)
             .absent(absent)
             .late(late)
             .kicked(kicked)
-            .created(created)
+            .totalMeetings(totalMeetings)
             .attendanceRate(Math.round(attendanceRate * 10) / 10.0)
             .onTimeRate(Math.round(onTimeRate * 10) / 10.0)
+            // Profile card 통계
+            .totalConfirmed(totalConfirmed)
+            .onTimeCount(onTimeCount)
+            .currentStreak(currentStreak)
+            .feedbackGivenCount(feedbackGivenCount)
+            .feedbackPossibleCount(feedbackPossibleCount)
+            .feedbackReceivedCount(feedbackReceivedCount)
             .build();
+    }
+
+    /**
+     * 연속 참여 기록 계산 (최근 기준으로 불참 없이 연속 참석한 횟수)
+     */
+    private int calculateCurrentStreak(User user, List<Post> participatedPosts, List<Post> createdPosts) {
+        String odUserId = user.getId();
+
+        // 모든 포스트 합치기 (중복 제거)
+        Map<String, Post> allPostsMap = new HashMap<>();
+        for (Post post : createdPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+        for (Post post : participatedPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+
+        // due 날짜 기준 최신순 정렬 (가장 최근 먼저)
+        List<Post> sortedPosts = allPostsMap.values().stream()
+            .filter(p -> p.getDue() != null)
+            .sorted((a, b) -> b.getDue().compareTo(a.getDue()))
+            .collect(Collectors.toList());
+
+        int streak = 0;
+        for (Post post : sortedPosts) {
+            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+
+            if (recordOpt.isPresent() && recordOpt.get().getStatus() == AttendanceStatus.CONFIRMED) {
+                // 참석 확인됨 - streak 계속
+                streak++;
+            } else {
+                // 불참 - streak 종료
+                break;
+            }
+        }
+
+        return streak;
+    }
+
+    /**
+     * 피드백 가능 인원 계산 (참석한 모든 토론의 (참가자 수 - 1)의 합)
+     */
+    private int calculateFeedbackPossibleCount(User user, List<Post> participatedPosts, List<Post> createdPosts) {
+        String odUserId = user.getId();
+
+        // 모든 포스트 합치기 (중복 제거)
+        Map<String, Post> allPostsMap = new HashMap<>();
+        for (Post post : createdPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+        for (Post post : participatedPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+
+        int totalPossible = 0;
+        for (Post post : allPostsMap.values()) {
+            // 내가 참석(CONFIRMED)한 포스트만 계산
+            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+
+            if (recordOpt.isPresent() && recordOpt.get().getStatus() == AttendanceStatus.CONFIRMED) {
+                // 참가자 수 - 1 (자기 자신 제외)
+                int memberCount = post.getMemberIds() != null ? post.getMemberIds().size() : 0;
+                totalPossible += Math.max(0, memberCount - 1);
+            }
+        }
+
+        return totalPossible;
     }
 
     /**
@@ -148,12 +324,10 @@ public class UserReputationService {
     /**
      * 배지 정보 계산 (badges 컬렉션 사용)
      */
-    private BadgeInfo calculateBadgeInfo(User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean) {
+    private BadgeInfo calculateBadgeInfo(User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, UserBadge userBadge) {
         List<Badge> earnedBadges = new ArrayList<>();
         List<Badge> lockedBadges = new ArrayList<>();
 
-        // 배지 달성 상태 확인 및 업데이트
-        UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
         Map<String, BadgeStatus> badgeStatuses = userBadge.getBadges();
 
         int totalParticipated = participatedPosts.size();
@@ -255,42 +429,141 @@ public class UserReputationService {
 
     /**
      * 최근 활동 타임라인 계산
+     * - 회원가입, 포스트 참석, 배지 획득, 포스트 생성
      */
-    private List<ActivityItem> calculateRecentActivities(User user, List<Post> participatedPosts, boolean isKorean) {
+    private List<ActivityItem> calculateRecentActivities(User user, List<Post> participatedPosts, List<Post> createdPosts, UserBadge userBadge, boolean isKorean) {
         List<ActivityItem> activities = new ArrayList<>();
+        String odUserId = user.getId();
 
-        // 참여한 포스트들을 활동으로 변환 (최근 10개)
-        List<Post> sortedPosts = participatedPosts.stream()
-            .filter(p -> p.getDue() != null)
-            .sorted((a, b) -> b.getDue().compareTo(a.getDue()))
-            .limit(10)
-            .collect(Collectors.toList());
-
-        for (Post post : sortedPosts) {
-            String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
-            int participantCount = post.getMemberIds() != null ? post.getMemberIds().size() : 0;
-
+        // 1. 회원가입 활동
+        if (user.getCreatedAt() != null) {
             activities.add(ActivityItem.builder()
-                .type("MEETING")
-                .title(bookTitle)
-                .description(isKorean ? "독서 토론에 참여했습니다" : "Participated in book discussion")
-                .icon("FiBookOpen")
-                .gradientColors("#3B82F6,#1D4ED8")
-                .timestamp(post.getDue())
-                .rating(null) // 개별 미팅 평점은 현재 저장되지 않음
-                .participantCount(participantCount)
-                .postId(post.getId())
+                .type("SIGNUP")
+                .title(isKorean ? "북클럽 가입" : "Joined BookClub")
+                .description(isKorean ? "북클럽에 가입했습니다" : "Joined BookClub community")
+                .icon("ri-user-add-fill")
+                .gradientColors("#10B981,#059669")
+                .timestamp(user.getCreatedAt())
+                .rating(null)
+                .participantCount(null)
+                .postId(null)
                 .build());
         }
+
+        // 2. 포스트 생성 활동
+        for (Post post : createdPosts) {
+            if (post.getDate() != null) {
+                String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
+
+                activities.add(ActivityItem.builder()
+                    .type("CREATED")
+                    .title(bookTitle)
+                    .description(isKorean ? "북미팅을 생성했습니다" : "Created a book meeting")
+                    .icon("ri-add-circle-fill")
+                    .gradientColors("#8B5CF6,#7C3AED")
+                    .timestamp(post.getDate())
+                    .rating(null)
+                    .participantCount(post.getMemberIds() != null ? post.getMemberIds().size() : 0)
+                    .postId(post.getId())
+                    .build());
+            }
+        }
+
+        // 3. 포스트 참석 활동 (attendance_records 기반)
+        // 모든 포스트 합치기 (중복 제거)
+        Map<String, Post> allPostsMap = new HashMap<>();
+        for (Post post : createdPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+        for (Post post : participatedPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+
+        for (Post post : allPostsMap.values()) {
+            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+
+            if (recordOpt.isPresent()) {
+                AttendanceRecord record = recordOpt.get();
+                if (record.getStatus() == AttendanceStatus.CONFIRMED && record.getCreatedAt() != null) {
+                    String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
+                    boolean isLate = record.getAttendanceType() == AttendanceType.LATE;
+
+                    activities.add(ActivityItem.builder()
+                        .type("ATTENDED")
+                        .title(bookTitle)
+                        .description(isLate
+                            ? (isKorean ? "북미팅에 늦게 참석했습니다" : "Attended book meeting (late)")
+                            : (isKorean ? "북미팅에 참석했습니다" : "Attended book meeting"))
+                        .icon(isLate ? "ri-time-fill" : "ri-checkbox-circle-fill")
+                        .gradientColors(isLate ? "#F59E0B,#D97706" : "#3B82F6,#2563EB")
+                        .timestamp(record.getCreatedAt())
+                        .rating(null)
+                        .participantCount(post.getMemberIds() != null ? post.getMemberIds().size() : 0)
+                        .postId(post.getId())
+                        .build());
+                }
+            }
+        }
+
+        // 4. 배지 획득 활동
+        if (userBadge != null && userBadge.getBadges() != null) {
+            for (Map.Entry<String, BadgeStatus> entry : userBadge.getBadges().entrySet()) {
+                BadgeStatus status = entry.getValue();
+                if (status != null && status.isAchievementState() && status.getDate() != null) {
+                    String badgeId = entry.getKey();
+
+                    // BadgeDefinition에서 배지 정보 가져오기
+                    BadgeDefinition badgeDef = null;
+                    for (BadgeDefinition def : BadgeDefinition.values()) {
+                        if (def.getId().equals(badgeId)) {
+                            badgeDef = def;
+                            break;
+                        }
+                    }
+
+                    if (badgeDef != null) {
+                        activities.add(ActivityItem.builder()
+                            .type("BADGE")
+                            .title(isKorean ? badgeDef.getNameKo() : badgeDef.getNameEn())
+                            .description(isKorean ? "배지를 획득했습니다" : "Earned a badge")
+                            .icon(badgeDef.getIcon())
+                            .gradientColors(badgeDef.getGradientColors()) // Tailwind 형식 그대로 전달, 프론트엔드에서 변환
+                            .timestamp(status.getDate())
+                            .rating(null)
+                            .participantCount(null)
+                            .postId(null)
+                            .build());
+                    }
+                }
+            }
+        }
+
+        // 최신순 정렬 (위에서 아래로 최근 → 이전)
+        activities.sort((a, b) -> {
+            if (a.getTimestamp() == null && b.getTimestamp() == null) return 0;
+            if (a.getTimestamp() == null) return 1;
+            if (b.getTimestamp() == null) return -1;
+            return b.getTimestamp().compareTo(a.getTimestamp());
+        });
 
         return activities;
     }
 
     /**
-     * 월별 출석 기록 계산 (최근 12개월)
+     * 월별 출석 기록 계산 (최근 12개월, attendance_records 기반)
      */
-    private List<MonthlyAttendance> calculateMonthlyAttendance(List<Post> participatedPosts, boolean isKorean) {
+    private List<MonthlyAttendance> calculateMonthlyAttendance(User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean) {
         List<MonthlyAttendance> monthlyData = new ArrayList<>();
+        String odUserId = user.getId();
+
+        // 모든 포스트 합치기 (중복 제거)
+        Map<String, Post> allPostsMap = new HashMap<>();
+        for (Post post : createdPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+        for (Post post : participatedPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
 
         // 최근 12개월
         YearMonth now = YearMonth.now();
@@ -303,21 +576,44 @@ public class UserReputationService {
                 ? month.getMonthValue() + "월"
                 : month.format(DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH));
 
-            // 해당 월의 참여 포스트 수
-            long attended = participatedPosts.stream()
+            int attended = 0;  // 참석 (CONFIRMED, 지각 제외)
+            int late = 0;      // 지각 (CONFIRMED + LATE)
+            int absent = 0;    // 불참 (기록 없음 OR status != CONFIRMED)
+
+            // 해당 월의 포스트들 필터링
+            List<Post> monthPosts = allPostsMap.values().stream()
                 .filter(p -> p.getDue() != null)
                 .filter(p -> YearMonth.from(p.getDue()).equals(month))
-                .count();
+                .collect(Collectors.toList());
 
-            // 현재 데이터 구조로는 월별 지각/불참을 구분할 수 없음
-            // 전체 absent/late를 월별로 분배하지 않고 0으로 표시
+            for (Post post : monthPosts) {
+                Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+
+                if (recordOpt.isPresent()) {
+                    AttendanceRecord record = recordOpt.get();
+                    if (record.getStatus() == AttendanceStatus.CONFIRMED) {
+                        if (record.getAttendanceType() == AttendanceType.LATE) {
+                            late++;
+                        } else {
+                            attended++;
+                        }
+                    } else {
+                        absent++;
+                    }
+                } else {
+                    absent++;
+                }
+            }
+
+            int total = attended + late + absent;
+
             monthlyData.add(MonthlyAttendance.builder()
                 .month(monthKey)
                 .monthLabel(monthLabel)
-                .attended((int) attended)
-                .late(0)  // 월별 데이터 없음
-                .absent(0)  // 월별 데이터 없음
-                .total((int) attended)
+                .attended(attended)
+                .late(late)
+                .absent(absent)
+                .total(total)
                 .build());
         }
 

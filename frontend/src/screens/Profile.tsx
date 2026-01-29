@@ -20,6 +20,7 @@ const Profile: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showAllCreated, setShowAllCreated] = useState(false);
   const [showAllParticipating, setShowAllParticipating] = useState(false);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   // Handle hash navigation
   useEffect(() => {
@@ -97,12 +98,30 @@ const Profile: React.FC = () => {
   const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+';
   const avatarUrl = user.photoUrl || defaultAvatar;
 
-  // Calculate rating display (1-5 stars based on points or default)
-  const rating = user.endorsementStats?.points ? Math.min(5, Math.max(1, Math.round(user.endorsementStats.points / 100))) : 4;
-  const ratingScore = user.endorsementStats?.points ? (user.endorsementStats.points / 100).toFixed(1) : '0.0';
+  // Calculate top rating from endorsement category scores
+  const getTopRating = () => {
+    const scores = reputationData?.endorsementStats?.categoryScores;
+    if (!scores) return { score: 0, category: '' };
+    const entries = Object.entries(scores);
+    if (entries.length === 0) return { score: 0, category: '' };
+    const [maxCategory, maxScore] = entries.reduce((max, curr) => curr[1] > max[1] ? curr : max);
+    return { score: maxScore, category: maxCategory };
+  };
+  const topRating = getTopRating();
+  const topRatingStars = Math.round(topRating.score);
+  const topRatingScore = topRating.score.toFixed(1);
 
-  // Gradient helper function for badges
+  // Gradient helper function for badges and activities
   const getGradientStyle = (gradientColors: string) => {
+    if (!gradientColors) return 'linear-gradient(135deg, #6b7280, #4b5563)';
+
+    // hex 형식이면 linear-gradient로 변환 ("#10B981,#059669")
+    if (gradientColors.startsWith('#')) {
+      const parts = gradientColors.split(',');
+      return `linear-gradient(135deg, ${parts.join(', ')})`;
+    }
+
+    // Tailwind 클래스 형식이면 매핑
     const gradientMap: Record<string, string> = {
       'from-yellow-400 to-yellow-600': 'linear-gradient(135deg, #facc15, #ca8a04)',
       'from-blue-400 to-blue-600': 'linear-gradient(135deg, #60a5fa, #2563eb)',
@@ -187,13 +206,15 @@ const Profile: React.FC = () => {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <i
                         key={star}
-                        className={star <= rating ? 'ri-star-fill' : 'ri-star-line'}
+                        className={star <= topRatingStars ? 'ri-star-fill' : 'ri-star-line'}
                       ></i>
                     ))}
                   </div>
-                  <span className="profile-hero-rating-score">{ratingScore}</span>
+                  <span className="profile-hero-rating-score">{topRatingScore}</span>
                 </div>
-                <p className="profile-hero-rating-label">{t('profile_reputation_score')}</p>
+                <p className="profile-hero-rating-label">
+                  {t('profile_top_rating')} {topRating.category && `(${t(`endorsement_category_${topRating.category}`)})`}
+                </p>
               </div>
             </div>
           </div>
@@ -209,8 +230,8 @@ const Profile: React.FC = () => {
               <div className="profile-hero-stat-label">{t('profile_stat_participated')}</div>
             </div>
             <div className="profile-hero-stat-card">
-              <div className="profile-hero-stat-value profile-hero-stat-amber">{ratingScore}</div>
-              <div className="profile-hero-stat-label">{t('profile_stat_reputation')}</div>
+              <div className="profile-hero-stat-value profile-hero-stat-amber">{topRatingScore}</div>
+              <div className="profile-hero-stat-label">{t('profile_top_rating')}</div>
             </div>
             <div className="profile-hero-stat-card">
               <div className="profile-hero-stat-value profile-hero-stat-cyan">{user.endorsementStats?.points || 0}</div>
@@ -265,44 +286,74 @@ const Profile: React.FC = () => {
                 <div className="profile-overview-grid">
                   {/* Left Column - Main Content */}
                   <div className="profile-overview-main">
-                    {/* Monthly Activity Trends */}
+                    {/* Activity Stats - 4개 통계 프로그레스 바 */}
                     <div className="profile-card">
-                      <h3 className="profile-card-title">{t('profile_monthly_trends')}</h3>
+                      <h3 className="profile-card-title">{t('profile_activity_highlights')}</h3>
                       <div className="profile-progress-list">
                         <div className="profile-progress-item">
                           <span className="profile-progress-label">{t('profile_discussion_participation')}</span>
                           <div className="profile-progress-bar-wrapper">
                             <div className="profile-progress-bar">
-                              <div className="profile-progress-fill slate" style={{ width: '85%' }}></div>
+                              <div
+                                className="profile-progress-fill slate"
+                                style={{ width: `${reputationData?.participationStats?.attendanceRate || 0}%` }}
+                              ></div>
                             </div>
-                            <span className="profile-progress-value">85%</span>
+                            <span className="profile-progress-value">
+                              {reputationData?.participationStats?.attendanceRate || 0}%
+                            </span>
                           </div>
                         </div>
                         <div className="profile-progress-item">
-                          <span className="profile-progress-label">{t('profile_note_writing')}</span>
+                          <span className="profile-progress-label">{t('profile_user_feedback')}</span>
                           <div className="profile-progress-bar-wrapper">
                             <div className="profile-progress-bar">
-                              <div className="profile-progress-fill amber" style={{ width: '92%' }}></div>
+                              <div
+                                className="profile-progress-fill amber"
+                                style={{
+                                  width: `${reputationData?.participationStats?.feedbackPossibleCount
+                                    ? Math.min(100, (reputationData.participationStats.feedbackGivenCount / reputationData.participationStats.feedbackPossibleCount) * 100)
+                                    : 0}%`
+                                }}
+                              ></div>
                             </div>
-                            <span className="profile-progress-value">92%</span>
+                            <span className="profile-progress-value">
+                              {reputationData?.participationStats?.feedbackPossibleCount
+                                ? Math.round((reputationData.participationStats.feedbackGivenCount / reputationData.participationStats.feedbackPossibleCount) * 100)
+                                : 0}%
+                            </span>
                           </div>
                         </div>
                         <div className="profile-progress-item">
-                          <span className="profile-progress-label">{t('profile_rating_score')}</span>
+                          <span className="profile-progress-label">{t('profile_on_time_entry')}</span>
                           <div className="profile-progress-bar-wrapper">
                             <div className="profile-progress-bar">
-                              <div className="profile-progress-fill cyan" style={{ width: '96%' }}></div>
+                              <div
+                                className="profile-progress-fill cyan"
+                                style={{ width: `${reputationData?.participationStats?.onTimeRate || 0}%` }}
+                              ></div>
                             </div>
-                            <span className="profile-progress-value">96%</span>
+                            <span className="profile-progress-value">
+                              {reputationData?.participationStats?.onTimeRate || 0}%
+                            </span>
                           </div>
                         </div>
                         <div className="profile-progress-item">
-                          <span className="profile-progress-label">{t('profile_leadership')}</span>
+                          <span className="profile-progress-label">{t('profile_participation_streak')}</span>
                           <div className="profile-progress-bar-wrapper">
                             <div className="profile-progress-bar">
-                              <div className="profile-progress-fill slate" style={{ width: '78%' }}></div>
+                              <div
+                                className="profile-progress-fill emerald"
+                                style={{
+                                  width: `${reputationData?.participationStats?.totalConfirmed
+                                    ? Math.min(100, (reputationData.participationStats.currentStreak / reputationData.participationStats.totalConfirmed) * 100)
+                                    : 0}%`
+                                }}
+                              ></div>
                             </div>
-                            <span className="profile-progress-value">78%</span>
+                            <span className="profile-progress-value">
+                              {reputationData?.participationStats?.currentStreak || 0}{t('profile_times_unit')}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -327,10 +378,28 @@ const Profile: React.FC = () => {
                             <div className="profile-highlight-icon">
                               <i className="ri-star-fill"></i>
                             </div>
-                            <span className="profile-highlight-label">{t('profile_avg_rating')}</span>
+                            <span className="profile-highlight-label">{t('profile_top_rating')}</span>
                           </div>
-                          <div className="profile-highlight-value">{ratingScore}</div>
-                          <div className="profile-highlight-sub">{t('profile_all_time_high')}</div>
+                          <div className="profile-highlight-value">
+                            {(() => {
+                              const scores = reputationData?.endorsementStats?.categoryScores;
+                              if (!scores) return '0.0';
+                              const entries = Object.entries(scores);
+                              if (entries.length === 0) return '0.0';
+                              const [, maxScore] = entries.reduce((max, curr) => curr[1] > max[1] ? curr : max);
+                              return maxScore.toFixed(1);
+                            })()}
+                          </div>
+                          <div className="profile-highlight-sub">
+                            {(() => {
+                              const scores = reputationData?.endorsementStats?.categoryScores;
+                              if (!scores) return '';
+                              const entries = Object.entries(scores);
+                              if (entries.length === 0) return '';
+                              const [maxCategory] = entries.reduce((max, curr) => curr[1] > max[1] ? curr : max);
+                              return t(`endorsement_category_${maxCategory}`);
+                            })()}
+                          </div>
                         </div>
                         <div className="profile-highlight-card cyan">
                           <div className="profile-highlight-header">
@@ -377,50 +446,23 @@ const Profile: React.FC = () => {
                     <div className="profile-card">
                       <h3 className="profile-card-title">{t('profile_reputation_details')}</h3>
                       <div className="profile-reputation-list">
-                        <div className="profile-reputation-item">
-                          <span className="profile-reputation-label">{t('profile_discussion_contribution')}</span>
-                          <div className="profile-reputation-stars">
-                            <div className="profile-stars">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <i key={star} className={star <= 5 ? 'ri-star-fill' : 'ri-star-line'}></i>
-                              ))}
+                        {['ENGAGEMENT', 'COMMUNICATION', 'RESPECT', 'RULE_ADHERENCE', 'PREPARATION', 'REMATCH'].map((category) => {
+                          const score = reputationData?.endorsementStats?.categoryScores?.[category] || 0;
+                          const filledStars = Math.round(score);
+                          return (
+                            <div key={category} className="profile-reputation-item">
+                              <span className="profile-reputation-label">{t(`endorsement_category_${category}`)}</span>
+                              <div className="profile-reputation-stars">
+                                <div className="profile-stars">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <i key={star} className={star <= filledStars ? 'ri-star-fill' : 'ri-star-line'}></i>
+                                  ))}
+                                </div>
+                                <span className="profile-reputation-score">{score.toFixed(1)}</span>
+                              </div>
                             </div>
-                            <span className="profile-reputation-score">5.0</span>
-                          </div>
-                        </div>
-                        <div className="profile-reputation-item">
-                          <span className="profile-reputation-label">{t('profile_note_quality')}</span>
-                          <div className="profile-reputation-stars">
-                            <div className="profile-stars">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <i key={star} className={star <= 4 ? 'ri-star-fill' : 'ri-star-line'}></i>
-                              ))}
-                            </div>
-                            <span className="profile-reputation-score">4.7</span>
-                          </div>
-                        </div>
-                        <div className="profile-reputation-item">
-                          <span className="profile-reputation-label">{t('profile_participation_consistency')}</span>
-                          <div className="profile-reputation-stars">
-                            <div className="profile-stars">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <i key={star} className={star <= 5 ? 'ri-star-fill' : 'ri-star-line'}></i>
-                              ))}
-                            </div>
-                            <span className="profile-reputation-score">4.9</span>
-                          </div>
-                        </div>
-                        <div className="profile-reputation-item">
-                          <span className="profile-reputation-label">{t('profile_leadership')}</span>
-                          <div className="profile-reputation-stars">
-                            <div className="profile-stars">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <i key={star} className={star <= 4 ? 'ri-star-fill' : 'ri-star-line'}></i>
-                              ))}
-                            </div>
-                            <span className="profile-reputation-score">4.6</span>
-                          </div>
-                        </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -437,73 +479,55 @@ const Profile: React.FC = () => {
                     <p className="recent-activity-subtitle">{t('profile_recent_activity_subtitle')}</p>
                   </div>
                   <div className="recent-activity-content">
-                    <div className="recent-activity-list">
-                      <div className="recent-activity-item">
-                        <div className="recent-activity-icon slate">
-                          <i className="ri-discuss-line"></i>
+                    {reputationData?.recentActivities && reputationData.recentActivities.length > 0 ? (
+                      <>
+                        <div className="recent-activity-list">
+                          {(showAllActivities
+                            ? reputationData.recentActivities
+                            : reputationData.recentActivities.slice(0, 5)
+                          ).map((activity, index) => (
+                            <div
+                              key={`${activity.type}-${activity.postId || ''}-${index}`}
+                              className={`recent-activity-item ${activity.postId ? 'clickable' : ''}`}
+                              onClick={() => activity.postId && navigate('/')}
+                            >
+                              <div
+                                className="recent-activity-icon"
+                                style={{ background: getGradientStyle(activity.gradientColors) }}
+                              >
+                                <i className={activity.icon || 'ri-checkbox-circle-fill'}></i>
+                              </div>
+                              <div className="recent-activity-info">
+                                <p className="recent-activity-text">{activity.title}</p>
+                                <p className="recent-activity-desc">{activity.description}</p>
+                                <p className="recent-activity-date">{formatJoinDate(activity.timestamp)}</p>
+                              </div>
+                              {activity.participantCount != null && activity.participantCount > 0 && (
+                                <div className="recent-activity-participants">
+                                  <i className="ri-group-line"></i>
+                                  <span>{activity.participantCount}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                        <div className="recent-activity-info">
-                          <p className="recent-activity-text">The Seven Husbands of Evelyn Hugo {t('profile_activity_discussion_joined')}</p>
-                          <p className="recent-activity-date">2024.12.18</p>
-                        </div>
-                        <button className="recent-activity-more">
-                          <i className="ri-more-line"></i>
-                        </button>
+                        {reputationData.recentActivities.length > 5 && (
+                          <div className="recent-activity-footer">
+                            <button
+                              className="recent-activity-load-more"
+                              onClick={() => setShowAllActivities(!showAllActivities)}
+                            >
+                              {showAllActivities ? t('profile_show_less') : t('profile_view_all')}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="recent-activity-empty">
+                        <i className="ri-time-line"></i>
+                        <p>{t('profile_no_activities')}</p>
                       </div>
-                      <div className="recent-activity-item">
-                        <div className="recent-activity-icon cyan">
-                          <i className="ri-ai-generate"></i>
-                        </div>
-                        <div className="recent-activity-info">
-                          <p className="recent-activity-text">{t('profile_activity_ai_summary')}: 1984 {t('profile_activity_discussion_content')}</p>
-                          <p className="recent-activity-date">2024.12.17</p>
-                        </div>
-                        <button className="recent-activity-more">
-                          <i className="ri-more-line"></i>
-                        </button>
-                      </div>
-                      <div className="recent-activity-item">
-                        <div className="recent-activity-icon amber">
-                          <i className="ri-sticky-note-line"></i>
-                        </div>
-                        <div className="recent-activity-info">
-                          <p className="recent-activity-text">Pride and Prejudice {t('profile_activity_note_written')}</p>
-                          <p className="recent-activity-date">2024.12.16</p>
-                        </div>
-                        <button className="recent-activity-more">
-                          <i className="ri-more-line"></i>
-                        </button>
-                      </div>
-                      <div className="recent-activity-item">
-                        <div className="recent-activity-icon slate">
-                          <i className="ri-add-circle-line"></i>
-                        </div>
-                        <div className="recent-activity-info">
-                          <p className="recent-activity-text">Atomic Habits {t('profile_activity_room_created')}</p>
-                          <p className="recent-activity-date">2024.12.15</p>
-                        </div>
-                        <button className="recent-activity-more">
-                          <i className="ri-more-line"></i>
-                        </button>
-                      </div>
-                      <div className="recent-activity-item">
-                        <div className="recent-activity-icon amber">
-                          <i className="ri-star-fill"></i>
-                        </div>
-                        <div className="recent-activity-info">
-                          <p className="recent-activity-text">{t('profile_activity_5star_received')}</p>
-                          <p className="recent-activity-date">2024.12.14</p>
-                        </div>
-                        <button className="recent-activity-more">
-                          <i className="ri-more-line"></i>
-                        </button>
-                      </div>
-                    </div>
-                    <div className="recent-activity-footer">
-                      <button className="recent-activity-load-more">
-                        {t('profile_view_all')}
-                      </button>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -735,14 +759,29 @@ const Profile: React.FC = () => {
                   </div>
 
                   <div className="profile-interests-content">
+                    {/* Introduction */}
+                    <div className="profile-interests-group">
+                      <h4 className="profile-interests-group-title">{t('profile_introduction')}</h4>
+                      <div className="profile-introduction-box">
+                        {user.profile?.introduce?.introduction ? (
+                          <p className="profile-introduction-text">{user.profile.introduce.introduction}</p>
+                        ) : (
+                          <span className="profile-empty-text">{t('profile_no_introduction')}</span>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Preferred Genres */}
                     <div className="profile-interests-group">
                       <h4 className="profile-interests-group-title">{t('profile_preferred_genres')}</h4>
                       <div className="profile-genre-tags">
-                        <span className="profile-genre-tag">{t('profile_genre_literature')}</span>
-                        <span className="profile-genre-tag">{t('profile_genre_philosophy')}</span>
-                        <span className="profile-genre-tag">{t('profile_genre_psychology')}</span>
-                        <span className="profile-genre-tag">{t('profile_genre_history')}</span>
+                        {user.profile?.introduce?.preferredGenre && user.profile.introduce.preferredGenre.length > 0 ? (
+                          user.profile.introduce.preferredGenre.map((genre, index) => (
+                            <span key={index} className="profile-genre-tag">{t(`settings_genre_${genre}`)}</span>
+                          ))
+                        ) : (
+                          <span className="profile-empty-text">{t('profile_no_genres_set')}</span>
+                        )}
                       </div>
                     </div>
 
@@ -752,19 +791,35 @@ const Profile: React.FC = () => {
                       <div className="profile-style-grid">
                         <div className="profile-style-card">
                           <h5 className="profile-style-card-title">{t('profile_discussion_style')}</h5>
-                          <p className="profile-style-card-desc">{t('profile_discussion_style_desc')}</p>
+                          <p className="profile-style-card-desc">
+                            {user.profile?.introduce?.styles?.discussionStyle
+                              ? t(`settings_style_${user.profile.introduce.styles.discussionStyle}`)
+                              : t('profile_not_set')}
+                          </p>
                         </div>
                         <div className="profile-style-card">
                           <h5 className="profile-style-card-title">{t('profile_preferred_time')}</h5>
-                          <p className="profile-style-card-desc">{t('profile_preferred_time_desc')}</p>
+                          <p className="profile-style-card-desc">
+                            {user.profile?.introduce?.styles?.preferredTime
+                              ? t(`settings_time_${user.profile.introduce.styles.preferredTime}`)
+                              : t('profile_not_set')}
+                          </p>
                         </div>
                         <div className="profile-style-card">
                           <h5 className="profile-style-card-title">{t('profile_discussion_size')}</h5>
-                          <p className="profile-style-card-desc">{t('profile_discussion_size_desc')}</p>
+                          <p className="profile-style-card-desc">
+                            {user.profile?.introduce?.styles?.preferredSize
+                              ? t(`settings_size_${user.profile.introduce.styles.preferredSize}`)
+                              : t('profile_not_set')}
+                          </p>
                         </div>
                         <div className="profile-style-card">
                           <h5 className="profile-style-card-title">{t('profile_ai_usage')}</h5>
-                          <p className="profile-style-card-desc">{t('profile_ai_usage_desc')}</p>
+                          <p className="profile-style-card-desc">
+                            {user.profile?.introduce?.styles?.useAI
+                              ? t(`settings_ai_${user.profile.introduce.styles.useAI}`)
+                              : t('profile_not_set')}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -773,32 +828,31 @@ const Profile: React.FC = () => {
                     <div className="profile-interests-group">
                       <h4 className="profile-interests-group-title">{t('profile_interest_keywords')}</h4>
                       <div className="profile-keyword-tags">
-                        <span className="profile-keyword-tag">#캐릭터 분석</span>
-                        <span className="profile-keyword-tag">#심리 묘사</span>
-                        <span className="profile-keyword-tag">#사회 비평</span>
-                        <span className="profile-keyword-tag">#철학적 사유</span>
-                        <span className="profile-keyword-tag">#역사적 배경</span>
-                        <span className="profile-keyword-tag">#문체 분석</span>
-                        <span className="profile-keyword-tag">#상징주의</span>
-                        <span className="profile-keyword-tag">#주제 의식</span>
+                        {user.profile?.introduce?.keywords && user.profile.introduce.keywords.length > 0 ? (
+                          user.profile.introduce.keywords.map((keyword, index) => (
+                            <span key={index} className="profile-keyword-tag">#{keyword}</span>
+                          ))
+                        ) : (
+                          <span className="profile-empty-text">{t('profile_no_keywords_set')}</span>
+                        )}
                       </div>
                     </div>
 
-                    {/* Monthly Goals */}
+                    {/* Goals */}
                     <div className="profile-interests-group">
                       <h4 className="profile-interests-group-title">{t('profile_monthly_goals')}</h4>
                       <div className="profile-goals-list">
                         <div className="profile-goal-item">
-                          <span className="profile-goal-label">{t('profile_goal_discussion')}</span>
-                          <span className="profile-goal-value">12/15 {t('profile_goal_achieved')}</span>
+                          <span className="profile-goal-label">{t('profile_goal_participate')}</span>
+                          <span className="profile-goal-value">
+                            {participatingMeetings.length}/{user.profile?.introduce?.goals?.participate || 0}
+                          </span>
                         </div>
                         <div className="profile-goal-item">
-                          <span className="profile-goal-label">{t('profile_goal_notes')}</span>
-                          <span className="profile-goal-value">8/10 {t('profile_goal_achieved')}</span>
-                        </div>
-                        <div className="profile-goal-item">
-                          <span className="profile-goal-label">{t('profile_goal_ai_summary')}</span>
-                          <span className="profile-goal-value">3/5 {t('profile_goal_achieved')}</span>
+                          <span className="profile-goal-label">{t('profile_goal_create')}</span>
+                          <span className="profile-goal-value">
+                            {createdMeetings.length}/{user.profile?.introduce?.goals?.create || 0}
+                          </span>
                         </div>
                       </div>
                     </div>

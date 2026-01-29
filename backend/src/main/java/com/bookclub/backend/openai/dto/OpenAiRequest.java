@@ -31,4 +31,14 @@ public class OpenAiRequest {
         this.temperature = 0.7;
         this.maxTokens = 1000;
     }
+
+    /**
+     * Constructor with custom maxTokens
+     */
+    public OpenAiRequest(String model, List<OpenAiMessage> messages, int maxTokens) {
+        this.model = model;
+        this.messages = messages;
+        this.temperature = 0.7;
+        this.maxTokens = maxTokens;
+    }
 }

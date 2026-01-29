@@ -109,9 +109,9 @@ public class UtteranceService {
             logger.info("Summary complete. KeyPoints: {}, Topics: {}",
                 summary.getKeyPoints().size(), summary.getTopics().size());
 
-            // 6. Calculate utterance index
-            int utteranceIndex = utteranceRepository.countBySessionId(sessionId) + 1;
-            logger.info("Utterance index: {}", utteranceIndex);
+            // 6. Get utterance index atomically (prevents race conditions)
+            int utteranceIndex = recordingRepository.incrementAndGetUtteranceCount(sessionId);
+            logger.info("Utterance index (atomic): {}", utteranceIndex);
 
             // 7. Create and save utterance
             SessionUtterance utterance = new SessionUtterance(sessionId, utteranceIndex);
@@ -274,7 +274,8 @@ public class UtteranceService {
             recording = new SessionRecording(sessionId);
         }
 
-        recording.incrementUtteranceCount();
+        // Note: utteranceCount is already incremented atomically via incrementAndGetUtteranceCount
+        // So we only update audio duration here
         recording.addAudioDuration(audioDurationMs);
         recordingRepository.save(recording);
     }

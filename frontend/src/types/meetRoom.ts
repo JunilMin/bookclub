@@ -3,11 +3,25 @@ export interface SessionNote {
   id: string;
   sessionId: string;
   title: string;
-  content: string;
+  content: string;  // Free Notes (TipTap JSON)
+  aiContent: string | null;  // AI Organized Notes (TipTap JSON)
+  aiContentGeneratedAt: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
   lastEditedById: string;
+}
+
+// AI Organize API Response
+export interface AIOrganizeResponse {
+  note: SessionNote;
+  validation: {
+    valid: boolean;
+    sourceFragmentIds: string[];
+    outputFragmentIds: string[];
+    missingFragments: string[];
+    validationError: string;
+  };
 }
 
 export interface NoteUpdateMessage {
@@ -179,6 +193,18 @@ export interface AISummary {
   modelUsed: string;
 }
 
+// AI Context-Preserving Editor Types
+export interface AIOrganizedContent {
+  organizedText: string;
+  sourceFragmentIds: string[];
+  outputFragmentIds: string[];
+  missingFragments: string[];
+  valid: boolean;  // Note: backend field is 'valid', not 'isValid'
+  validationError: string | null;
+  generatedAt: string;
+  modelUsed: string;
+}
+
 export interface SessionRecording {
   id: string;
   sessionId: string;
@@ -187,6 +213,7 @@ export interface SessionRecording {
   recordingEndedAt: string | null;
   recordingDurationSeconds: number;
   aiSummary: AISummary | null;
+  aiOrganizedContent: AIOrganizedContent | null;
 }
 
 // Meet Room State

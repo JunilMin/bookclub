@@ -79,6 +79,9 @@ export function useUtterances({
   const onAutoInsertRef = useRef(onAutoInsert);
   onAutoInsertRef.current = onAutoInsert;
 
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
+
   // Load initial data
   useEffect(() => {
     if (!sessionId || !accessToken) return;
@@ -129,6 +132,9 @@ export function useUtterances({
             console.log('[useUtterances] New utterance received:', data.utterance.utteranceIndex);
             const newUtterance: SessionUtterance = data.utterance;
 
+            // Check if auto-insert is enabled and callback exists
+            const shouldAutoInsert = data.autoInsert && onAutoInsertRef.current;
+
             setUtterances((prev) => {
               // Check if already exists
               if (prev.some((u) => u.id === newUtterance.id)) {
@@ -136,15 +142,29 @@ export function useUtterances({
                 return prev;
               }
               console.log('[useUtterances] Adding new utterance to state');
-              return [...prev, newUtterance];
+
+              // If auto-insert is enabled, mark as inserted immediately
+              const utteranceToAdd = shouldAutoInsert
+                ? { ...newUtterance, insertedToNotes: true, insertedAt: new Date().toISOString() }
+                : newUtterance;
+
+              return [...prev, utteranceToAdd];
             });
 
             // Reset processing state
             setProcessingState({ status: 'complete', progress: 100 });
 
             // Trigger auto-insert if enabled
-            if (data.autoInsert && onAutoInsertRef.current) {
-              onAutoInsertRef.current(newUtterance);
+            if (shouldAutoInsert) {
+              console.log('[useUtterances] Auto-inserting utterance:', newUtterance.utteranceIndex);
+              onAutoInsertRef.current!(newUtterance);
+
+              // Also call API to persist the inserted state
+              if (accessTokenRef.current) {
+                markUtteranceInserted(sessionId, newUtterance.utteranceIndex, accessTokenRef.current).catch((err) => {
+                  console.error('[useUtterances] Failed to mark auto-inserted utterance:', err);
+                });
+              }
             }
           }
         } catch (err) {

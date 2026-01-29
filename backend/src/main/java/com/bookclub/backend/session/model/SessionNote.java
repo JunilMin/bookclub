@@ -20,7 +20,11 @@ public class SessionNote {
 
     private String title;  // Note title (default: "{bookTitle} 북클럽" or "{bookTitle} Book Club")
 
-    private String content;  // TipTap JSON content
+    private String content;  // TipTap JSON content (Free Notes)
+
+    private String aiContent;  // TipTap JSON content (AI Organized Notes)
+
+    private LocalDateTime aiContentGeneratedAt;  // When AI content was generated
 
     private int version;  // For conflict resolution
 

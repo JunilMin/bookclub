@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
+import { updateUser, User } from '../api/user';
 import './styles/Settings.css';
 
 type SettingsTab = 'profile' | 'security' | 'notifications' | 'privacy';
@@ -9,28 +10,159 @@ type SettingsTab = 'profile' | 'security' | 'notifications' | 'privacy';
 const Settings: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, accessToken, refreshUserData } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [bio, setBio] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Form states
   const [displayName, setDisplayName] = useState(user?.username || '');
   const [username, setUsername] = useState(user?.username || '');
-  const [email] = useState(user?.email || '');
+  const [email, setEmail] = useState('');
   const [location, setLocation] = useState('');
   const [website, setWebsite] = useState('');
 
   // Preferences
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(['literature', 'philosophy', 'psychology', 'history']);
-  const [readingStyle, setReadingStyle] = useState('analytical');
-  const [preferredTime, setPreferredTime] = useState('weekend_afternoon');
-  const [discussionSize, setDiscussionSize] = useState('medium');
-  const [aiUsage, setAiUsage] = useState('active');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [readingStyle, setReadingStyle] = useState('');
+  const [preferredTime, setPreferredTime] = useState('');
+  const [discussionSize, setDiscussionSize] = useState('');
+  const [aiUsage, setAiUsage] = useState('');
 
-  // Goals
-  const [discussionGoal, setDiscussionGoal] = useState(15);
-  const [noteGoal, setNoteGoal] = useState(10);
-  const [aiSummaryGoal, setAiSummaryGoal] = useState(5);
+  // Goals (participate, create)
+  const [discussionGoal, setDiscussionGoal] = useState(0);  // goals.participate
+  const [noteGoal, setNoteGoal] = useState(0);              // goals.create
+
+  // Load user profile data on mount
+  useEffect(() => {
+    if (user) {
+      // Basic info
+      setDisplayName(user.username || '');
+      setUsername(user.username || '');
+      setEmail(user.email || '');
+
+      // Profile introduce data
+      const introduce = user.profile?.introduce;
+      if (introduce) {
+        setBio(introduce.introduction || '');
+        setSelectedGenres(introduce.preferredGenre || []);
+        setKeywords(introduce.keywords || []);
+        setReadingStyle(introduce.styles?.discussionStyle || '');
+        setPreferredTime(introduce.styles?.preferredTime || '');
+        setDiscussionSize(introduce.styles?.preferredSize || '');
+        setAiUsage(introduce.styles?.useAI || '');
+        setDiscussionGoal(introduce.goals?.participate || 0);
+        setNoteGoal(introduce.goals?.create || 0);
+      }
+    }
+  }, [user]);
+
+  // Keyword handlers
+  const addKeyword = () => {
+    const trimmed = keywordInput.trim();
+    if (trimmed && !keywords.includes(trimmed) && keywords.length < 10) {
+      setKeywords([...keywords, trimmed]);
+      setKeywordInput('');
+    }
+  };
+
+  const removeKeyword = (keyword: string) => {
+    setKeywords(keywords.filter(k => k !== keyword));
+  };
+
+  const handleKeywordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addKeyword();
+    }
+  };
+
+  // Handle profile save
+  const handleSaveProfile = async () => {
+    if (!user || !accessToken || !user.id) {
+      setSaveMessage({ type: 'error', text: t('settings_save_error') });
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const updatedUser: User = {
+        ...user,
+        username: username,
+        profile: {
+          introduce: {
+            introduction: bio,
+            preferredGenre: selectedGenres,
+            styles: {
+              discussionStyle: readingStyle,
+              preferredTime: preferredTime,
+              preferredSize: discussionSize,
+              useAI: aiUsage,
+            },
+            keywords: keywords,
+            goals: {
+              participate: discussionGoal,
+              create: noteGoal,
+            },
+          },
+        },
+      };
+
+      await updateUser(user.id, updatedUser, accessToken);
+
+      // Refresh user data in context
+      if (refreshUserData) {
+        await refreshUserData();
+      }
+
+      setSaveMessage({ type: 'success', text: t('settings_save_success') });
+
+      // Clear message after 3 seconds
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setSaveMessage({ type: 'error', text: t('settings_save_error') });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle cancel - reset to original values
+  const handleCancel = () => {
+    if (user) {
+      setDisplayName(user.username || '');
+      setUsername(user.username || '');
+
+      const introduce = user.profile?.introduce;
+      if (introduce) {
+        setBio(introduce.introduction || '');
+        setSelectedGenres(introduce.preferredGenre || []);
+        setKeywords(introduce.keywords || []);
+        setReadingStyle(introduce.styles?.discussionStyle || '');
+        setPreferredTime(introduce.styles?.preferredTime || '');
+        setDiscussionSize(introduce.styles?.preferredSize || '');
+        setAiUsage(introduce.styles?.useAI || '');
+        setDiscussionGoal(introduce.goals?.participate || 0);
+        setNoteGoal(introduce.goals?.create || 0);
+      } else {
+        setBio('');
+        setSelectedGenres([]);
+        setKeywords([]);
+        setReadingStyle('');
+        setPreferredTime('');
+        setDiscussionSize('');
+        setAiUsage('');
+        setDiscussionGoal(0);
+        setNoteGoal(0);
+      }
+    }
+    setSaveMessage(null);
+  };
 
   const genres = [
     'literature', 'philosophy', 'psychology', 'history',
@@ -301,54 +433,106 @@ const Settings: React.FC = () => {
                       </select>
                     </div>
                   </div>
+                  
+                  {/* Interest Keywords */}
+                  <div className="settings-field">
+                    <label className="settings-label">{t('settings_interest_keywords')}</label>
+                    <p className="settings-field-hint-top">{t('settings_keywords_hint')}</p>
+                    <div className="settings-keywords-input-row">
+                      <input
+                        type="text"
+                        className="settings-input"
+                        placeholder={t('settings_keywords_placeholder')}
+                        value={keywordInput}
+                        onChange={(e) => setKeywordInput(e.target.value)}
+                        onKeyDown={handleKeywordKeyDown}
+                        maxLength={20}
+                      />
+                      <button
+                        type="button"
+                        className="settings-btn-add-keyword"
+                        onClick={addKeyword}
+                        disabled={!keywordInput.trim() || keywords.length >= 10}
+                      >
+                        <i className="ri-add-line"></i>
+                        {t('settings_add')}
+                      </button>
+                    </div>
+                    {keywords.length > 0 && (
+                      <div className="settings-keywords-tags">
+                        {keywords.map((keyword) => (
+                          <span key={keyword} className="settings-keyword-tag">
+                            {keyword}
+                            <button
+                              type="button"
+                              className="settings-keyword-remove"
+                              onClick={() => removeKeyword(keyword)}
+                            >
+                              <i className="ri-close-line"></i>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="settings-field-hint">{t('settings_keywords_count', { count: keywords.length })}</p>
+                  </div>
 
                   {/* Monthly Goals */}
                   <div className="settings-field">
                     <label className="settings-label">{t('settings_monthly_goals')}</label>
                     <div className="settings-goals-grid">
                       <div className="settings-goal-item">
-                        <label className="settings-goal-label">{t('settings_goal_discussion')}</label>
+                        <label className="settings-goal-label">{t('settings_goal_participate')}</label>
                         <input
                           type="number"
                           className="settings-input"
-                          min={1}
+                          min={0}
                           max={50}
                           value={discussionGoal}
                           onChange={(e) => setDiscussionGoal(Number(e.target.value))}
                         />
-                        <p className="settings-field-hint">{t('settings_goal_discussion_hint')}</p>
+                        <p className="settings-field-hint">{t('settings_goal_participate_hint')}</p>
                       </div>
                       <div className="settings-goal-item">
-                        <label className="settings-goal-label">{t('settings_goal_notes')}</label>
+                        <label className="settings-goal-label">{t('settings_goal_create')}</label>
                         <input
                           type="number"
                           className="settings-input"
-                          min={1}
-                          max={100}
+                          min={0}
+                          max={50}
                           value={noteGoal}
                           onChange={(e) => setNoteGoal(Number(e.target.value))}
                         />
-                        <p className="settings-field-hint">{t('settings_goal_notes_hint')}</p>
-                      </div>
-                      <div className="settings-goal-item">
-                        <label className="settings-goal-label">{t('settings_goal_ai_summary')}</label>
-                        <input
-                          type="number"
-                          className="settings-input"
-                          min={1}
-                          max={30}
-                          value={aiSummaryGoal}
-                          onChange={(e) => setAiSummaryGoal(Number(e.target.value))}
-                        />
-                        <p className="settings-field-hint">{t('settings_goal_ai_hint')}</p>
+                        <p className="settings-field-hint">{t('settings_goal_create_hint')}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
                   <div className="settings-actions">
-                    <button className="settings-btn-cancel">{t('settings_cancel')}</button>
-                    <button className="settings-btn-save">{t('settings_save')}</button>
+                    {saveMessage && (
+                      <div className={`settings-save-message ${saveMessage.type}`}>
+                        {saveMessage.type === 'success' ? (
+                          <i className="ri-check-line"></i>
+                        ) : (
+                          <i className="ri-error-warning-line"></i>
+                        )}
+                        <span>{saveMessage.text}</span>
+                      </div>
+                    )}
+                    <button className="settings-btn-cancel" onClick={handleCancel} disabled={isSaving}>
+                      {t('settings_cancel')}
+                    </button>
+                    <button className="settings-btn-save" onClick={handleSaveProfile} disabled={isSaving}>
+                      {isSaving ? (
+                        <>
+                          <i className="ri-loader-4-line spinning"></i>
+                          {t('settings_saving')}
+                        </>
+                      ) : (
+                        t('settings_save')
+                      )}
+                    </button>
                   </div>
                 </div>
               )}
@@ -360,30 +544,39 @@ const Settings: React.FC = () => {
                     <p className="settings-section-desc">{t('settings_security_desc')}</p>
                   </div>
 
-                  {/* Password Change */}
-                  <div className="settings-security-card">
-                    <div className="settings-security-card-header">
-                      <div className="settings-security-card-info">
-                        <h3 className="settings-security-card-title">{t('settings_password_change')}</h3>
-                        <p className="settings-security-card-desc">{t('settings_password_change_desc')}</p>
-                      </div>
-                      <button className="settings-btn-primary">{t('settings_change')}</button>
+                  {/* Password Change & 2FA - Not Implemented */}
+                  <div className="settings-not-implemented-wrapper">
+                    <div className="settings-not-implemented-overlay">
+                      <i className="ri-tools-line"></i>
+                      <span>{t('settings_not_implemented')}</span>
                     </div>
-                    <p className="settings-security-card-meta">{t('settings_last_changed')}: 2024년 11월 15일</p>
-                  </div>
+                    <div className="settings-not-implemented-content">
+                      {/* Password Change */}
+                      <div className="settings-security-card">
+                        <div className="settings-security-card-header">
+                          <div className="settings-security-card-info">
+                            <h3 className="settings-security-card-title">{t('settings_password_change')}</h3>
+                            <p className="settings-security-card-desc">{t('settings_password_change_desc')}</p>
+                          </div>
+                          <button className="settings-btn-primary" disabled>{t('settings_change')}</button>
+                        </div>
+                        <p className="settings-security-card-meta">{t('settings_last_changed')}: -</p>
+                      </div>
 
-                  {/* 2FA */}
-                  <div className="settings-security-card">
-                    <div className="settings-security-card-header">
-                      <div className="settings-security-card-info">
-                        <h3 className="settings-security-card-title">{t('settings_2fa')}</h3>
-                        <p className="settings-security-card-desc">{t('settings_2fa_desc')}</p>
+                      {/* 2FA */}
+                      <div className="settings-security-card">
+                        <div className="settings-security-card-header">
+                          <div className="settings-security-card-info">
+                            <h3 className="settings-security-card-title">{t('settings_2fa')}</h3>
+                            <p className="settings-security-card-desc">{t('settings_2fa_desc')}</p>
+                          </div>
+                          <button className="settings-btn-accent" disabled>{t('settings_enable')}</button>
+                        </div>
+                        <div className="settings-security-recommend">
+                          <i className="ri-shield-check-line"></i>
+                          <span>{t('settings_recommended_security')}</span>
+                        </div>
                       </div>
-                      <button className="settings-btn-accent">{t('settings_enable')}</button>
-                    </div>
-                    <div className="settings-security-recommend">
-                      <i className="ri-shield-check-line"></i>
-                      <span>{t('settings_recommended_security')}</span>
                     </div>
                   </div>
 

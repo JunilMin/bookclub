@@ -8,6 +8,13 @@
  * 2. Transaction의 steps만 추출 → debounce → 서버 전송
  * 3. 원격 steps 수신 → 로컬 적용 (재전송 방지)
  * 4. 서버는 stateless, op만 relay
+ *
+ * 최적화 (v2):
+ * - WebSocket 싱글톤 공유
+ * - Debounce/Throttle 증가 (트래픽 감소)
+ * - 배치 전송 (maxBatchSize)
+ * - requestIdleCallback (메인 스레드 부하 감소)
+ * - 탭/포커스 상태에 따른 전송 빈도 조절
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -16,6 +23,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import UtteranceBlock from '../components/meet/extensions/UtteranceBlock';
 import { Step } from '@tiptap/pm/transform';
 import {
   EditOperation,
@@ -26,17 +34,35 @@ import {
   getUserColor,
   RemoteUser,
 } from '../types/collaborative';
-import { useWebSocket } from './useWebSocket';
+import { useWebSocket, UseWebSocketReturn } from './useWebSocket';
 import { useAuth } from '../AuthContext/AuthContext';
 import { updateNotes } from '../api/notes';
 
 // ============================================
-// Configuration
+// Configuration (Optimized for voice quality)
 // ============================================
 
-const DEBOUNCE_MS = 50;           // Step 배치 전송 딜레이
-const PRESENCE_THROTTLE_MS = 100; // Presence 업데이트 쓰로틀
-const DB_SAVE_DEBOUNCE_MS = 2000; // DB 저장 딜레이 (2초)
+const DEBOUNCE_MS_ACTIVE = 250;       // Step 배치 전송 딜레이 (포커스 있을 때)
+const DEBOUNCE_MS_INACTIVE = 1000;    // Step 배치 전송 딜레이 (포커스 없을 때)
+const PRESENCE_THROTTLE_MS_ACTIVE = 500;   // Presence 업데이트 쓰로틀 (포커스 있을 때)
+const PRESENCE_THROTTLE_MS_INACTIVE = 2000; // Presence 업데이트 쓰로틀 (포커스 없을 때)
+const DB_SAVE_DEBOUNCE_MS = 3000;     // DB 저장 딜레이 (3초)
+const MAX_BATCH_SIZE = 20;            // 최대 배치 크기 (초과 시 즉시 전송)
+
+// ============================================
+// requestIdleCallback polyfill
+// ============================================
+
+const requestIdleCallback =
+  (window as any).requestIdleCallback ||
+  ((cb: (deadline: IdleDeadline) => void) => setTimeout(() => cb({
+    didTimeout: false,
+    timeRemaining: () => 50,
+  }), 1));
+
+const cancelIdleCallback =
+  (window as any).cancelIdleCallback ||
+  ((id: number) => clearTimeout(id));
 
 // ============================================
 // Hook Interface
@@ -51,6 +77,8 @@ interface UseCollaborativeEditorOptions {
   placeholder?: string;
   onSyncStatusChange?: (isSyncing: boolean) => void;
   onUsersChange?: (users: RemoteUser[]) => void;
+  // Optional: external WebSocket (for sharing connection)
+  externalWs?: UseWebSocketReturn;
 }
 
 interface UseCollaborativeEditorReturn {
@@ -73,18 +101,22 @@ export function useCollaborativeEditor({
   placeholder = 'Start taking notes...',
   onSyncStatusChange,
   onUsersChange,
+  externalWs,
 }: UseCollaborativeEditorOptions): UseCollaborativeEditorReturn {
 
   // === State ===
   const [isSyncing, setIsSyncing] = useState(false);
   const [remoteUsers, setRemoteUsers] = useState<RemoteUser[]>([]);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(!document.hidden);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
 
   // === Refs (렌더링과 무관한 상태) ===
   const clientIdRef = useRef<string>(generateClientId());
   const clientSeqRef = useRef<number>(0);
   const pendingStepsRef = useRef<StepJSON[]>([]);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const dbSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleCallbackRef = useRef<number | null>(null);
   const isApplyingRemoteRef = useRef<boolean>(false);
   const lastPresenceRef = useRef<number>(0);
   const userColorRef = useRef<string>(getUserColor(userId));
@@ -93,24 +125,62 @@ export function useCollaborativeEditor({
   // === Auth ===
   const { accessToken } = useAuth();
 
-  // === WebSocket ===
-  const { isConnected, subscribe, send } = useWebSocket(docId);
+  // === WebSocket (shared connection) ===
+  const internalWs = useWebSocket(docId);
+  const ws = externalWs || internalWs;
+  const { isConnected, subscribe, send } = ws;
 
   // ============================================
-  // DB 저장 (Debounced)
+  // Visibility & Focus Tracking
+  // ============================================
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsDocumentVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Get current debounce/throttle values based on state
+  const getDebounceMs = useCallback(() => {
+    if (!isDocumentVisible) return DEBOUNCE_MS_INACTIVE;
+    if (!isEditorFocused) return DEBOUNCE_MS_INACTIVE;
+    return DEBOUNCE_MS_ACTIVE;
+  }, [isDocumentVisible, isEditorFocused]);
+
+  const getPresenceThrottleMs = useCallback(() => {
+    if (!isDocumentVisible) return PRESENCE_THROTTLE_MS_INACTIVE;
+    if (!isEditorFocused) return PRESENCE_THROTTLE_MS_INACTIVE;
+    return PRESENCE_THROTTLE_MS_ACTIVE;
+  }, [isDocumentVisible, isEditorFocused]);
+
+  // ============================================
+  // DB 저장 (Debounced + requestIdleCallback)
   // ============================================
 
   const saveToDatabase = useCallback(async () => {
     if (!editorRef.current || !accessToken) return;
 
-    const content = JSON.stringify(editorRef.current.getJSON());
-
-    try {
-      await updateNotes(docId, content, userId, username, accessToken);
-      console.log('Notes saved to database');
-    } catch (error) {
-      console.error('Failed to save notes to database:', error);
+    // Use requestIdleCallback to offload JSON stringify
+    if (idleCallbackRef.current) {
+      cancelIdleCallback(idleCallbackRef.current);
     }
+
+    idleCallbackRef.current = requestIdleCallback(async () => {
+      if (!editorRef.current) return;
+
+      try {
+        const content = JSON.stringify(editorRef.current.getJSON());
+        await updateNotes(docId, content, userId, username, accessToken);
+        console.log('[Notes] Saved to database');
+      } catch (error) {
+        console.error('[Notes] Failed to save to database:', error);
+      }
+    }, { timeout: 5000 }); // 최대 5초 대기
   }, [docId, userId, username, accessToken]);
 
   const debouncedSaveToDatabase = useCallback(() => {
@@ -121,7 +191,7 @@ export function useCollaborativeEditor({
   }, [saveToDatabase]);
 
   // ============================================
-  // Step 전송 (Debounced Batch)
+  // Step 전송 (Debounced Batch with max size)
   // ============================================
 
   const flushSteps = useCallback(() => {
@@ -157,20 +227,33 @@ export function useCollaborativeEditor({
   const enqueueSteps = useCallback((steps: StepJSON[]) => {
     pendingStepsRef.current.push(...steps);
 
+    // Max batch size exceeded - flush immediately
+    if (pendingStepsRef.current.length >= MAX_BATCH_SIZE) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      flushSteps();
+      return;
+    }
+
     // Debounce: 연속 입력을 배치로 묶음
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
-    debounceTimerRef.current = setTimeout(flushSteps, DEBOUNCE_MS);
-  }, [flushSteps]);
+    debounceTimerRef.current = setTimeout(flushSteps, getDebounceMs());
+  }, [flushSteps, getDebounceMs]);
 
   // ============================================
   // Presence 전송 (Throttled)
   // ============================================
 
   const sendPresence = useCallback((editorInstance: Editor) => {
+    // Skip presence updates when tab is hidden
+    if (!isDocumentVisible) return;
+
     const now = Date.now();
-    if (now - lastPresenceRef.current < PRESENCE_THROTTLE_MS) return;
+    if (now - lastPresenceRef.current < getPresenceThrottleMs()) return;
     lastPresenceRef.current = now;
 
     if (!isConnected) return;
@@ -190,7 +273,7 @@ export function useCollaborativeEditor({
     };
 
     send(TOPICS.SEND_PRESENCE(docId), presence);
-  }, [docId, userId, username, isConnected, send]);
+  }, [docId, userId, username, isConnected, send, isDocumentVisible, getPresenceThrottleMs]);
 
   // ============================================
   // TipTap Editor Setup
@@ -204,6 +287,7 @@ export function useCollaborativeEditor({
       Placeholder.configure({ placeholder }),
       TaskList,
       TaskItem.configure({ nested: true }),
+      UtteranceBlock,
     ],
     content: initialContent || '',
     editorProps: {
@@ -234,6 +318,12 @@ export function useCollaborativeEditor({
     onSelectionUpdate: ({ editor: editorInstance }) => {
       sendPresence(editorInstance);
     },
+    onFocus: () => {
+      setIsEditorFocused(true);
+    },
+    onBlur: () => {
+      setIsEditorFocused(false);
+    },
   });
 
   // ============================================
@@ -260,11 +350,10 @@ export function useCollaborativeEditor({
           const result = tr.maybeStep(step);
 
           if (result.failed) {
-            console.warn('Step apply failed:', result.failed);
-            // 충돌 시 전체 리로드 필요할 수 있음 (여기서는 무시)
+            console.warn('[Notes] Step apply failed:', result.failed);
           }
         } catch (err) {
-          console.error('Failed to apply step:', err);
+          console.error('[Notes] Failed to apply step:', err);
         }
       }
 
@@ -327,7 +416,7 @@ export function useCollaborativeEditor({
         const operation: EditOperation = JSON.parse(message.body);
         applyRemoteSteps(operation);
       } catch (err) {
-        console.error('Failed to parse edit message:', err);
+        console.error('[Notes] Failed to parse edit message:', err);
       }
     });
 
@@ -337,7 +426,7 @@ export function useCollaborativeEditor({
         const presenceData: PresenceOperation = JSON.parse(message.body);
         handleRemotePresence(presenceData);
       } catch (err) {
-        console.error('Failed to parse presence message:', err);
+        console.error('[Notes] Failed to parse presence message:', err);
       }
     });
 
@@ -353,7 +442,7 @@ export function useCollaborativeEditor({
         setRemoteUsers(users);
         onUsersChange?.(users);
       } catch (err) {
-        console.error('Failed to parse users message:', err);
+        console.error('[Notes] Failed to parse users message:', err);
       }
     });
 
@@ -421,6 +510,10 @@ export function useCollaborativeEditor({
       if (dbSaveTimerRef.current) {
         clearTimeout(dbSaveTimerRef.current);
         saveToDatabase(); // 언마운트 시 최종 저장
+      }
+      // Idle callback 정리
+      if (idleCallbackRef.current) {
+        cancelIdleCallback(idleCallbackRef.current);
       }
     };
   }, [flushSteps, saveToDatabase]);

@@ -93,7 +93,7 @@ const VoiceChat: React.FC<VoiceChatProps> = ({
   currentPhotoUrl,
   voiceChatMode,
   isHost,
-  currentSpeakerId,
+  currentSpeakerId: _currentSpeakerId,
   moderatorId,
   audioInputDevices,
   audioOutputDevices,
@@ -132,18 +132,17 @@ const VoiceChat: React.FC<VoiceChatProps> = ({
   };
 
   // Rules mode: Check if user can unmute
-  const isCurrentSpeaker = currentSpeakerId === currentUserId;
   const isModerator = moderatorId === currentUserId;
 
-  // In RULES mode, only the current speaker or moderator can unmute
-  const canUnmute = voiceChatMode === 'FREE' || isCurrentSpeaker || isModerator;
+  // In RULES mode, only the moderator can manually unmute
+  // (Current speaker is auto-unmuted when their turn starts)
+  const canUnmute = voiceChatMode === 'FREE' || isModerator;
 
   // Get reason why mute is disabled
   const getMuteDisabledReason = (): string => {
     if (voiceChatMode !== 'RULES') return '';
-    if (isCurrentSpeaker) return '';
     if (isModerator) return '';
-    return t('voice_chat_rules_mute_locked') || 'Only speaker or moderator can unmute in Rules mode';
+    return t('voice_chat_rules_mute_locked') || 'Only moderator can unmute in Rules mode';
   };
 
   // Get quality indicator for a peer

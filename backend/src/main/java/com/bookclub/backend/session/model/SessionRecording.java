@@ -29,6 +29,9 @@ public class SessionRecording {
 
     private AISummary aiSummary;
 
+    // AI Context-Preserving Editor
+    private AIOrganizedContent aiOrganizedContent;
+
     // STT/Utterance settings
     /** Language policy for STT: "auto", "ko", or "en" */
     private String languagePolicy;
@@ -109,6 +112,57 @@ public class SessionRecording {
                 this.point = point;
                 this.isAgreement = isAgreement;
             }
+        }
+    }
+
+    /**
+     * AI Context-Preserving Editor result.
+     * Reorganizes notes for readability while preserving ALL original content.
+     * Uses fragment IDs (⟦note_XXX⟧) for traceability.
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class AIOrganizedContent {
+        /** The reorganized content with fragment IDs */
+        private String organizedText;
+
+        /** List of all fragment IDs in the original content */
+        private List<String> sourceFragmentIds;
+
+        /** List of fragment IDs in the organized output */
+        private List<String> outputFragmentIds;
+
+        /** Any fragments that were missing in the output (validation failure) */
+        private List<String> missingFragments;
+
+        /** Whether all fragments were preserved */
+        private boolean valid;
+
+        /** Validation error message if any */
+        private String validationError;
+
+        private LocalDateTime generatedAt;
+        private String modelUsed;
+
+        /**
+         * Organized content structure
+         */
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        public static class Section {
+            private String title;
+            private List<OrganizedItem> items;
+        }
+
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        public static class OrganizedItem {
+            private String fragmentId;
+            private String originalText;
+            private String contextNote;  // Optional: LLM's note about context
         }
     }
 }

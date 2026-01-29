@@ -1,5 +1,5 @@
 import axiosInstance, { setAccessToken } from './axiosInstance';
-import { SessionRecording, AISummary } from '../types/meetRoom';
+import { SessionRecording, AISummary, AIOrganizeResponse } from '../types/meetRoom';
 
 /**
  * Note summary response from API
@@ -54,6 +54,21 @@ export const generateAISummary = async (
 ): Promise<SessionRecording> => {
   setAccessToken(token);
   const response = await axiosInstance.post(`/sessions/${sessionId}/ai-summary?language=${language}`);
+  return response.data;
+};
+
+/**
+ * Organize notes using AI Context-Preserving Editor
+ * Reorganizes content for readability while preserving ALL original content
+ * Returns updated SessionNote with aiContent and validation info
+ */
+export const organizeNotes = async (
+  sessionId: string,
+  token: string,
+  language: string = 'en'
+): Promise<AIOrganizeResponse> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/sessions/${sessionId}/ai-organize?language=${language}`);
   return response.data;
 };
 

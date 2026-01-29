@@ -12,7 +12,7 @@ import {
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator, joinQueueRest, changeVoiceChatMode } from '../api/speakingQueue';
-import { getRecording, toggleRecording, generateAISummary } from '../api/aiSummary';
+import { getRecording, toggleRecording, generateAISummary, organizeNotes } from '../api/aiSummary';
 import { getUserById } from '../api/user';
 import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
 import { getReportedUserIds } from '../api/reports';
@@ -68,6 +68,15 @@ const MeetRoom: React.FC = () => {
   const [hostUsername, setHostUsername] = useState<string>('');
   const [initialNoteContent, setInitialNoteContent] = useState<any>(null);
   const [initialNoteTitle, setInitialNoteTitle] = useState<string>('');
+  const [aiNoteContent, setAiNoteContent] = useState<any>(null);  // AI Organized Notes
+  const [aiValidation, setAiValidation] = useState<{
+    valid: boolean;
+    sourceFragmentIds: string[];
+    outputFragmentIds: string[];
+    missingFragments: string[];
+    validationError: string;
+  } | null>(null);
+  const [isOrganizing, setIsOrganizing] = useState(false);
   const [queue, setQueue] = useState<SpeakingQueue | null>(null);
   const [recording, setRecording] = useState<SessionRecording | null>(null);
   const [_presence, setPresence] = useState<PresenceMessage[]>([]);
@@ -109,6 +118,7 @@ const MeetRoom: React.FC = () => {
     joinVoice,
     leaveVoice,
     toggleMute: toggleVoiceMute,
+    setMuted: setVoiceMuted,
     changeInputDevice,
     changeOutputDevice,
     setVolume: setVoiceVolume,
@@ -125,40 +135,80 @@ const MeetRoom: React.FC = () => {
     isWsConnected: isConnected,
   });
 
+  // Format timestamp based on current language
+  const formatUtteranceTimestamp = useCallback((dateString: string | undefined): string => {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
+    const langCode = t('code') || 'en';
+
+    if (langCode === 'ko') {
+      // Korean: Korean timezone, Korean format
+      return date.toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } else {
+      // English: New York timezone, English format
+      return date.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+  }, [t]);
+
   // Utterance auto-insert handler
   const handleAutoInsertUtterance = useCallback((utterance: SessionUtterance) => {
     if (notesRef.current) {
       // Get translated section title
       const sectionTitle = t('transcription_section_title') || 'Transcriptions';
 
-      // Build content to insert: speaker name, refined text, and summary
-      const content = [
-        {
-          type: 'heading',
-          attrs: { level: 3 },
-          content: [{ type: 'text', text: `${utterance.speakerName} (#${utterance.utteranceIndex})` }],
-        },
+      // Format timestamp based on language
+      const timestamp = formatUtteranceTimestamp(utterance.startAt);
+
+      // Build utterance block content
+      const blockContent: any[] = [
         {
           type: 'paragraph',
           content: [{ type: 'text', text: utterance.refinedText }],
         },
       ];
 
-      // Add summary if available
+      // Add summary key points as bullet list if available
       if (utterance.summary?.keyPoints?.length > 0) {
-        content.push({
+        blockContent.push({
           type: 'bulletList',
           content: utterance.summary.keyPoints.map((point) => ({
             type: 'listItem',
             content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
-          })) as any,
+          })),
         });
       }
+
+      // Build the utterance block node (utteranceIndex is 1-based from backend)
+      const content = {
+        type: 'utteranceBlock',
+        attrs: {
+          speakerName: utterance.speakerName,
+          speakerPhotoUrl: utterance.speakerPhotoUrl || '',
+          timestamp,
+          utteranceIndex: utterance.utteranceIndex,
+        },
+        content: blockContent,
+      };
 
       // Insert to dedicated transcription section at the bottom
       notesRef.current.insertTranscription(content, sectionTitle);
     }
-  }, [t]);
+  }, [t, formatUtteranceTimestamp]);
 
   // Utterances hook (for STT transcriptions)
   const {
@@ -359,6 +409,14 @@ const MeetRoom: React.FC = () => {
             setInitialNoteContent(JSON.parse(noteData.content));
           } catch {
             setInitialNoteContent(noteData.content);
+          }
+        }
+        // 초기 AI 노트 내용 설정
+        if (noteData?.aiContent) {
+          try {
+            setAiNoteContent(JSON.parse(noteData.aiContent));
+          } catch {
+            setAiNoteContent(noteData.aiContent);
           }
         }
         // 초기 노트 제목 설정
@@ -587,6 +645,39 @@ const MeetRoom: React.FC = () => {
     }
   }, [isMeetingEnded, isVoiceJoined, leaveVoice]);
 
+  // Auto-mute/unmute in RULES mode based on current speaker
+  const prevSpeakerIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Only apply in RULES mode when voice chat is joined
+    if (!isVoiceJoined || queue?.voiceChatMode !== 'RULES') {
+      return;
+    }
+
+    const currentSpeakerId = queue?.currentSpeaker?.userId || null;
+    const prevSpeakerId = prevSpeakerIdRef.current;
+
+    // Check if speaker actually changed
+    if (currentSpeakerId !== prevSpeakerId) {
+      console.log('[WebRTC] Speaker changed in RULES mode:', {
+        prevSpeaker: prevSpeakerId,
+        newSpeaker: currentSpeakerId,
+        myUserId: user?.id,
+      });
+
+      if (currentSpeakerId === user?.id) {
+        // I am the new speaker - unmute me
+        console.log('[WebRTC] I am now the speaker - auto-unmuting');
+        setVoiceMuted(false);
+      } else {
+        // Someone else is the speaker (or no speaker) - mute me
+        console.log('[WebRTC] Someone else is speaking - auto-muting');
+        setVoiceMuted(true);
+      }
+
+      prevSpeakerIdRef.current = currentSpeakerId;
+    }
+  }, [isVoiceJoined, queue?.voiceChatMode, queue?.currentSpeaker?.userId, user?.id, setVoiceMuted]);
+
   // Periodic heartbeat to keep presence alive (every 30 seconds)
   useEffect(() => {
     if (!isConnected || !sessionId || !user?.id) return;
@@ -744,6 +835,40 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken, t]);
 
+  const handleOrganizeNotes = useCallback(async () => {
+    if (!sessionId || !accessToken) return;
+    setIsOrganizing(true);
+    try {
+      // Get current language from i18n
+      const currentLanguage = t('code') || 'en'; // 'ko' or 'en'
+      console.log('[AI Organize] Calling API with language:', currentLanguage);
+      const result = await organizeNotes(sessionId, accessToken, currentLanguage);
+      console.log('[AI Organize] API Response:', result);
+
+      // New API response format: { note: SessionNote, validation: {...} }
+      if (result.note?.aiContent) {
+        try {
+          const parsedContent = JSON.parse(result.note.aiContent);
+          console.log('[AI Organize] Parsed aiContent:', parsedContent);
+          setAiNoteContent(parsedContent);
+        } catch {
+          console.log('[AI Organize] aiContent is not JSON, using as-is');
+          setAiNoteContent(result.note.aiContent);
+        }
+      }
+
+      // Set validation info
+      if (result.validation) {
+        console.log('[AI Organize] Validation:', result.validation);
+        setAiValidation(result.validation);
+      }
+    } catch (err) {
+      console.error('Failed to organize notes:', err);
+    } finally {
+      setIsOrganizing(false);
+    }
+  }, [sessionId, accessToken, t]);
+
   const handleInsertToNotes = useCallback(() => {
     if (!recording?.aiSummary || !notesRef.current) return;
 
@@ -841,6 +966,54 @@ const MeetRoom: React.FC = () => {
     notesRef.current.insertContentAtEnd(summaryContent);
   }, [recording?.aiSummary]);
 
+  const handleInsertOrganizedToNotes = useCallback(() => {
+    if (!recording?.aiOrganizedContent || !notesRef.current) return;
+
+    const organized = recording.aiOrganizedContent;
+
+    // Don't insert if validation failed
+    if (!organized.valid) {
+      console.warn('Cannot insert organized content: validation failed');
+      return;
+    }
+
+    // Convert organized text to TipTap content format
+    const organizedContent: any[] = [
+      // Horizontal rule separator
+      { type: 'horizontalRule' },
+      // AI Organized heading
+      {
+        type: 'heading',
+        attrs: { level: 2 },
+        content: [{ type: 'text', text: t('meet_ai_organized_title') || 'AI Organized Notes' }],
+      },
+    ];
+
+    // Split organized text into paragraphs
+    const paragraphs = organized.organizedText?.split('\n\n') || [];
+    paragraphs.forEach((paragraph) => {
+      const trimmed = paragraph.trim();
+      if (trimmed) {
+        // Check if it's a heading (starts with ##)
+        if (trimmed.startsWith('## ')) {
+          organizedContent.push({
+            type: 'heading',
+            attrs: { level: 3 },
+            content: [{ type: 'text', text: trimmed.substring(3) }],
+          });
+        } else {
+          organizedContent.push({
+            type: 'paragraph',
+            content: [{ type: 'text', text: trimmed }],
+          });
+        }
+      }
+    });
+
+    // Insert to notes
+    notesRef.current.insertContentAtEnd(organizedContent);
+  }, [recording?.aiOrganizedContent, t]);
+
   // Handle note character count change for attendance tracking
   const handleNoteCharCountChange = useCallback(async (charCount: number) => {
     if (!sessionId || !accessToken) return;
@@ -892,32 +1065,43 @@ const MeetRoom: React.FC = () => {
   const handleInsertUtteranceText = useCallback((utterance: SessionUtterance) => {
     if (!notesRef.current) return;
 
-    const content = [
-      {
-        type: 'heading',
-        attrs: { level: 3 },
-        content: [{ type: 'text', text: `${utterance.speakerName} (#${utterance.utteranceIndex})` }],
-      },
+    // Format timestamp based on language
+    const timestamp = formatUtteranceTimestamp(utterance.startAt);
+
+    // Build utterance block content
+    const blockContent: any[] = [
       {
         type: 'paragraph',
         content: [{ type: 'text', text: utterance.refinedText }],
       },
     ];
 
-    // Add summary if available
+    // Add summary key points as bullet list if available
     if (utterance.summary?.keyPoints?.length > 0) {
-      content.push({
+      blockContent.push({
         type: 'bulletList',
         content: utterance.summary.keyPoints.map((point) => ({
           type: 'listItem',
           content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
-        })) as any,
+        })),
       });
     }
 
+    // Build the utterance block node (utteranceIndex is 1-based from backend)
+    const content = {
+      type: 'utteranceBlock',
+      attrs: {
+        speakerName: utterance.speakerName,
+        speakerPhotoUrl: utterance.speakerPhotoUrl || '',
+        timestamp,
+        utteranceIndex: utterance.utteranceIndex,
+      },
+      content: blockContent,
+    };
+
     notesRef.current.insertContentAtEnd(content);
     markUtteranceAsInserted(utterance.utteranceIndex);
-  }, [markUtteranceAsInserted]);
+  }, [markUtteranceAsInserted, formatUtteranceTimestamp]);
 
   // Handle inserting utterance summary only to notes
   const handleInsertUtteranceSummary = useCallback((utterance: SessionUtterance) => {
@@ -1211,6 +1395,9 @@ const MeetRoom: React.FC = () => {
             reportedUserIds={reportedUserIds}
             isRecordingUtterance={isRecordingUtterance}
             recordingElapsedSeconds={utteranceRecordingSeconds}
+            communicationMode={communicationMode}
+            isVoiceJoined={isVoiceJoined}
+            onJoinVoice={joinVoice}
             onRaiseHand={handleRaiseHand}
             onNextSpeaker={handleNextSpeaker}
             onEndTurn={handleEndTurn}
@@ -1235,7 +1422,11 @@ const MeetRoom: React.FC = () => {
               photoUrl={user.photoUrl || ''}
               initialContent={initialNoteContent}
               initialTitle={initialNoteTitle}
+              aiContent={aiNoteContent}
+              aiValidation={aiValidation}
+              isOrganizing={isOrganizing}
               onCharCountChange={handleNoteCharCountChange}
+              onOrganizeNotes={handleOrganizeNotes}
             />
           )}
         </main>
@@ -1246,7 +1437,9 @@ const MeetRoom: React.FC = () => {
           <AISummaryPanel
             recording={recording}
             onGenerateSummary={handleGenerateSummary}
+            onOrganizeNotes={handleOrganizeNotes}
             onInsertToNotes={handleInsertToNotes}
+            onInsertOrganizedToNotes={handleInsertOrganizedToNotes}
           />
 
           {/* Utterance Panel */}

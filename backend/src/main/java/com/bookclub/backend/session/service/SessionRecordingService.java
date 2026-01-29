@@ -2,6 +2,7 @@ package com.bookclub.backend.session.service;
 
 import com.bookclub.backend.session.model.SessionRecording;
 import com.bookclub.backend.session.model.SessionRecording.AISummary;
+import com.bookclub.backend.session.model.SessionRecording.AIOrganizedContent;
 import com.bookclub.backend.session.repository.SessionRecordingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,12 @@ public class SessionRecordingService {
     public SessionRecording setAISummary(String sessionId, AISummary summary) {
         SessionRecording recording = getOrCreateRecording(sessionId);
         recording.setAiSummary(summary);
+        return sessionRecordingRepository.save(recording);
+    }
+
+    public SessionRecording setAIOrganizedContent(String sessionId, AIOrganizedContent organizedContent) {
+        SessionRecording recording = getOrCreateRecording(sessionId);
+        recording.setAiOrganizedContent(organizedContent);
         return sessionRecordingRepository.save(recording);
     }
 

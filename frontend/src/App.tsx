@@ -15,6 +15,7 @@ import NoteDetail from './screens/NoteDetail';
 import Reputation from './screens/Reputation';
 import Settings from './screens/Settings';
 import Favorites from './screens/Favorites';
+import Revolution from './screens/Revolution';
 import NavBar from './components/NavBar';
 import Footer from './components/Footer';
 import Login from './screens/Login';
@@ -66,6 +67,7 @@ const AppContent: React.FC = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/reputation" element={<Reputation />} />
           <Route path="/about" element={<About />} />
+          <Route path="/revolution" element={<Revolution />} />
           <Route path="/help" element={<Help />} />
           <Route path="/notes" element={<Notes />} />
           <Route path="/notes/:noteId" element={<NoteDetail />} />

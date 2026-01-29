@@ -42,14 +42,22 @@ public class UserReputationResponse {
     @Data
     @Builder
     public static class ParticipationStats {
-        private int totalParticipated;  // 총 참여
-        private int attended;           // 참석 (총 참여 - 불참 - 지각)
-        private int absent;             // 불참
-        private int late;               // 지각
+        private int createdAndAttended; // 생성&참여 (created posts where CONFIRMED)
+        private int participated;       // 참여 (participated posts where CONFIRMED)
+        private int absent;             // 불참 (no record OR status != CONFIRMED)
+        private int late;               // 지각 (attendanceType == LATE)
         private int kicked;             // 강퇴 당한 횟수
-        private int created;            // 생성한 모임 수
-        private double attendanceRate;  // 출석률 (%)
-        private double onTimeRate;      // 정시 출석률 (%)
+        private int totalMeetings;      // 총 미팅 수 (created + participated)
+        private double attendanceRate;  // 출석률 (%) = (confirmed / total) * 100
+        private double onTimeRate;      // 정시 출석률 (%) = (EARLY + ON_TIME) / confirmed * 100
+
+        // Profile card 통계
+        private int totalConfirmed;     // 총 참석 (createdAndAttended + participated)
+        private int onTimeCount;        // 정시+빠른 입장 횟수 (EARLY + ON_TIME)
+        private int currentStreak;      // 현재 연속 참여 기록
+        private int feedbackGivenCount; // 피드백(endorsement) 준 횟수
+        private int feedbackPossibleCount; // 피드백 줄 수 있었던 총 인원 (참여한 종료 토론의 참가자 수 - 1의 합)
+        private int feedbackReceivedCount; // 피드백(endorsement) 받은 횟수
     }
 
     /**

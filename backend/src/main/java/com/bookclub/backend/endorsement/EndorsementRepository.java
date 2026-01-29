@@ -46,4 +46,9 @@ public interface EndorsementRepository extends MongoRepository<Endorsement, Stri
            fields = "{'targetUserId': 1, '_id': 0}")
     List<Endorsement> findTargetUserIdsBySessionIdAndEvaluatorUserId(
         String sessionId, String evaluatorUserId);
+
+    /**
+     * Count how many endorsements a user has given.
+     */
+    long countByEvaluatorUserId(String evaluatorUserId);
 }

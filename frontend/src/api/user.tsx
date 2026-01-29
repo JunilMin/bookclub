@@ -29,6 +29,54 @@ export interface ReportedStats {
   reasonCounts?: Record<string, number>;
 }
 
+// 프로필 스타일 타입
+export interface ProfileStyles {
+  discussionStyle?: string;   // 토론 스타일
+  preferredTime?: string;     // 선호 시간대
+  preferredSize?: string;     // 선호 인원
+  useAI?: string;             // AI 사용 여부
+}
+
+// 프로필 목표 타입
+export interface ProfileGoals {
+  participate?: number;   // 참여 목표
+  create?: number;        // 생성 목표
+}
+
+// 프로필 자기소개 타입
+export interface ProfileIntroduce {
+  introduction?: string;       // 소개글
+  preferredGenre?: string[];   // 선호 장르
+  styles?: ProfileStyles;      // 스타일 설정
+  keywords?: string[];         // 관심 키워드
+  goals?: ProfileGoals;        // 목표
+}
+
+// 프로필 타입
+export interface UserProfile {
+  introduce?: ProfileIntroduce;
+}
+
+// 공개 요소 타입
+export interface VisibilityElements {
+  email?: boolean;
+  location?: boolean;
+  activeStatus?: boolean;
+}
+
+// 공개 설정 타입
+export interface Visibility {
+  scope?: 'public' | 'users' | 'private';
+  elements?: VisibilityElements;
+}
+
+// 사용자 설정 타입
+export interface UserSetting {
+  visibility?: Visibility;
+  loginType?: 'google' | 'email';
+  deleted?: boolean;
+}
+
 export interface User {
   id?: string;
   uid: string;
@@ -46,6 +94,9 @@ export interface User {
   photoUrl?: string; // Google 프로필 사진 URL
   endorsementStats?: EndorsementStats;  // 평가 통계
   reported?: ReportedStats;  // 신고 통계
+  createdAt?: string;  // 회원가입 날짜
+  profile?: UserProfile;  // 프로필 설정 (관심사 탭)
+  setting?: UserSetting;  // 사용자 설정
 }
 
 // 총 사용자 수 조회 (공개 API)
@@ -210,14 +261,21 @@ export const validateUsernameAPI = async (username: string): Promise<UsernameVal
 
 // 참여 통계
 export interface ParticipationStats {
-  totalParticipated: number;
-  attended: number;
-  absent: number;
-  late: number;
-  kicked: number;
-  created: number;
-  attendanceRate: number;
-  onTimeRate: number;
+  createdAndAttended: number;  // 생성&참여 (created posts where CONFIRMED)
+  participated: number;        // 참여 (participated posts where CONFIRMED)
+  absent: number;              // 불참 (no record OR status != CONFIRMED)
+  late: number;                // 지각 (attendanceType == LATE)
+  kicked: number;              // 강퇴 당한 횟수
+  totalMeetings: number;       // 총 미팅 수 (created + participated)
+  attendanceRate: number;      // 출석률 (%) = (confirmed / total) * 100
+  onTimeRate: number;          // 정시 출석률 (%) = (EARLY + ON_TIME) / confirmed * 100
+  // Profile card 통계
+  totalConfirmed: number;      // 총 참석 (createdAndAttended + participated)
+  onTimeCount: number;         // 정시+빠른 입장 횟수 (EARLY + ON_TIME)
+  currentStreak: number;       // 현재 연속 참여 기록
+  feedbackGivenCount: number;  // 피드백(endorsement) 준 횟수
+  feedbackPossibleCount: number; // 피드백 줄 수 있었던 총 인원
+  feedbackReceivedCount: number; // 피드백(endorsement) 받은 횟수
 }
 
 // Endorsement 통계 DTO

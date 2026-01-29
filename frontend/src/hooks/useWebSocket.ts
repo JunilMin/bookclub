@@ -1,37 +1,73 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { IMessage, StompSubscription } from '@stomp/stompjs';
-import { createWebSocketClient, WebSocketClient } from '../api/websocket';
+import { getWebSocketClient, releaseWebSocketClient, WebSocketClient } from '../api/websocket';
 import { useAuth } from '../AuthContext/AuthContext';
 
-export function useWebSocket(sessionId: string) {
+// ============================================
+// useWebSocket Hook (Singleton per session)
+// ============================================
+// Multiple hook instances with the same sessionId will share
+// the same underlying WebSocket connection.
+// ============================================
+
+export interface UseWebSocketReturn {
+  isConnected: boolean;
+  error: string | null;
+  subscribe: (destination: string, callback: (message: IMessage) => void) => () => void;
+  send: (destination: string, body: object) => void;
+}
+
+export function useWebSocket(sessionId: string): UseWebSocketReturn {
   const { accessToken } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clientRef = useRef<WebSocketClient | null>(null);
   const subscriptionsRef = useRef<StompSubscription[]>([]);
+  const cacheKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!accessToken || !sessionId) return;
 
-    const wsClient = createWebSocketClient(accessToken);
+    // Get or create shared WebSocket client
+    const cacheKey = `${sessionId}:${accessToken.slice(-16)}`;
+    cacheKeyRef.current = cacheKey;
+
+    const wsClient = getWebSocketClient(sessionId, accessToken);
     clientRef.current = wsClient;
 
-    wsClient.connect()
-      .then(() => {
-        setIsConnected(true);
-        setError(null);
-      })
-      .catch((err) => {
-        setError(err.message || 'Failed to connect to WebSocket');
-        setIsConnected(false);
-      });
+    // Connect if not already connected
+    if (!wsClient.isConnected()) {
+      wsClient.connect()
+        .then(() => {
+          setIsConnected(true);
+          setError(null);
+        })
+        .catch((err) => {
+          setError(err.message || 'Failed to connect to WebSocket');
+          setIsConnected(false);
+        });
+    } else {
+      // Already connected (shared connection)
+      setIsConnected(true);
+      setError(null);
+    }
 
     return () => {
-      // Unsubscribe from all subscriptions
-      subscriptionsRef.current.forEach(sub => sub.unsubscribe());
+      // Unsubscribe from all subscriptions created by this hook instance
+      subscriptionsRef.current.forEach(sub => {
+        try {
+          sub.unsubscribe();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      });
       subscriptionsRef.current = [];
-      // Disconnect
-      wsClient.disconnect();
+
+      // Release reference to shared connection
+      if (cacheKeyRef.current) {
+        releaseWebSocketClient(cacheKeyRef.current);
+      }
+
       setIsConnected(false);
     };
   }, [accessToken, sessionId]);
@@ -41,7 +77,7 @@ export function useWebSocket(sessionId: string) {
     callback: (message: IMessage) => void
   ): (() => void) => {
     if (!clientRef.current?.isConnected()) {
-      console.warn('Cannot subscribe: not connected');
+      console.warn('[useWebSocket] Cannot subscribe: not connected');
       return () => {};
     }
 
@@ -49,7 +85,11 @@ export function useWebSocket(sessionId: string) {
     if (subscription) {
       subscriptionsRef.current.push(subscription);
       return () => {
-        subscription.unsubscribe();
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
         subscriptionsRef.current = subscriptionsRef.current.filter(s => s !== subscription);
       };
     }
@@ -58,7 +98,7 @@ export function useWebSocket(sessionId: string) {
 
   const send = useCallback((destination: string, body: object) => {
     if (!clientRef.current?.isConnected()) {
-      console.warn('Cannot send: not connected');
+      console.warn('[useWebSocket] Cannot send: not connected');
       return;
     }
     clientRef.current.send(destination, body);

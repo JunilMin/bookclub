@@ -1,7 +1,11 @@
 import React, { useMemo, forwardRef, useImperativeHandle, useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EditorContent } from '@tiptap/react';
-import { FiUser, FiCheck, FiCloud, FiWifi, FiWifiOff, FiEdit2 } from 'react-icons/fi';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Placeholder from '@tiptap/extension-placeholder';
+import { FiUser, FiCheck, FiCloud, FiWifi, FiWifiOff, FiEdit2, FiLoader, FiAlertCircle, FiCheckCircle, FiFileText, FiCpu } from 'react-icons/fi';
 import { useCollaborativeEditor } from '../../../hooks/useCollaborativeEditor';
 import { RemoteUser } from '../../../types/collaborative';
 import { updateNoteTitle } from '../../../api/notes';
@@ -20,6 +24,14 @@ import '../styles/CenterPanel.css';
  * UI/UX는 기존과 동일하게 유지
  */
 
+interface AIValidation {
+  valid: boolean;
+  sourceFragmentIds: string[];
+  outputFragmentIds: string[];
+  missingFragments: string[];
+  validationError: string;
+}
+
 interface CollaborativeNotesProps {
   docId: string;
   userId: string;
@@ -27,13 +39,19 @@ interface CollaborativeNotesProps {
   photoUrl?: string;
   initialContent?: any;
   initialTitle?: string;
+  aiContent?: any;
+  aiValidation?: AIValidation | null;
+  isOrganizing?: boolean;
   onCharCountChange?: (charCount: number) => void;
+  onOrganizeNotes?: () => void;
 }
 
 export interface CollaborativeNotesRef {
   insertContentAtEnd: (content: any) => void;
   insertTranscription: (content: any, sectionTitle: string) => void;
 }
+
+type NoteTab = 'free' | 'ai';
 
 const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesProps>(({
   docId,
@@ -42,10 +60,17 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
   photoUrl = '',
   initialContent,
   initialTitle = 'Discussion Notes',
+  aiContent,
+  aiValidation,
+  isOrganizing = false,
   onCharCountChange,
+  onOrganizeNotes,
 }, ref) => {
   const { t } = useTranslation();
   const { accessToken } = useAuth();
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<NoteTab>('free');
 
   // Title editing state
   const [title, setTitle] = useState(initialTitle);
@@ -75,6 +100,27 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     initialContent,
     placeholder: t('meet_notes_placeholder') || 'Start taking notes...',
   });
+
+  // === AI Content Read-only Editor ===
+  const aiEditor = useEditor({
+    extensions: [
+      StarterKit,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Placeholder.configure({
+        placeholder: t('meet_ai_notes_placeholder') || 'AI organized content will appear here...',
+      }),
+    ],
+    content: aiContent || { type: 'doc', content: [{ type: 'paragraph' }] },
+    editable: false,
+  }, []);
+
+  // Update AI editor content when aiContent changes
+  useEffect(() => {
+    if (aiEditor && aiContent) {
+      aiEditor.commands.setContent(aiContent);
+    }
+  }, [aiEditor, aiContent]);
 
   // Track character count for attendance (only counts NEW characters typed by the user)
   const lastCharCountRef = useRef<number>(-1); // -1 means not initialized yet
@@ -170,11 +216,20 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
     insertContentAtEnd: (content: any) => {
       if (!editor) return;
 
-      // Move cursor to end of document
-      editor.commands.focus('end');
+      // Get the end position of the document (after all content)
+      const endPos = editor.state.doc.content.size;
 
-      // Insert the content
-      editor.commands.insertContent(content);
+      // Insert at the absolute end of the document to avoid nesting
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(endPos)
+        .insertContentAt(endPos, [
+          { type: 'paragraph', content: [] }, // Empty line before
+          content,
+          { type: 'paragraph', content: [] }, // Empty line after
+        ])
+        .run();
     },
     insertTranscription: (content: any, sectionTitle: string) => {
       if (!editor) return;
@@ -196,30 +251,37 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
         }
       }
 
-      // Move cursor to end
-      editor.commands.focus('end');
+      // Get the end position of the document
+      const endPos = editor.state.doc.content.size;
 
-      // If no transcription section, create it first
+      // Build content to insert
+      const insertContent: any[] = [];
+
+      // If no transcription section, add it first
       if (!hasTranscriptionSection) {
-        editor.commands.insertContent([
-          { type: 'paragraph', content: [] }, // Empty line
+        insertContent.push(
+          { type: 'paragraph', content: [] },
           { type: 'horizontalRule' },
           {
             type: 'heading',
             attrs: { level: 2 },
             content: [{ type: 'text', text: TRANSCRIPTION_MARKER }],
           },
-          { type: 'paragraph', content: [] }, // Empty line after heading
-        ]);
+          { type: 'paragraph', content: [] }
+        );
       }
 
-      // Insert the transcription content
-      editor.commands.insertContent(content);
+      // Add the transcription content
+      insertContent.push(content);
+      insertContent.push({ type: 'paragraph', content: [] });
 
-      // Add empty line after content for separation
-      editor.commands.insertContent([
-        { type: 'paragraph', content: [] },
-      ]);
+      // Insert at the absolute end to avoid nesting
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(endPos)
+        .insertContentAt(endPos, insertContent)
+        .run();
     },
   }), [editor]);
 
@@ -343,123 +405,229 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="notes-toolbar">
-        <div className="toolbar-group">
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBold().run()}
-            isActive={editor.isActive('bold')}
-            title="Bold (Ctrl+B)"
-          >
-            <strong>B</strong>
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-            isActive={editor.isActive('italic')}
-            title="Italic (Ctrl+I)"
-          >
-            <em>I</em>
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-            isActive={editor.isActive('strike')}
-            title="Strikethrough"
-          >
-            <s>S</s>
-          </ToolbarButton>
-        </div>
-
-        <div className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            isActive={editor.isActive('heading', { level: 1 })}
-            title="Heading 1"
-          >
-            H1
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            isActive={editor.isActive('heading', { level: 2 })}
-            title="Heading 2"
-          >
-            H2
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            isActive={editor.isActive('heading', { level: 3 })}
-            title="Heading 3"
-          >
-            H3
-          </ToolbarButton>
-        </div>
-
-        <div className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            isActive={editor.isActive('bulletList')}
-            title="Bullet List"
-          >
-            •
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            isActive={editor.isActive('orderedList')}
-            title="Numbered List"
-          >
-            1.
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleTaskList().run()}
-            isActive={editor.isActive('taskList')}
-            title="Task List"
-          >
-            ☑
-          </ToolbarButton>
-        </div>
-
-        <div className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            isActive={editor.isActive('blockquote')}
-            title="Quote"
-          >
-            "
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            isActive={editor.isActive('codeBlock')}
-            title="Code Block"
-          >
-            {'</>'}
-          </ToolbarButton>
-        </div>
+      {/* Note Tabs */}
+      <div className="notes-tabs">
+        <button
+          className={`notes-tab ${activeTab === 'free' ? 'active' : ''}`}
+          onClick={() => setActiveTab('free')}
+        >
+          <FiFileText size={14} />
+          {t('meet_notes_tab_free') || '공유 노트'}
+        </button>
+        <button
+          className={`notes-tab ${activeTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          <FiCpu size={14} />
+          {t('meet_notes_tab_ai') || 'AI 정리'}
+          {aiContent && <span className="tab-badge">✓</span>}
+        </button>
       </div>
 
-      {/* Editor */}
-      <div className="notes-editor-wrapper">
-        <EditorContent editor={editor} />
+      {/* Free Notes Tab Content */}
+      {activeTab === 'free' && (
+        <>
+          {/* Toolbar */}
+          <div className="notes-toolbar">
+            <div className="toolbar-group">
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                isActive={editor.isActive('bold')}
+                title="Bold (Ctrl+B)"
+              >
+                <strong>B</strong>
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                isActive={editor.isActive('italic')}
+                title="Italic (Ctrl+I)"
+              >
+                <em>I</em>
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                isActive={editor.isActive('strike')}
+                title="Strikethrough"
+              >
+                <s>S</s>
+              </ToolbarButton>
+            </div>
 
-        {/* Remote Cursors Overlay (향후 구현) */}
-        {/* <RemoteCursors users={remoteUsers} editor={editor} /> */}
-      </div>
+            <div className="toolbar-divider" />
 
-      {/* Footer hint */}
-      <div className="notes-footer">
-        <span className="notes-hint">
-          {t('meet_notes_hint') || 'Changes are automatically saved and synced in real-time'}
-        </span>
-        {!isConnected && (
-          <span className="offline-warning">
-            ⚠️ Offline - changes will sync when reconnected
-          </span>
-        )}
-      </div>
+            <div className="toolbar-group">
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                isActive={editor.isActive('heading', { level: 1 })}
+                title="Heading 1"
+              >
+                H1
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                isActive={editor.isActive('heading', { level: 2 })}
+                title="Heading 2"
+              >
+                H2
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                isActive={editor.isActive('heading', { level: 3 })}
+                title="Heading 3"
+              >
+                H3
+              </ToolbarButton>
+            </div>
+
+            <div className="toolbar-divider" />
+
+            <div className="toolbar-group">
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                isActive={editor.isActive('bulletList')}
+                title="Bullet List"
+              >
+                •
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                isActive={editor.isActive('orderedList')}
+                title="Numbered List"
+              >
+                1.
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleTaskList().run()}
+                isActive={editor.isActive('taskList')}
+                title="Task List"
+              >
+                ☑
+              </ToolbarButton>
+            </div>
+
+            <div className="toolbar-divider" />
+
+            <div className="toolbar-group">
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                isActive={editor.isActive('blockquote')}
+                title="Quote"
+              >
+                "
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                isActive={editor.isActive('codeBlock')}
+                title="Code Block"
+              >
+                {'</>'}
+              </ToolbarButton>
+            </div>
+          </div>
+
+          {/* Editor */}
+          <div className="notes-editor-wrapper">
+            <EditorContent editor={editor} />
+          </div>
+
+          {/* Footer hint */}
+          <div className="notes-footer">
+            <span className="notes-hint">
+              {t('meet_notes_hint') || 'Changes are automatically saved and synced in real-time'}
+            </span>
+            {!isConnected && (
+              <span className="offline-warning">
+                ⚠️ Offline - changes will sync when reconnected
+              </span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* AI Notes Tab Content */}
+      {activeTab === 'ai' && (
+        <>
+          {/* AI Toolbar */}
+          <div className="notes-toolbar ai-toolbar">
+            <div className="ai-toolbar-info">
+              {aiValidation && (
+                <span className={`validation-status ${aiValidation.valid ? 'valid' : 'invalid'}`}>
+                  {aiValidation.valid ? (
+                    <>
+                      <FiCheckCircle size={14} />
+                      {t('meet_ai_validation_valid') || '내용 검증 완료'}
+                    </>
+                  ) : (
+                    <>
+                      <FiAlertCircle size={14} />
+                      {t('meet_ai_validation_invalid') || '누락된 내용 있음'}
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+            <button
+              className="ai-organize-btn"
+              onClick={onOrganizeNotes}
+              disabled={isOrganizing}
+            >
+              {isOrganizing ? (
+                <>
+                  <FiLoader className="spinning" size={14} />
+                  {t('meet_ai_organizing') || '정리 중...'}
+                </>
+              ) : (
+                <>
+                  <FiCpu size={14} />
+                  {aiContent ? (t('meet_ai_reorganize') || '다시 정리') : (t('meet_ai_organize') || 'AI 정리 생성')}
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* AI Editor (Read-only) */}
+          <div className="notes-editor-wrapper ai-editor">
+            {aiContent ? (
+              <EditorContent editor={aiEditor} />
+            ) : (
+              <div className="ai-empty-state">
+                <FiCpu size={48} />
+                <h3>{t('meet_ai_empty_title') || 'AI 정리 없음'}</h3>
+                <p>{t('meet_ai_empty_desc') || '공유 노트의 내용을 AI가 자동으로 정리합니다.'}</p>
+                <button
+                  className="ai-generate-btn"
+                  onClick={onOrganizeNotes}
+                  disabled={isOrganizing}
+                >
+                  {isOrganizing ? (
+                    <>
+                      <FiLoader className="spinning" size={16} />
+                      {t('meet_ai_organizing') || '정리 중...'}
+                    </>
+                  ) : (
+                    <>
+                      <FiCpu size={16} />
+                      {t('meet_ai_organize') || 'AI 정리 생성'}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* AI Footer */}
+          <div className="notes-footer ai-footer">
+            <span className="notes-hint">
+              {t('meet_ai_notes_hint') || 'AI가 공유 노트를 자동으로 정리합니다. 원본 내용은 유지됩니다.'}
+            </span>
+            {aiValidation && !aiValidation.valid && aiValidation.missingFragments.length > 0 && (
+              <span className="validation-warning">
+                ⚠️ {aiValidation.missingFragments.length}개의 내용이 누락되었습니다.
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 });

@@ -31,6 +31,7 @@ public class User {
   private int kicked;  // 강퇴 당한 횟수
   private UserPosts posts;  // 북미팅 관련 필드 (생성/참여)
   private String photoUrl;  // Google 프로필 사진 URL
+  private LocalDateTime createdAt;  // 회원가입 날짜
 
   // Legacy fields for backward compatibility (MongoDB에 저장된 기존 데이터 읽기용)
   // 이 필드들은 MongoDB에서 읽기만 하고, 저장할 때는 posts 필드를 사용
@@ -79,6 +80,12 @@ public class User {
   // 관심 도서 (좋아요 + AI 추천)
   private Fav fav;
 
+  // 프로필 설정 (관심사 탭)
+  private UserProfile profile;
+
+  // 사용자 설정
+  private UserSetting setting;
+
   /**
    * fav getter - null 방지
    */
@@ -87,6 +94,26 @@ public class User {
       this.fav = new Fav();
     }
     return this.fav;
+  }
+
+  /**
+   * profile getter - null 방지
+   */
+  public UserProfile getProfile() {
+    if (this.profile == null) {
+      this.profile = new UserProfile();
+    }
+    return this.profile;
+  }
+
+  /**
+   * setting getter - null 방지
+   */
+  public UserSetting getSetting() {
+    if (this.setting == null) {
+      this.setting = new UserSetting();
+    }
+    return this.setting;
   }
 
   // 관심 도서 내부 클래스
@@ -209,5 +236,123 @@ public class User {
       }
       this.categoryCounts.merge(category, 1, Integer::sum);
     }
+  }
+
+  // 프로필 설정 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class UserProfile {
+    private Introduce introduce;
+
+    public Introduce getIntroduce() {
+      if (this.introduce == null) {
+        this.introduce = new Introduce();
+      }
+      return this.introduce;
+    }
+  }
+
+  // 자기소개 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Introduce {
+    private String introduction;            // 소개글
+    private List<String> preferredGenre;   // 선호 장르
+    private Styles styles;                  // 스타일 설정
+    private List<String> keywords;          // 관심 키워드
+    private Goals goals;                    // 목표
+
+    public List<String> getPreferredGenre() {
+      if (this.preferredGenre == null) {
+        this.preferredGenre = new ArrayList<>();
+      }
+      return this.preferredGenre;
+    }
+
+    public Styles getStyles() {
+      if (this.styles == null) {
+        this.styles = new Styles();
+      }
+      return this.styles;
+    }
+
+    public List<String> getKeywords() {
+      if (this.keywords == null) {
+        this.keywords = new ArrayList<>();
+      }
+      return this.keywords;
+    }
+
+    public Goals getGoals() {
+      if (this.goals == null) {
+        this.goals = new Goals();
+      }
+      return this.goals;
+    }
+  }
+
+  // 스타일 설정 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Styles {
+    private String discussionStyle;   // 토론 스타일
+    private String preferredTime;     // 선호 시간대
+    private String preferredSize;     // 선호 인원
+    private String useAI;             // AI 사용 여부
+  }
+
+  // 목표 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Goals {
+    private int participate;   // 참여 목표
+    private int create;        // 생성 목표
+  }
+
+  // 사용자 설정 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class UserSetting {
+    private Visibility visibility;    // 공개 설정
+    private String loginType;         // 로그인 타입 (google|email)
+    private boolean deleted;          // 삭제 여부
+
+    public Visibility getVisibility() {
+      if (this.visibility == null) {
+        this.visibility = new Visibility();
+      }
+      return this.visibility;
+    }
+  }
+
+  // 공개 설정 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class Visibility {
+    private String scope;                    // public|users|private
+    private VisibilityElements elements;     // 요소별 공개 설정
+
+    public VisibilityElements getElements() {
+      if (this.elements == null) {
+        this.elements = new VisibilityElements();
+      }
+      return this.elements;
+    }
+  }
+
+  // 공개 요소 내부 클래스
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class VisibilityElements {
+    private boolean email = true;
+    private boolean location = true;
+    private boolean activeStatus = true;
   }
 }

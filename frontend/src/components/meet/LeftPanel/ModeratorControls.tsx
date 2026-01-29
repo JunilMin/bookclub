@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   FiX,
@@ -57,6 +58,10 @@ interface ModeratorControlsProps {
   // Utterance recording props
   isRecordingUtterance?: boolean;  // 현재 발언 녹음 중인지
   recordingElapsedSeconds?: number;  // 녹음 경과 시간 (초)
+  // Voice chat props (for join prompt)
+  communicationMode?: 'webrtc' | 'google-meet';  // 음성 채팅 모드
+  isVoiceJoined?: boolean;  // 음성 채널 참여 여부
+  onJoinVoice?: () => void;  // 음성 채널 참여 콜백
   onRaiseHand: () => void;
   onNextSpeaker: () => void;
   onEndTurn?: () => void;  // 발언 종료 (녹음 종료 + 업로드)
@@ -149,6 +154,9 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   reportedUserIds,
   isRecordingUtterance,
   recordingElapsedSeconds,
+  communicationMode,
+  isVoiceJoined,
+  onJoinVoice,
   onRaiseHand,
   onNextSpeaker,
   onEndTurn,
@@ -164,6 +172,7 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
   const [speakerTime, setSpeakerTime] = useState('0:00');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [showOfflineParticipants, setShowOfflineParticipants] = useState(false);
+  const [showJoinVoiceModal, setShowJoinVoiceModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -183,6 +192,27 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
       onKickParticipant(userId);
     }
     setOpenDropdownId(null);
+  };
+
+  // Handle raise hand with voice join check
+  const handleRaiseHandClick = () => {
+    // If WebRTC mode and not joined to voice, show modal
+    if (communicationMode === 'webrtc' && !isVoiceJoined) {
+      setShowJoinVoiceModal(true);
+    } else {
+      // Already in voice or Google Meet mode - just raise hand
+      onRaiseHand();
+    }
+  };
+
+  // Handle confirm join voice and raise hand
+  const handleConfirmJoinVoice = () => {
+    setShowJoinVoiceModal(false);
+    if (onJoinVoice) {
+      onJoinVoice();
+    }
+    // Also raise hand after joining
+    onRaiseHand();
   };
 
   // Drag and drop sensors
@@ -255,11 +285,39 @@ const ModeratorControls: React.FC<ModeratorControlsProps> = ({
 
   return (
     <div className="moderator-controls">
+      {/* Voice Join Modal - rendered via portal to escape stacking context */}
+      {showJoinVoiceModal && createPortal(
+        <div className="voice-join-modal-overlay">
+          <div className="voice-join-modal">
+            <div className="voice-join-modal-icon">
+              <FiMic size={32} />
+            </div>
+            <h3>{t('meet_join_voice_title') || 'Join Voice Channel?'}</h3>
+            <p>{t('meet_join_voice_description') || 'You need to join the voice channel to raise your hand.'}</p>
+            <div className="voice-join-modal-buttons">
+              <button
+                className="voice-join-modal-cancel"
+                onClick={() => setShowJoinVoiceModal(false)}
+              >
+                {t('common_cancel') || 'Cancel'}
+              </button>
+              <button
+                className="voice-join-modal-confirm"
+                onClick={handleConfirmJoinVoice}
+              >
+                {t('meet_join_and_raise_hand') || 'Join & Raise Hand'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Raise Hand Button - only in RULES mode */}
       {voiceChatMode === 'RULES' && (
         <button
           className={`raise-hand-button ${hasRaisedHand ? 'active' : ''}`}
-          onClick={onRaiseHand}
+          onClick={handleRaiseHandClick}
         >
           <div className="hand-icon">
             <RiHandHeartLine size={24} />

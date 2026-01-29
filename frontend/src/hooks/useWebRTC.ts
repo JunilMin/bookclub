@@ -78,6 +78,8 @@ interface UseWebRTCReturn {
   leaveVoice: () => void;
   /** Toggle local microphone mute */
   toggleMute: () => void;
+  /** Force set mute state (for auto-mute in RULES mode) */
+  setMuted: (muted: boolean) => void;
   /** Change input device (microphone) */
   changeInputDevice: (deviceId: string) => Promise<void>;
   /** Change output device (speaker) */
@@ -232,6 +234,28 @@ export function useWebRTC({
   }, [attemptIceRestart]);
 
   /**
+   * Set audio priority on RTCRtpSender (if supported)
+   */
+  const setAudioPriority = useCallback(async (sender: RTCRtpSender) => {
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+
+      // Set high priority for audio
+      params.encodings[0].priority = 'high';
+      params.encodings[0].networkPriority = 'high';
+
+      await sender.setParameters(params);
+      log.info('[WebRTC] Audio priority set to high');
+    } catch (err) {
+      // Priority setting not supported in all browsers
+      log.debug('[WebRTC] Audio priority not supported:', err);
+    }
+  }, []);
+
+  /**
    * Create a new RTCPeerConnection for a remote user
    */
   const createPeerConnection = useCallback((remoteUserId: string, remoteUsername: string): RTCPeerConnection => {
@@ -239,10 +263,14 @@ export function useWebRTC({
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    // Add local audio tracks
+    // Add local audio tracks with high priority
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
-        pc.addTrack(track, localStreamRef.current!);
+        const sender = pc.addTrack(track, localStreamRef.current!);
+        // Set audio priority (async, non-blocking)
+        if (track.kind === 'audio') {
+          setAudioPriority(sender);
+        }
       });
     }
 
@@ -322,7 +350,7 @@ export function useWebRTC({
 
     peerConnectionsRef.current.set(remoteUserId, pc);
     return pc;
-  }, [sendSignal, scheduleIceRestart, participants]);
+  }, [sendSignal, scheduleIceRestart, participants, setAudioPriority]);
 
   /**
    * Setup speaking detection for a peer's audio stream
@@ -833,6 +861,20 @@ export function useWebRTC({
   }, []);
 
   /**
+   * Force set mute state (for auto-mute in RULES mode)
+   */
+  const setMuted = useCallback((muted: boolean) => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !muted;
+        setIsMuted(muted);
+        log.info(`Mute forced: ${muted ? 'muted' : 'unmuted'}`);
+      }
+    }
+  }, []);
+
+  /**
    * Change input device (microphone)
    */
   const changeInputDevice = useCallback(async (deviceId: string) => {
@@ -867,11 +909,14 @@ export function useWebRTC({
 
       const newTrack = newStream.getAudioTracks()[0];
 
-      // Replace track in all peer connections
+      // Replace track in all peer connections and re-set audio priority
       peerConnectionsRef.current.forEach((pc) => {
         const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
         if (sender) {
-          sender.replaceTrack(newTrack);
+          sender.replaceTrack(newTrack).then(() => {
+            // Re-apply audio priority after track replacement
+            setAudioPriority(sender);
+          });
         }
       });
 
@@ -896,7 +941,7 @@ export function useWebRTC({
       log.error('Error changing input device:', err);
       setError(`Failed to change microphone: ${err.message}`);
     }
-  }, [isMuted, setupLocalSpeakingDetection]);
+  }, [isMuted, setupLocalSpeakingDetection, setAudioPriority]);
 
   /**
    * Change output device (speaker)
@@ -1125,6 +1170,7 @@ export function useWebRTC({
     joinVoice,
     leaveVoice,
     toggleMute,
+    setMuted,
     changeInputDevice,
     changeOutputDevice,
     setVolume,

@@ -107,6 +107,15 @@ const Reputation: React.FC = () => {
 
   // Gradient 클래스를 CSS 변수로 변환
   const getGradientStyle = (gradientColors: string) => {
+    if (!gradientColors) return 'linear-gradient(135deg, #6b7280, #4b5563)';
+
+    // 이미 hex 형식이면 linear-gradient로 변환 ("#10B981,#059669")
+    if (gradientColors.startsWith('#')) {
+      const parts = gradientColors.split(',');
+      return `linear-gradient(135deg, ${parts.join(', ')})`;
+    }
+
+    // Tailwind 클래스 형식이면 매핑
     const gradientMap: Record<string, string> = {
       'from-yellow-400 to-yellow-600': 'linear-gradient(135deg, #facc15, #ca8a04)',
       'from-blue-400 to-blue-600': 'linear-gradient(135deg, #60a5fa, #2563eb)',
@@ -127,11 +136,14 @@ const Reputation: React.FC = () => {
     return gradientMap[gradientColors] || 'linear-gradient(135deg, #6b7280, #4b5563)';
   };
 
+  // 총 확정 출석 수 (생성&참여 + 참여)
+  const totalConfirmed = participationStats.createdAndAttended + participationStats.participated;
+
   // Build hero section data for Reputation page
   const reputationMetaStats: HeroMetaItem[] = [
     {
       icon: 'ri-calendar-check-line',
-      value: participationStats.attended,
+      value: totalConfirmed,
       label: t('reputation_attended'),
     },
     {
@@ -145,14 +157,14 @@ const Reputation: React.FC = () => {
     {
       iconClass: 'ri-calendar-check-fill',
       iconColor: 'slate',
-      value: participationStats.totalParticipated,
+      value: participationStats.totalMeetings,
       unit: t('reputation_unit_times'),
-      label: t('reputation_total_participated'),
+      label: t('reputation_total_meetings'),
     },
     {
       iconClass: 'ri-checkbox-circle-fill',
       iconColor: 'cyan',
-      value: participationStats.attended,
+      value: totalConfirmed,
       unit: t('reputation_unit_times'),
       label: t('reputation_attended'),
     },
@@ -284,103 +296,118 @@ const Reputation: React.FC = () => {
             <p className="attendance-subtitle">{t('reputation_attendance_subtitle')}</p>
           </div>
 
-          {/* Summary Stats Cards */}
-          <div className="attendance-stats-grid">
-            <div className="attendance-stat-card attended">
-              <div className="attendance-stat-icon">
-                <i className="ri-checkbox-circle-fill"></i>
+          {/* Summary Stats Cards - monthlyAttendance 데이터 기반 */}
+          {(() => {
+            // monthlyAttendance에서 합계 계산 (그래프와 일치)
+            const monthlyTotalAttended = monthlyAttendance.reduce((sum, m) => sum + m.attended, 0);
+            const monthlyTotalLate = monthlyAttendance.reduce((sum, m) => sum + (m.late || 0), 0);
+            const monthlyTotalAbsent = monthlyAttendance.reduce((sum, m) => sum + (m.absent || 0), 0);
+            const monthlyTotal = monthlyTotalAttended + monthlyTotalLate + monthlyTotalAbsent;
+
+            return (
+              <div className="attendance-stats-grid">
+                <div className="attendance-stat-card attended">
+                  <div className="attendance-stat-icon">
+                    <i className="ri-checkbox-circle-fill"></i>
+                  </div>
+                  <div className="attendance-stat-info">
+                    <span className="attendance-stat-value">{monthlyTotalAttended + monthlyTotalLate}</span>
+                    <span className="attendance-stat-label">{t('reputation_attended')}</span>
+                  </div>
+                </div>
+                <div className="attendance-stat-card absent">
+                  <div className="attendance-stat-icon">
+                    <i className="ri-close-circle-fill"></i>
+                  </div>
+                  <div className="attendance-stat-info">
+                    <span className="attendance-stat-value">{monthlyTotalAbsent}</span>
+                    <span className="attendance-stat-label">{t('profile_absent')}</span>
+                  </div>
+                </div>
+                <div className="attendance-stat-card late">
+                  <div className="attendance-stat-icon">
+                    <i className="ri-time-fill"></i>
+                  </div>
+                  <div className="attendance-stat-info">
+                    <span className="attendance-stat-value">{monthlyTotalLate}</span>
+                    <span className="attendance-stat-label">{t('reputation_late_entry')}</span>
+                  </div>
+                </div>
+                <div className="attendance-stat-card total">
+                  <div className="attendance-stat-icon">
+                    <i className="ri-calendar-check-fill"></i>
+                  </div>
+                  <div className="attendance-stat-info">
+                    <span className="attendance-stat-value">{monthlyTotal}</span>
+                    <span className="attendance-stat-label">{t('reputation_total_meetings')}</span>
+                  </div>
+                </div>
               </div>
-              <div className="attendance-stat-info">
-                <span className="attendance-stat-value">{participationStats.attended}</span>
-                <span className="attendance-stat-label">{t('reputation_attended')}</span>
-              </div>
-            </div>
-            <div className="attendance-stat-card absent">
-              <div className="attendance-stat-icon">
-                <i className="ri-close-circle-fill"></i>
-              </div>
-              <div className="attendance-stat-info">
-                <span className="attendance-stat-value">{participationStats.absent}</span>
-                <span className="attendance-stat-label">{t('profile_absent')}</span>
-              </div>
-            </div>
-            <div className="attendance-stat-card late">
-              <div className="attendance-stat-icon">
-                <i className="ri-time-fill"></i>
-              </div>
-              <div className="attendance-stat-info">
-                <span className="attendance-stat-value">{participationStats.late}</span>
-                <span className="attendance-stat-label">{t('profile_late')}</span>
-              </div>
-            </div>
-            <div className="attendance-stat-card total">
-              <div className="attendance-stat-icon">
-                <i className="ri-calendar-check-fill"></i>
-              </div>
-              <div className="attendance-stat-info">
-                <span className="attendance-stat-value">{participationStats.totalParticipated}</span>
-                <span className="attendance-stat-label">{t('reputation_total_participated')}</span>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Monthly Chart */}
           <div className="attendance-chart-card">
             <div className="attendance-chart-bars">
-              {monthlyAttendance.map((month) => {
-                const total = month.attended + (month.late || 0) + (month.absent || 0);
-                const attendedPercent = total > 0 ? (month.attended / total) * 100 : 0;
-                const latePercent = total > 0 ? ((month.late || 0) / total) * 100 : 0;
-                const absentPercent = total > 0 ? ((month.absent || 0) / total) * 100 : 0;
+              {(() => {
+                // 출석 기록이 있는 달만 필터링 (total > 0)
+                const monthsWithAttendance = monthlyAttendance.filter(month => {
+                  const total = month.attended + (month.late || 0) + (month.absent || 0);
+                  return total > 0;
+                });
 
-                return (
-                  <div key={month.month} className="attendance-chart-row">
-                    <span className="attendance-month-label">{month.monthLabel}</span>
-                    <div className="attendance-bar-container">
-                      {total > 0 ? (
-                        <>
+                // 최대 6개만, 오래된 순서로 (위에서 아래로 최신)
+                const displayMonths = monthsWithAttendance.slice(-6);
+
+                return displayMonths.map((month) => {
+                  const total = month.attended + (month.late || 0) + (month.absent || 0);
+                  const attendedPercent = total > 0 ? (month.attended / total) * 100 : 0;
+                  const latePercent = total > 0 ? ((month.late || 0) / total) * 100 : 0;
+                  const absentPercent = total > 0 ? ((month.absent || 0) / total) * 100 : 0;
+
+                  return (
+                    <div key={month.month} className="attendance-chart-row">
+                      <span className="attendance-month-label">{month.monthLabel}</span>
+                      <div className="attendance-bar-container">
+                        <div
+                          className="attendance-bar-segment attended"
+                          style={{ width: `${attendedPercent}%` }}
+                        >
+                          {month.attended > 0 && <span>{month.attended}</span>}
+                        </div>
+                        {(month.late || 0) > 0 && (
                           <div
-                            className="attendance-bar-segment attended"
-                            style={{ width: `${attendedPercent}%` }}
+                            className="attendance-bar-segment late"
+                            style={{ width: `${latePercent}%` }}
                           >
-                            {month.attended > 0 && <span>{month.attended}</span>}
+                            <span>{month.late}</span>
                           </div>
-                          {(month.late || 0) > 0 && (
-                            <div
-                              className="attendance-bar-segment late"
-                              style={{ width: `${latePercent}%` }}
-                            >
-                              {(month.late || 0) > 0 && <span>{month.late}</span>}
-                            </div>
-                          )}
-                          {(month.absent || 0) > 0 && (
-                            <div
-                              className="attendance-bar-segment absent"
-                              style={{ width: `${absentPercent}%` }}
-                            >
-                              {(month.absent || 0) > 0 && <span>{month.absent}</span>}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="attendance-bar-empty"></div>
-                      )}
+                        )}
+                        {(month.absent || 0) > 0 && (
+                          <div
+                            className="attendance-bar-segment absent"
+                            style={{ width: `${absentPercent}%` }}
+                          >
+                            <span>{month.absent}</span>
+                          </div>
+                        )}
+                      </div>
+                      <span className="attendance-total-label">{total}</span>
                     </div>
-                    <span className="attendance-total-label">{total}</span>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
 
             {/* Legend */}
             <div className="attendance-chart-legend">
               <div className="attendance-legend-item">
                 <div className="attendance-legend-dot attended"></div>
-                <span>{t('reputation_attended')}</span>
+                <span>{t('reputation_on_time_entry')}</span>
               </div>
               <div className="attendance-legend-item">
                 <div className="attendance-legend-dot late"></div>
-                <span>{t('profile_late')}</span>
+                <span>{t('reputation_late_entry')}</span>
               </div>
               <div className="attendance-legend-item">
                 <div className="attendance-legend-dot absent"></div>
@@ -512,40 +539,20 @@ const Reputation: React.FC = () => {
 
               <div className="activity-timeline">
                 {displayedActivities.map((activity, index) => {
-                  // Determine icon and color based on activity type
-                  const getActivityStyle = () => {
-                    if (activity.title?.includes('배지') || activity.title?.includes('Badge')) {
-                      return {
-                        icon: 'ri-trophy-fill',
-                        gradient: 'linear-gradient(135deg, #f59e0b, #d97706)'
-                      };
-                    }
-                    // Rotate colors for discussion activities
-                    const colors = [
-                      'linear-gradient(135deg, #3b82f6, #2563eb)',
-                      'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                      'linear-gradient(135deg, #10b981, #059669)',
-                      'linear-gradient(135deg, #ec4899, #db2777)',
-                      'linear-gradient(135deg, #06b6d4, #0891b2)',
-                    ];
-                    return {
-                      icon: 'ri-chat-3-fill',
-                      gradient: colors[index % colors.length]
-                    };
-                  };
-                  const style = getActivityStyle();
+                  const gradient = getGradientStyle(activity.gradientColors);
+                  const icon = activity.icon || 'ri-checkbox-circle-fill';
 
                   return (
                     <div
-                      key={`${activity.postId}-${index}`}
-                      className="activity-item"
+                      key={`${activity.type}-${activity.postId || ''}-${index}`}
+                      className={`activity-item ${activity.postId ? 'clickable' : ''}`}
                       onClick={() => activity.postId && navigate(`/`)}
                     >
                       <div
                         className="activity-icon-box"
-                        style={{ background: style.gradient }}
+                        style={{ background: gradient }}
                       >
-                        <i className={style.icon}></i>
+                        <i className={icon}></i>
                       </div>
                       <div className="activity-card">
                         <div className="activity-card-header">
@@ -567,7 +574,7 @@ const Reputation: React.FC = () => {
                               <span>{formatDate(activity.timestamp)}</span>
                             </div>
                           </div>
-                          {activity.participantCount && (
+                          {activity.participantCount != null && activity.participantCount > 0 && (
                             <div className="activity-participants">
                               <i className="ri-group-line"></i>
                               <span>{activity.participantCount} {t('browse_card_participants')}</span>

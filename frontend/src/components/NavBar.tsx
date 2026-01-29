@@ -25,6 +25,7 @@ function NavBar() {
                     <div className='mid-nav-wrap'>
                         <Link to="/">{t('nav_dashboard')}</Link>
                         <Link to="/about">{t('nav_about')}</Link>
+                        <Link to="/revolution">{t('nav_revolution')}</Link>
                     </div>
                     <div className='right-nav-wrap'>
                         <LanguageToggle />

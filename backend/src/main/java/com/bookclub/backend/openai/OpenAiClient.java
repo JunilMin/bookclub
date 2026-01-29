@@ -42,11 +42,19 @@ public class OpenAiClient {
     }
 
     /**
-     * OpenAI Chat Completion API 호출
+     * OpenAI Chat Completion API 호출 (default max tokens: 1000)
      */
     public OpenAiResponse getChatCompletion(String systemPrompt, String userPrompt) {
+        return getChatCompletion(systemPrompt, userPrompt, 1000);
+    }
+
+    /**
+     * OpenAI Chat Completion API 호출 with custom maxTokens
+     */
+    public OpenAiResponse getChatCompletion(String systemPrompt, String userPrompt, int maxTokens) {
         logger.info("=== OpenAI API Call Started ===");
         logger.info("Model: {}", model);
+        logger.info("Max Tokens: {}", maxTokens);
         logger.info("API Key configured: {}", isConfigured());
 
         if (!isConfigured()) {
@@ -61,8 +69,8 @@ public class OpenAiClient {
         OpenAiMessage userMessage = new OpenAiMessage("user", userPrompt);
         List<OpenAiMessage> messages = List.of(systemMessage, userMessage);
 
-        // step 2. 요청 객체 생성
-        OpenAiRequest request = new OpenAiRequest(model, messages);
+        // step 2. 요청 객체 생성 with custom maxTokens
+        OpenAiRequest request = new OpenAiRequest(model, messages, maxTokens);
 
         // step 3. HTTP 헤더 설정
         HttpHeaders headers = new HttpHeaders();

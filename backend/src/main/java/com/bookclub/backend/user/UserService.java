@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -90,6 +91,7 @@ public class UserService {
         user.setKicked(0);
         user.setPosts(new User.UserPosts(new ArrayList<>(), new ArrayList<>()));
         user.setPhotoUrl(user.getPhotoUrl()); // Google 프로필 사진 URL (null 허용)
+        user.setCreatedAt(LocalDateTime.now()); // 회원가입 날짜
 
         return userRepository.save(user);
     }
@@ -127,6 +129,14 @@ public class UserService {
             user.setPhotoUrl(updatedUser.getPhotoUrl());
             if (updatedUser.getPosts() != null) {
                 user.setPosts(updatedUser.getPosts());
+            }
+            // 프로필 설정 업데이트
+            if (updatedUser.getProfile() != null) {
+                user.setProfile(updatedUser.getProfile());
+            }
+            // 사용자 설정 업데이트
+            if (updatedUser.getSetting() != null) {
+                user.setSetting(updatedUser.getSetting());
             }
             return userRepository.save(user);
         }

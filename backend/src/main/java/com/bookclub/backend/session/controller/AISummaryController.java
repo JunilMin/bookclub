@@ -8,6 +8,7 @@ import com.bookclub.backend.session.SessionRepository;
 import com.bookclub.backend.session.model.SessionNote;
 import com.bookclub.backend.session.model.SessionRecording;
 import com.bookclub.backend.session.model.SessionRecording.AISummary;
+import com.bookclub.backend.session.model.SessionRecording.AIOrganizedContent;
 import com.bookclub.backend.session.service.SessionNoteService;
 import com.bookclub.backend.session.service.SessionRecordingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +94,134 @@ public class AISummaryController {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Failed to generate AI summary: " + e.getMessage()));
         }
+    }
+
+    /**
+     * Organize notes using AI Context-Preserving Editor
+     * Reorganizes content for readability while preserving ALL original content
+     * Saves the result to SessionNote.aiContent as TipTap JSON
+     */
+    @PostMapping("/{sessionId}/ai-organize")
+    public ResponseEntity<?> organizeNotes(
+            @PathVariable String sessionId,
+            @RequestParam(defaultValue = "en") String language) {
+        try {
+            // Get session to find post
+            Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
+            if (sessionOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Session session = sessionOpt.get();
+
+            // Get post to find book title
+            Optional<Post> postOpt = postRepository.findById(session.getPostId());
+            String bookTitle = postOpt
+                    .map(p -> p.getBookData() != null ? p.getBookData().getTitle() : null)
+                    .orElse("Unknown Book");
+
+            // Get notes content
+            Optional<SessionNote> noteOpt = sessionNoteService.getNoteBySessionId(sessionId);
+            String noteContent = noteOpt.map(SessionNote::getContent).orElse("");
+
+            // Organize notes with AI
+            AIOrganizedContent organizedContent = openAIService.organizeNotes(bookTitle, noteContent, language);
+
+            // Convert organized text to TipTap JSON format
+            String aiContentJson = convertToTipTapJson(organizedContent.getOrganizedText(), language);
+
+            // Save to SessionNote.aiContent
+            SessionNote updatedNote = sessionNoteService.updateAiContent(sessionId, aiContentJson);
+
+            // Return both the note and the validation info
+            return ResponseEntity.ok(Map.of(
+                "note", updatedNote,
+                "validation", Map.of(
+                    "valid", organizedContent.isValid(),
+                    "sourceFragmentIds", organizedContent.getSourceFragmentIds(),
+                    "outputFragmentIds", organizedContent.getOutputFragmentIds(),
+                    "missingFragments", organizedContent.getMissingFragments(),
+                    "validationError", organizedContent.getValidationError() != null ? organizedContent.getValidationError() : ""
+                )
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to organize notes: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Convert plain text (with optional markdown headers) to TipTap JSON format
+     */
+    private String convertToTipTapJson(String text, String language) {
+        if (text == null || text.trim().isEmpty()) {
+            return getEmptyTipTapDoc(language);
+        }
+
+        StringBuilder json = new StringBuilder();
+        json.append("{\"type\":\"doc\",\"content\":[");
+
+        // Add heading
+        String heading = "ko".equalsIgnoreCase(language) ? "AI 정리된 노트" : "AI Organized Notes";
+        json.append("{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"")
+            .append(escapeJson(heading))
+            .append("\"}]},");
+
+        // Split by lines and convert each to paragraph or heading
+        String[] lines = text.split("\n");
+        boolean firstContent = true;
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+
+            if (!firstContent) {
+                json.append(",");
+            }
+            firstContent = false;
+
+            if (trimmed.startsWith("## ")) {
+                // H2 heading
+                String headingText = trimmed.substring(3);
+                json.append("{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"")
+                    .append(escapeJson(headingText))
+                    .append("\"}]}");
+            } else if (trimmed.startsWith("### ")) {
+                // H3 heading
+                String headingText = trimmed.substring(4);
+                json.append("{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":[{\"type\":\"text\",\"text\":\"")
+                    .append(escapeJson(headingText))
+                    .append("\"}]}");
+            } else {
+                // Regular paragraph
+                json.append("{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"")
+                    .append(escapeJson(trimmed))
+                    .append("\"}]}");
+            }
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String getEmptyTipTapDoc(String language) {
+        String heading = "ko".equalsIgnoreCase(language) ? "AI 정리된 노트" : "AI Organized Notes";
+        String placeholder = "ko".equalsIgnoreCase(language) ? "AI 정리된 내용이 여기에 표시됩니다." : "AI organized content will appear here.";
+        return String.format(
+            "{\"type\":\"doc\",\"content\":[{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"%s\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"%s\"}]}]}",
+            heading, placeholder
+        );
+    }
+
+    private String escapeJson(String text) {
+        if (text == null) return "";
+        return text
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t");
     }
 
     /**
