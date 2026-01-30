@@ -1,5 +1,8 @@
 package com.bookclub.backend.user;
 
+import com.bookclub.backend.post.Post;
+import com.bookclub.backend.post.PostRepository;
+import com.bookclub.backend.user.dto.MyMeetingsResponse;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
@@ -20,6 +23,9 @@ public class UserService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PostRepository postRepository;
 
     /**
      * 모든 사용자 조회
@@ -56,6 +62,48 @@ public class UserService {
         List<User> users = userRepository.findAllById(ids);
         return users.stream()
             .collect(Collectors.toMap(User::getId, Function.identity()));
+    }
+
+    /**
+     * 사용자의 미팅 목록 조회 (최소 필드)
+     * Profile 페이지 최적화용 - 전체 /posts 조회 대체
+     *
+     * @param userId 사용자 ID
+     * @return 내가 만든 미팅 + 참여 중인 미팅
+     */
+    public MyMeetingsResponse getMyMeetings(String userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<MyMeetingsResponse.MeetingSummary> created = new ArrayList<>();
+        List<MyMeetingsResponse.MeetingSummary> participated = new ArrayList<>();
+
+        // 내가 만든 미팅
+        if (user.getPosts() != null && user.getPosts().getCreated() != null) {
+            List<String> createdIds = user.getPosts().getCreated();
+            if (!createdIds.isEmpty()) {
+                List<Post> createdPosts = postRepository.findAllById(createdIds);
+                created = createdPosts.stream()
+                    .map(MyMeetingsResponse.MeetingSummary::from)
+                    .collect(Collectors.toList());
+            }
+        }
+
+        // 참여 중인 미팅
+        if (user.getPosts() != null && user.getPosts().getParticipated() != null) {
+            List<String> participatedIds = user.getPosts().getParticipated();
+            if (!participatedIds.isEmpty()) {
+                List<Post> participatedPosts = postRepository.findAllById(participatedIds);
+                participated = participatedPosts.stream()
+                    .map(MyMeetingsResponse.MeetingSummary::from)
+                    .collect(Collectors.toList());
+            }
+        }
+
+        return MyMeetingsResponse.builder()
+            .created(created)
+            .participated(participated)
+            .build();
     }
 
     /**
@@ -110,18 +158,7 @@ public class UserService {
         user.setLate(0);
         user.setKicked(0);
         user.setPosts(new User.UserPosts(new ArrayList<>(), new ArrayList<>()));
-
-        // Photo 구조 설정 (새 구조 + 레거시 호환)
-        String googlePhotoUrl = user.getPhotoUrl(); // 입력받은 photoUrl (Google 프로필 사진)
-        if (googlePhotoUrl != null && !googlePhotoUrl.isEmpty()) {
-            User.Photo photo = new User.Photo();
-            photo.setGoogle(googlePhotoUrl);
-            user.setPhoto(photo);
-        }
-        // 레거시 호환성을 위해 photoUrl도 유지
-        user.setPhotoUrl(googlePhotoUrl);
-
-        user.setCreatedAt(LocalDateTime.now()); // 회원가입 날짜
+        user.setCreatedAt(LocalDateTime.now());
 
         return userRepository.save(user);
     }
@@ -157,12 +194,10 @@ public class UserService {
             user.setFriends(updatedUser.getFriends());
             user.setLate(updatedUser.getLate());
 
-            // Photo 구조 업데이트 (새 구조 우선)
+            // Photo 구조 업데이트
             if (updatedUser.getPhoto() != null) {
                 user.setPhoto(updatedUser.getPhoto());
             }
-            // 레거시 호환성을 위해 photoUrl도 유지
-            user.setPhotoUrl(updatedUser.getPhotoUrl());
 
             if (updatedUser.getPosts() != null) {
                 user.setPosts(updatedUser.getPosts());

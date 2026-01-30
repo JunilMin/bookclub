@@ -289,9 +289,9 @@ const Settings: React.FC = () => {
         userLocation: introduce?.location || null,
       };
 
-      // Photo settings (새 구조 우선, legacy fallback)
+      // Photo settings
       const photoData = {
-        google: user.photo?.google || user.photoUrl || null,
+        google: user.photo?.google || null,
         custom: user.photo?.custom || null,
       };
 

@@ -59,14 +59,18 @@ export interface UserPhoto {
   custom?: string;  // 사용자 커스텀 사진 URL (Firebase Storage)
 }
 
-// 프로필 사진 표시 헬퍼 함수 (custom 우선, 없으면 google, 없으면 legacy photoUrl)
+// 프로필 사진 표시 헬퍼 함수 (custom 우선, 없으면 google)
 export const getDisplayPhotoUrl = (user: User | null): string | undefined => {
   if (!user) return undefined;
-  // 새 구조 우선
-  if (user.photo?.custom) return user.photo.custom;
-  if (user.photo?.google) return user.photo.google;
-  // Legacy fallback
-  return user.photoUrl;
+  // custom 우선 (빈 문자열 체크 포함)
+  if (user.photo?.custom && user.photo.custom.trim() !== '') {
+    return user.photo.custom;
+  }
+  // google fallback (빈 문자열 체크 포함)
+  if (user.photo?.google && user.photo.google.trim() !== '') {
+    return user.photo.google;
+  }
+  return undefined;
 };
 
 // 프로필 자기소개 타입
@@ -118,8 +122,6 @@ export interface User {
   kicked?: number;  // 강퇴 당한 횟수
   isEmailVerified?: boolean; // 이메일 인증 여부
   verificationToken?: string; // 이메일 인증 토큰
-  photoUrl?: string; // [Legacy] Google 프로필 사진 URL
-  customPhotoUrl?: string; // [Legacy] 커스텀 사진 URL
   photo?: UserPhoto; // 프로필 사진 (Google + Custom)
   endorsementStats?: EndorsementStats;  // 평가 통계
   reported?: ReportedStats;  // 신고 통계
@@ -393,5 +395,180 @@ export const getUserReputation = async (userId: string, token: string, locale: s
   } catch (error) {
     console.error("Error fetching user reputation:", error);
     throw new Error("사용자 평판 데이터를 조회하는데 실패했습니다.");
+  }
+};
+
+// ========== Profile Optimization API Types & Functions ==========
+
+// 미팅 요약 (최소 필드)
+export interface MeetingSummary {
+  id: string;
+  due: string;
+  capacity: number;
+  memberCount: number;
+  level: string;
+  ended: boolean;
+  bookData: {
+    title: string;
+    coverSmall?: string;
+  };
+}
+
+// 내 미팅 목록 응답
+export interface MyMeetingsResponse {
+  created: MeetingSummary[];
+  participated: MeetingSummary[];
+}
+
+// 프로필 요약 응답
+export interface ProfileSummaryResponse {
+  user: {
+    id: string;
+    username: string;
+    photoUrl?: string;
+    email: string;
+    createdAt?: string;
+    endorsementPoints: number;
+  };
+  stats: {
+    createdCount: number;
+    participatedCount: number;
+    topRatingScore: number;
+    topRatingCategory: string;
+  };
+  badges: {
+    earnedCount: number;
+    totalCount: number;
+    recentBadges: {
+      id: string;
+      name: string;
+      icon: string;
+      gradientColors: string;
+      earnedAt?: string;
+    }[];
+  };
+  activities: {
+    type: string;
+    title: string;
+    description: string;
+    icon: string;
+    gradientColors: string;
+    timestamp?: string;
+    postId?: string;
+  }[];
+}
+
+// 내 미팅 목록 조회 (경량화 - Profile 페이지용)
+export const getMyMeetings = async (token: string): Promise<MyMeetingsResponse> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.get('/users/me/meetings');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching my meetings:", error);
+    throw new Error("미팅 목록을 조회하는데 실패했습니다.");
+  }
+};
+
+// 프로필 요약 데이터 조회 (경량화 - Profile 페이지 상단용)
+export const getMyProfileSummary = async (token: string, locale: string = 'ko'): Promise<ProfileSummaryResponse> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.get(`/users/me/profile-summary?locale=${locale}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching profile summary:", error);
+    throw new Error("프로필 요약을 조회하는데 실패했습니다.");
+  }
+};
+
+// ========== Reputation Optimization API Types & Functions ==========
+
+// 평판 요약 응답 (초기 렌더링용)
+export interface ReputationSummaryResponse {
+  user: {
+    id: string;
+    username: string;
+    photoUrl?: string;
+    joinedAt?: string;
+  };
+  stats: {
+    attendanceRate: number;
+    onTimeRate: number;
+    currentStreak: number;
+    totalConfirmed: number;
+    feedbackGivenCount: number;
+    feedbackPossibleCount: number;
+  };
+  endorsement: {
+    points: number;
+    averageScore: number;
+    topCategory?: string;
+    topCategoryScore?: number;
+  };
+  badgeSummary: {
+    earnedCount: number;
+    totalCount: number;
+    latestBadges: {
+      id: string;
+      name: string;
+      description: string;
+      icon: string;
+      gradientColors: string;
+      earnedAt?: string;
+    }[];
+  };
+  recentActivities: {
+    type: string;
+    title: string;
+    description: string;
+    icon: string;
+    gradientColors: string;
+    timestamp?: string;
+    participantCount?: number;
+    postId?: string;
+  }[];
+}
+
+// 평판 상세 응답 (탭 진입 시)
+export interface ReputationDetailsResponse {
+  monthlyAttendance: MonthlyAttendance[];
+  badgeInfo: BadgeInfo;
+  recentActivities: ActivityItem[];
+}
+
+// 평판 요약 데이터 조회 (경량화 - Reputation 페이지 초기 렌더링용)
+export const getMyReputationSummary = async (token: string, locale: string = 'ko'): Promise<ReputationSummaryResponse> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.get(`/users/me/reputation/summary?locale=${locale}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching reputation summary:", error);
+    throw new Error("평판 요약을 조회하는데 실패했습니다.");
+  }
+};
+
+// 평판 상세 데이터 조회 (탭 진입 시)
+export const getMyReputationDetails = async (
+  token: string,
+  locale: string = 'ko',
+  params?: { activitiesLimit?: number; months?: number }
+): Promise<ReputationDetailsResponse> => {
+  try {
+    setAccessToken(token);
+    const queryParams = new URLSearchParams();
+    queryParams.append('locale', locale);
+    if (params?.activitiesLimit) {
+      queryParams.append('activitiesLimit', params.activitiesLimit.toString());
+    }
+    if (params?.months) {
+      queryParams.append('months', params.months.toString());
+    }
+    const response = await axiosInstance.get(`/users/me/reputation/details?${queryParams.toString()}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching reputation details:", error);
+    throw new Error("평판 상세를 조회하는데 실패했습니다.");
   }
 };

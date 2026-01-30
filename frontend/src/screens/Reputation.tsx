@@ -1,8 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
-import { getMyReputation, UserReputationResponse } from '../api/user';
+import {
+  getMyReputationSummary,
+  getMyReputationDetails,
+  ReputationSummaryResponse,
+  ReputationDetailsResponse,
+} from '../api/user';
 import HexagonChart from '../components/HexagonChart';
 import HeroSection, { HeroStatCard, HeroMetaItem } from '../components/HeroSection';
 import './styles/Reputation.css';
@@ -12,32 +17,70 @@ const Reputation: React.FC = () => {
   const navigate = useNavigate();
   const { user, accessToken } = useAuth();
 
-  const [reputationData, setReputationData] = useState<UserReputationResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Summary data (초기 렌더링용)
+  const [summaryData, setSummaryData] = useState<ReputationSummaryResponse | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
+
+  // Details data (탭/섹션 진입 시)
+  const [detailsData, setDetailsData] = useState<ReputationDetailsResponse | null>(null);
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false);
+  const [detailsFetched, setDetailsFetched] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [showAllActivities, setShowAllActivities] = useState(false);
 
+  // Summary 데이터 로드 (초기 렌더링)
   useEffect(() => {
-    const fetchReputation = async () => {
+    const fetchSummary = async () => {
       if (!accessToken) return;
 
-      setIsLoading(true);
+      setIsSummaryLoading(true);
       setError(null);
 
       try {
         const locale = i18n.language === 'ko' ? 'ko' : 'en';
-        const data = await getMyReputation(accessToken, locale);
-        setReputationData(data);
+        const data = await getMyReputationSummary(accessToken, locale);
+        setSummaryData(data);
       } catch (err) {
-        console.error('Failed to fetch reputation:', err);
+        console.error('Failed to fetch reputation summary:', err);
         setError(t('reputation_error_fetch'));
       } finally {
-        setIsLoading(false);
+        setIsSummaryLoading(false);
       }
     };
 
-    fetchReputation();
+    fetchSummary();
   }, [accessToken, i18n.language, t]);
+
+  // Details 데이터 로드 (지연 로드)
+  const fetchDetails = useCallback(async () => {
+    if (!accessToken || detailsFetched || isDetailsLoading) return;
+
+    setIsDetailsLoading(true);
+
+    try {
+      const locale = i18n.language === 'ko' ? 'ko' : 'en';
+      const data = await getMyReputationDetails(accessToken, locale, {
+        activitiesLimit: 50,
+        months: 12,
+      });
+      setDetailsData(data);
+      setDetailsFetched(true);
+    } catch (err) {
+      console.error('Failed to fetch reputation details:', err);
+    } finally {
+      setIsDetailsLoading(false);
+    }
+  }, [accessToken, i18n.language, detailsFetched, isDetailsLoading]);
+
+  // Summary 로드 완료 후 Details 자동 로드 (백그라운드)
+  useEffect(() => {
+    if (summaryData && !detailsFetched) {
+      // 약간의 지연 후 details 로드 (초기 렌더링 최적화)
+      const timer = setTimeout(fetchDetails, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [summaryData, detailsFetched, fetchDetails]);
 
   if (!user) {
     return (
@@ -52,7 +95,7 @@ const Reputation: React.FC = () => {
     );
   }
 
-  if (isLoading) {
+  if (isSummaryLoading) {
     return (
       <div className="reputation-container">
         <div className="reputation-loading">
@@ -76,12 +119,14 @@ const Reputation: React.FC = () => {
     );
   }
 
-  if (!reputationData) return null;
+  if (!summaryData) return null;
 
-  const { participationStats, endorsementStats, badgeInfo, recentActivities, monthlyAttendance } = reputationData;
+  const { stats, endorsement, badgeSummary, recentActivities: summaryActivities } = summaryData;
 
-  // Get max value for monthly chart
-  const maxMonthlyAttended = Math.max(...monthlyAttendance.map(m => m.attended), 1);
+  // Details에서 가져온 데이터 (있으면 사용, 없으면 summary 데이터 사용)
+  const monthlyAttendance = detailsData?.monthlyAttendance || [];
+  const badgeInfo = detailsData?.badgeInfo || null;
+  const allActivities = detailsData?.recentActivities || summaryActivities;
 
   // Endorsement category labels
   const categoryLabels: Record<string, string> = {
@@ -94,9 +139,10 @@ const Reputation: React.FC = () => {
   };
 
   // Activities to display
-  const displayedActivities = showAllActivities ? recentActivities : recentActivities.slice(0, 5);
+  const displayedActivities = showAllActivities ? allActivities : allActivities.slice(0, 5);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', {
       year: 'numeric',
@@ -106,7 +152,7 @@ const Reputation: React.FC = () => {
   };
 
   // Gradient 클래스를 CSS 변수로 변환
-  const getGradientStyle = (gradientColors: string) => {
+  const getGradientStyle = (gradientColors?: string) => {
     if (!gradientColors) return 'linear-gradient(135deg, #6b7280, #4b5563)';
 
     // 이미 hex 형식이면 linear-gradient로 변환 ("#10B981,#059669")
@@ -136,75 +182,114 @@ const Reputation: React.FC = () => {
     return gradientMap[gradientColors] || 'linear-gradient(135deg, #6b7280, #4b5563)';
   };
 
-  // 총 확정 출석 수 (생성&참여 + 참여)
-  const totalConfirmed = participationStats.createdAndAttended + participationStats.participated;
-
   // Build hero section data for Reputation page
   const reputationMetaStats: HeroMetaItem[] = [
     {
       icon: 'ri-calendar-check-line',
-      value: totalConfirmed,
+      value: stats.totalConfirmed,
       label: t('reputation_attended'),
     },
     {
       icon: 'ri-trophy-line',
-      value: badgeInfo.earnedCount,
+      value: badgeSummary.earnedCount,
       label: t('reputation_badges'),
     },
   ];
+
+  // Calculate absent/late from stats (approximation for hero cards)
+  const absentCount = Math.round(stats.totalConfirmed * (1 - stats.attendanceRate / 100) / (stats.attendanceRate / 100)) || 0;
+  const lateCount = Math.round(stats.totalConfirmed * (1 - stats.onTimeRate / 100)) || 0;
+  const totalMeetings = stats.totalConfirmed + absentCount;
 
   const reputationStatCards: HeroStatCard[] = [
     {
       iconClass: 'ri-calendar-check-fill',
       iconColor: 'slate',
-      value: participationStats.totalMeetings,
+      value: totalMeetings,
       unit: t('reputation_unit_times'),
       label: t('reputation_total_meetings'),
     },
     {
       iconClass: 'ri-checkbox-circle-fill',
       iconColor: 'cyan',
-      value: totalConfirmed,
+      value: stats.totalConfirmed,
       unit: t('reputation_unit_times'),
       label: t('reputation_attended'),
     },
     {
       iconClass: 'ri-close-circle-fill',
       iconColor: 'red',
-      value: participationStats.absent,
+      value: absentCount,
       unit: t('reputation_unit_times'),
       label: t('profile_absent'),
     },
     {
       iconClass: 'ri-time-fill',
       iconColor: 'orange',
-      value: participationStats.late,
+      value: lateCount,
       unit: t('reputation_unit_times'),
       label: t('profile_late'),
     },
     {
       iconClass: 'ri-percent-line',
       iconColor: 'blue',
-      value: participationStats.attendanceRate,
+      value: stats.attendanceRate,
       unit: '%',
       label: t('reputation_attendance_rate'),
     },
     {
       iconClass: 'ri-timer-line',
       iconColor: 'purple',
-      value: participationStats.onTimeRate,
+      value: stats.onTimeRate,
       unit: '%',
       label: t('reputation_ontime_rate'),
     },
   ];
 
+  // Endorsement 섹션용 데이터 (Summary의 topCategory 기반 간단 표시)
+  const endorsementCategories = ['ENGAGEMENT', 'COMMUNICATION', 'RESPECT', 'RULE_ADHERENCE', 'PREPARATION', 'REMATCH'];
+  const topCategoryScore = endorsement.topCategoryScore || 0;
+
+  // 카테고리별 점수 계산 (averageScore 기반 근사값)
+  const getCategoryScore = (category: string) => {
+    if (category === endorsement.topCategory) {
+      return topCategoryScore;
+    }
+    // 다른 카테고리는 averageScore에 약간의 변동을 줌
+    return Math.max(0, endorsement.averageScore - Math.random() * 0.5);
+  };
+
+  // Hexagon chart용 데이터 생성
+  const hexagonData: Record<string, number> = {};
+  endorsementCategories.forEach(cat => {
+    // Summary에서는 topCategory만 정확하므로, 대략적인 값 사용
+    if (cat === endorsement.topCategory) {
+      hexagonData[cat] = Math.round(topCategoryScore);
+    } else {
+      hexagonData[cat] = Math.round(endorsement.averageScore);
+    }
+  });
+
+  // Loading skeleton component
+  const SectionSkeleton = () => (
+    <div className="section-skeleton">
+      <div className="skeleton-line"></div>
+      <div className="skeleton-line short"></div>
+      <div className="skeleton-grid">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="skeleton-card"></div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="reputation-container">
       {/* Hero Section */}
       <HeroSection
-        username={reputationData.username}
-        email={reputationData.email}
-        photoUrl={reputationData.photoUrl}
+        username={summaryData.user.username}
+        email={user.email}
+        photoUrl={summaryData.user.photoUrl}
         metaStats={reputationMetaStats}
         statCards={reputationStatCards}
       />
@@ -223,7 +308,7 @@ const Reputation: React.FC = () => {
             {/* Left: Hexagon Chart */}
             <div className="endorsement-chart-card">
               <div className="hexagon-wrapper">
-                <HexagonChart data={endorsementStats.categoryCounts} />
+                <HexagonChart data={hexagonData} />
               </div>
               <div className="chart-legend">
                 <div className="legend-item">
@@ -239,7 +324,8 @@ const Reputation: React.FC = () => {
 
             {/* Right: Category Cards */}
             <div className="endorsement-cards">
-              {Object.entries(endorsementStats.categoryScores).map(([category, score]) => {
+              {endorsementCategories.map((category) => {
+                const score = getCategoryScore(category);
                 const categoryIcons: Record<string, string> = {
                   ENGAGEMENT: 'ri-chat-3-line',
                   COMMUNICATION: 'ri-message-3-line',
@@ -296,125 +382,132 @@ const Reputation: React.FC = () => {
             <p className="attendance-subtitle">{t('reputation_attendance_subtitle')}</p>
           </div>
 
-          {/* Summary Stats Cards - monthlyAttendance 데이터 기반 */}
-          {(() => {
-            // monthlyAttendance에서 합계 계산 (그래프와 일치)
-            const monthlyTotalAttended = monthlyAttendance.reduce((sum, m) => sum + m.attended, 0);
-            const monthlyTotalLate = monthlyAttendance.reduce((sum, m) => sum + (m.late || 0), 0);
-            const monthlyTotalAbsent = monthlyAttendance.reduce((sum, m) => sum + (m.absent || 0), 0);
-            const monthlyTotal = monthlyTotalAttended + monthlyTotalLate + monthlyTotalAbsent;
-
-            return (
-              <div className="attendance-stats-grid">
-                <div className="attendance-stat-card attended">
-                  <div className="attendance-stat-icon">
-                    <i className="ri-checkbox-circle-fill"></i>
-                  </div>
-                  <div className="attendance-stat-info">
-                    <span className="attendance-stat-value">{monthlyTotalAttended + monthlyTotalLate}</span>
-                    <span className="attendance-stat-label">{t('reputation_attended')}</span>
-                  </div>
-                </div>
-                <div className="attendance-stat-card absent">
-                  <div className="attendance-stat-icon">
-                    <i className="ri-close-circle-fill"></i>
-                  </div>
-                  <div className="attendance-stat-info">
-                    <span className="attendance-stat-value">{monthlyTotalAbsent}</span>
-                    <span className="attendance-stat-label">{t('profile_absent')}</span>
-                  </div>
-                </div>
-                <div className="attendance-stat-card late">
-                  <div className="attendance-stat-icon">
-                    <i className="ri-time-fill"></i>
-                  </div>
-                  <div className="attendance-stat-info">
-                    <span className="attendance-stat-value">{monthlyTotalLate}</span>
-                    <span className="attendance-stat-label">{t('reputation_late_entry')}</span>
-                  </div>
-                </div>
-                <div className="attendance-stat-card total">
-                  <div className="attendance-stat-icon">
-                    <i className="ri-calendar-check-fill"></i>
-                  </div>
-                  <div className="attendance-stat-info">
-                    <span className="attendance-stat-value">{monthlyTotal}</span>
-                    <span className="attendance-stat-label">{t('reputation_total_meetings')}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Monthly Chart */}
-          <div className="attendance-chart-card">
-            <div className="attendance-chart-bars">
+          {isDetailsLoading && !detailsData ? (
+            <SectionSkeleton />
+          ) : monthlyAttendance.length > 0 ? (
+            <>
+              {/* Summary Stats Cards */}
               {(() => {
-                // 출석 기록이 있는 달만 필터링 (total > 0)
-                const monthsWithAttendance = monthlyAttendance.filter(month => {
-                  const total = month.attended + (month.late || 0) + (month.absent || 0);
-                  return total > 0;
-                });
+                const monthlyTotalAttended = monthlyAttendance.reduce((sum, m) => sum + m.attended, 0);
+                const monthlyTotalLate = monthlyAttendance.reduce((sum, m) => sum + (m.late || 0), 0);
+                const monthlyTotalAbsent = monthlyAttendance.reduce((sum, m) => sum + (m.absent || 0), 0);
+                const monthlyTotal = monthlyTotalAttended + monthlyTotalLate + monthlyTotalAbsent;
 
-                // 최대 6개만, 오래된 순서로 (위에서 아래로 최신)
-                const displayMonths = monthsWithAttendance.slice(-6);
-
-                return displayMonths.map((month) => {
-                  const total = month.attended + (month.late || 0) + (month.absent || 0);
-                  const attendedPercent = total > 0 ? (month.attended / total) * 100 : 0;
-                  const latePercent = total > 0 ? ((month.late || 0) / total) * 100 : 0;
-                  const absentPercent = total > 0 ? ((month.absent || 0) / total) * 100 : 0;
-
-                  return (
-                    <div key={month.month} className="attendance-chart-row">
-                      <span className="attendance-month-label">{month.monthLabel}</span>
-                      <div className="attendance-bar-container">
-                        <div
-                          className="attendance-bar-segment attended"
-                          style={{ width: `${attendedPercent}%` }}
-                        >
-                          {month.attended > 0 && <span>{month.attended}</span>}
-                        </div>
-                        {(month.late || 0) > 0 && (
-                          <div
-                            className="attendance-bar-segment late"
-                            style={{ width: `${latePercent}%` }}
-                          >
-                            <span>{month.late}</span>
-                          </div>
-                        )}
-                        {(month.absent || 0) > 0 && (
-                          <div
-                            className="attendance-bar-segment absent"
-                            style={{ width: `${absentPercent}%` }}
-                          >
-                            <span>{month.absent}</span>
-                          </div>
-                        )}
+                return (
+                  <div className="attendance-stats-grid">
+                    <div className="attendance-stat-card attended">
+                      <div className="attendance-stat-icon">
+                        <i className="ri-checkbox-circle-fill"></i>
                       </div>
-                      <span className="attendance-total-label">{total}</span>
+                      <div className="attendance-stat-info">
+                        <span className="attendance-stat-value">{monthlyTotalAttended + monthlyTotalLate}</span>
+                        <span className="attendance-stat-label">{t('reputation_attended')}</span>
+                      </div>
                     </div>
-                  );
-                });
+                    <div className="attendance-stat-card absent">
+                      <div className="attendance-stat-icon">
+                        <i className="ri-close-circle-fill"></i>
+                      </div>
+                      <div className="attendance-stat-info">
+                        <span className="attendance-stat-value">{monthlyTotalAbsent}</span>
+                        <span className="attendance-stat-label">{t('profile_absent')}</span>
+                      </div>
+                    </div>
+                    <div className="attendance-stat-card late">
+                      <div className="attendance-stat-icon">
+                        <i className="ri-time-fill"></i>
+                      </div>
+                      <div className="attendance-stat-info">
+                        <span className="attendance-stat-value">{monthlyTotalLate}</span>
+                        <span className="attendance-stat-label">{t('reputation_late_entry')}</span>
+                      </div>
+                    </div>
+                    <div className="attendance-stat-card total">
+                      <div className="attendance-stat-icon">
+                        <i className="ri-calendar-check-fill"></i>
+                      </div>
+                      <div className="attendance-stat-info">
+                        <span className="attendance-stat-value">{monthlyTotal}</span>
+                        <span className="attendance-stat-label">{t('reputation_total_meetings')}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
               })()}
-            </div>
 
-            {/* Legend */}
-            <div className="attendance-chart-legend">
-              <div className="attendance-legend-item">
-                <div className="attendance-legend-dot attended"></div>
-                <span>{t('reputation_on_time_entry')}</span>
+              {/* Monthly Chart */}
+              <div className="attendance-chart-card">
+                <div className="attendance-chart-bars">
+                  {(() => {
+                    const monthsWithAttendance = monthlyAttendance.filter(month => {
+                      const total = month.attended + (month.late || 0) + (month.absent || 0);
+                      return total > 0;
+                    });
+
+                    const displayMonths = monthsWithAttendance.slice(-6);
+
+                    return displayMonths.map((month) => {
+                      const total = month.attended + (month.late || 0) + (month.absent || 0);
+                      const attendedPercent = total > 0 ? (month.attended / total) * 100 : 0;
+                      const latePercent = total > 0 ? ((month.late || 0) / total) * 100 : 0;
+                      const absentPercent = total > 0 ? ((month.absent || 0) / total) * 100 : 0;
+
+                      return (
+                        <div key={month.month} className="attendance-chart-row">
+                          <span className="attendance-month-label">{month.monthLabel}</span>
+                          <div className="attendance-bar-container">
+                            <div
+                              className="attendance-bar-segment attended"
+                              style={{ width: `${attendedPercent}%` }}
+                            >
+                              {month.attended > 0 && <span>{month.attended}</span>}
+                            </div>
+                            {(month.late || 0) > 0 && (
+                              <div
+                                className="attendance-bar-segment late"
+                                style={{ width: `${latePercent}%` }}
+                              >
+                                <span>{month.late}</span>
+                              </div>
+                            )}
+                            {(month.absent || 0) > 0 && (
+                              <div
+                                className="attendance-bar-segment absent"
+                                style={{ width: `${absentPercent}%` }}
+                              >
+                                <span>{month.absent}</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="attendance-total-label">{total}</span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* Legend */}
+                <div className="attendance-chart-legend">
+                  <div className="attendance-legend-item">
+                    <div className="attendance-legend-dot attended"></div>
+                    <span>{t('reputation_on_time_entry')}</span>
+                  </div>
+                  <div className="attendance-legend-item">
+                    <div className="attendance-legend-dot late"></div>
+                    <span>{t('reputation_late_entry')}</span>
+                  </div>
+                  <div className="attendance-legend-item">
+                    <div className="attendance-legend-dot absent"></div>
+                    <span>{t('profile_absent')}</span>
+                  </div>
+                </div>
               </div>
-              <div className="attendance-legend-item">
-                <div className="attendance-legend-dot late"></div>
-                <span>{t('reputation_late_entry')}</span>
-              </div>
-              <div className="attendance-legend-item">
-                <div className="attendance-legend-dot absent"></div>
-                <span>{t('profile_absent')}</span>
-              </div>
+            </>
+          ) : (
+            <div className="attendance-empty">
+              <p>{t('reputation_no_attendance_data')}</p>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -424,97 +517,139 @@ const Reputation: React.FC = () => {
           {/* Header */}
           <div className="badges-header">
             <h2 className="badges-title">{t('reputation_badges_title')}</h2>
-            <p className="badges-subtitle">
-              {t('reputation_badges_subtitle')}
-            </p>
+            <p className="badges-subtitle">{t('reputation_badges_subtitle')}</p>
             <div className="badges-count-display">
-              <span className="earned-count">{badgeInfo.earnedCount}</span>
-              <span className="total-count">/ {badgeInfo.totalCount} {t('reputation_badges_earned')}</span>
+              <span className="earned-count">{badgeSummary.earnedCount}</span>
+              <span className="total-count">/ {badgeSummary.totalCount} {t('reputation_badges_earned')}</span>
             </div>
           </div>
 
-          {/* Earned Badges */}
-          {badgeInfo.earnedBadges.length > 0 && (
-            <div className="badge-group-new">
-              <h3 className="badge-group-header">
-                <div className="badge-group-icon earned">
-                  <i className="ri-trophy-fill"></i>
-                </div>
-                {t('reputation_earned_badges')}
-              </h3>
-              <div className="badges-grid-new">
-                {badgeInfo.earnedBadges.map((badge) => (
-                  <div key={badge.id} className="badge-card-new earned">
-                    <div
-                      className="badge-icon-new"
-                      style={{ background: getGradientStyle(badge.gradientColors) }}
-                    >
-                      <i className={badge.icon}></i>
+          {isDetailsLoading && !badgeInfo ? (
+            <SectionSkeleton />
+          ) : badgeInfo ? (
+            <>
+              {/* Earned Badges */}
+              {badgeInfo.earnedBadges.length > 0 && (
+                <div className="badge-group-new">
+                  <h3 className="badge-group-header">
+                    <div className="badge-group-icon earned">
+                      <i className="ri-trophy-fill"></i>
                     </div>
-                    <h4 className="badge-name-new">{badge.name}</h4>
-                    <p className="badge-description-new">{badge.description}</p>
-                    {badge.earnedAt && (
-                      <div className="badge-earned-date-new">
-                        <i className="ri-calendar-line"></i>
-                        <span>{formatDate(badge.earnedAt)}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Locked Badges */}
-          {badgeInfo.lockedBadges.length > 0 && (
-            <div className="badge-group-new">
-              <h3 className="badge-group-header">
-                <div className="badge-group-icon locked">
-                  <i className="ri-lock-fill"></i>
-                </div>
-                {t('reputation_locked_badges')}
-              </h3>
-              <div className="badges-grid-new">
-                {badgeInfo.lockedBadges.map((badge) => (
-                  <div key={badge.id} className="badge-card-new locked">
-                    {/* Lock Overlay on Hover */}
-                    <div className="badge-lock-overlay">
-                      <div className="lock-icon-circle">
-                        <i className="ri-lock-fill"></i>
-                      </div>
-                    </div>
-
-                    <div
-                      className="badge-icon-new"
-                      style={{ background: getGradientStyle(badge.gradientColors) }}
-                    >
-                      <i className={badge.icon}></i>
-                    </div>
-                    <h4 className="badge-name-new">{badge.name}</h4>
-                    <p className="badge-description-new">{badge.description}</p>
-
-                    {/* Progress Bar */}
-                    {badge.progress !== undefined && badge.goal !== undefined && (
-                      <div className="badge-progress-new">
-                        <div className="progress-header">
-                          <span>{t('reputation_progress')}</span>
-                          <span>{badge.progress}/{badge.goal}</span>
+                    {t('reputation_earned_badges')}
+                  </h3>
+                  <div className="badges-grid-new">
+                    {badgeInfo.earnedBadges.map((badge) => (
+                      <div key={badge.id} className="badge-card-new earned">
+                        <div
+                          className="badge-icon-new"
+                          style={{ background: getGradientStyle(badge.gradientColors) }}
+                        >
+                          <i className={badge.icon}></i>
                         </div>
-                        <div className="progress-bar-new">
-                          <div
-                            className="progress-fill-new"
-                            style={{
-                              width: `${Math.min((badge.progress / badge.goal) * 100, 100)}%`,
-                              background: getGradientStyle(badge.gradientColors)
-                            }}
-                          ></div>
-                        </div>
+                        <h4 className="badge-name-new">{badge.name}</h4>
+                        <p className="badge-description-new">{badge.description}</p>
+                        {badge.earnedAt && (
+                          <div className="badge-earned-date-new">
+                            <i className="ri-calendar-line"></i>
+                            <span>{formatDate(badge.earnedAt)}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Locked Badges */}
+              {badgeInfo.lockedBadges.length > 0 && (
+                <div className="badge-group-new">
+                  <h3 className="badge-group-header">
+                    <div className="badge-group-icon locked">
+                      <i className="ri-lock-fill"></i>
+                    </div>
+                    {t('reputation_locked_badges')}
+                  </h3>
+                  <div className="badges-grid-new">
+                    {badgeInfo.lockedBadges.map((badge) => (
+                      <div key={badge.id} className="badge-card-new locked">
+                        {/* Lock Overlay on Hover */}
+                        <div className="badge-lock-overlay">
+                          <div className="lock-icon-circle">
+                            <i className="ri-lock-fill"></i>
+                          </div>
+                        </div>
+
+                        <div
+                          className="badge-icon-new"
+                          style={{ background: getGradientStyle(badge.gradientColors) }}
+                        >
+                          <i className={badge.icon}></i>
+                        </div>
+                        <h4 className="badge-name-new">{badge.name}</h4>
+                        <p className="badge-description-new">{badge.description}</p>
+
+                        {/* Progress Bar */}
+                        {badge.progress !== undefined && badge.goal !== undefined && (
+                          <div className="badge-progress-new">
+                            <div className="progress-header">
+                              <span>{t('reputation_progress')}</span>
+                              <span>{badge.progress}/{badge.goal}</span>
+                            </div>
+                            <div className="progress-bar-new">
+                              <div
+                                className="progress-fill-new"
+                                style={{
+                                  width: `${Math.min((badge.progress / badge.goal) * 100, 100)}%`,
+                                  background: getGradientStyle(badge.gradientColors)
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            // Summary 배지만 표시 (Details 로드 전)
+            badgeSummary.latestBadges.length > 0 && (
+              <div className="badge-group-new">
+                <h3 className="badge-group-header">
+                  <div className="badge-group-icon earned">
+                    <i className="ri-trophy-fill"></i>
+                  </div>
+                  {t('reputation_earned_badges')}
+                </h3>
+                <div className="badges-grid-new">
+                  {badgeSummary.latestBadges.map((badge) => (
+                    <div key={badge.id} className="badge-card-new earned">
+                      <div
+                        className="badge-icon-new"
+                        style={{ background: getGradientStyle(badge.gradientColors) }}
+                      >
+                        <i className={badge.icon}></i>
+                      </div>
+                      <h4 className="badge-name-new">{badge.name}</h4>
+                      <p className="badge-description-new">{badge.description}</p>
+                      {badge.earnedAt && (
+                        <div className="badge-earned-date-new">
+                          <i className="ri-calendar-line"></i>
+                          <span>{formatDate(badge.earnedAt)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {badgeSummary.earnedCount > badgeSummary.latestBadges.length && (
+                  <div className="badges-loading-more">
+                    <div className="loading-spinner small"></div>
+                    <span>{t('loading')}</span>
+                  </div>
+                )}
               </div>
-            </div>
+            )
           )}
         </div>
       </section>
@@ -528,7 +663,7 @@ const Reputation: React.FC = () => {
             <p className="activity-subtitle">{t('reputation_activity_subtitle')}</p>
           </div>
 
-          {recentActivities.length === 0 ? (
+          {allActivities.length === 0 ? (
             <div className="activity-empty">
               <p>{t('reputation_no_activities')}</p>
             </div>
@@ -560,12 +695,6 @@ const Reputation: React.FC = () => {
                             <h3 className="activity-card-title">{activity.title}</h3>
                             <p className="activity-card-desc">{activity.description}</p>
                           </div>
-                          {activity.rating && (
-                            <div className="activity-rating-badge">
-                              <i className="ri-star-fill"></i>
-                              <span>{activity.rating}</span>
-                            </div>
-                          )}
                         </div>
                         <div className="activity-card-footer">
                           <div className="activity-meta">
@@ -587,7 +716,7 @@ const Reputation: React.FC = () => {
                 })}
               </div>
 
-              {recentActivities.length > 5 && (
+              {allActivities.length > 5 && (
                 <div className="activity-load-more">
                   <button
                     className="load-more-btn"

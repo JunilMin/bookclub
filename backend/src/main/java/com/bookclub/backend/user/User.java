@@ -1,5 +1,8 @@
 // ./user/User.java
 package com.bookclub.backend.user;
+
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,9 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 @Document(collection = "user")
-@Getter // 세터 생성
-@Setter // 게터 생성
-@NoArgsConstructor  // 기본 생성자 생성
+@Getter
+@Setter
+@NoArgsConstructor
 public class User {
   @Id
   private String id;
@@ -29,32 +32,37 @@ public class User {
   private List<String> friends;
   private int late;
   private int kicked;  // 강퇴 당한 횟수
+  @JsonIgnore  // 커스텀 getter 사용
   private UserPosts posts;  // 북미팅 관련 필드 (생성/참여)
-  private String photoUrl;  // [Legacy] Google 프로필 사진 URL - 마이그레이션 후 제거 예정
-  private String customPhotoUrl;  // [Legacy] 커스텀 사진 URL - 마이그레이션 후 제거 예정
+  @JsonIgnore  // 커스텀 getter 사용
   private Photo photo;  // 프로필 사진 (Google + Custom)
   private LocalDateTime createdAt;  // 회원가입 날짜
 
-  // Legacy fields for backward compatibility (MongoDB에 저장된 기존 데이터 읽기용)
-  // 이 필드들은 MongoDB에서 읽기만 하고, 저장할 때는 posts 필드를 사용
-  private List<String> createdBookMeetings;
-  private List<String> participatedBookMeetings;
+  // 신고 관련 집계 필드
+  private ReportedStats reported;
+
+  // 평가(endorsement) 관련 집계 필드
+  private EndorsementStats endorsementStats;
+
+  // 관심 도서 (좋아요 + AI 추천)
+  @JsonIgnore  // 커스텀 getter 사용
+  private Fav fav;
+
+  // 프로필 설정 (관심사 탭)
+  @JsonIgnore  // 커스텀 getter 사용
+  private UserProfile profile;
+
+  // 사용자 설정
+  @JsonIgnore  // 커스텀 getter 사용
+  private UserSetting setting;
 
   /**
-   * posts getter - legacy 필드 마이그레이션 지원
-   * 1. posts가 null이고 legacy 필드가 있으면 자동 변환
-   * 2. posts도 null이고 legacy 필드도 null이면 빈 UserPosts 생성
-   * 항상 non-null 반환 보장
+   * posts getter - null 방지
    */
+  @JsonGetter("posts")
   public UserPosts getPosts() {
     if (this.posts == null) {
-      if (this.createdBookMeetings != null || this.participatedBookMeetings != null) {
-        // Legacy 필드에서 마이그레이션
-        this.posts = new UserPosts(this.createdBookMeetings, this.participatedBookMeetings);
-      } else {
-        // Legacy 필드도 없으면 빈 객체 생성
-        this.posts = new UserPosts(new ArrayList<>(), new ArrayList<>());
-      }
+      this.posts = new UserPosts(new ArrayList<>(), new ArrayList<>());
     }
     return this.posts;
   }
@@ -73,24 +81,10 @@ public class User {
     }
   }
 
-  // 신고 관련 집계 필드
-  private ReportedStats reported;
-
-  // 평가(endorsement) 관련 집계 필드
-  private EndorsementStats endorsementStats;
-
-  // 관심 도서 (좋아요 + AI 추천)
-  private Fav fav;
-
-  // 프로필 설정 (관심사 탭)
-  private UserProfile profile;
-
-  // 사용자 설정
-  private UserSetting setting;
-
   /**
    * fav getter - null 방지
    */
+  @JsonGetter("fav")
   public Fav getFav() {
     if (this.fav == null) {
       this.fav = new Fav();
@@ -101,6 +95,7 @@ public class User {
   /**
    * profile getter - null 방지
    */
+  @JsonGetter("profile")
   public UserProfile getProfile() {
     if (this.profile == null) {
       this.profile = new UserProfile();
@@ -111,6 +106,7 @@ public class User {
   /**
    * setting getter - null 방지
    */
+  @JsonGetter("setting")
   public UserSetting getSetting() {
     if (this.setting == null) {
       this.setting = new UserSetting();
@@ -119,28 +115,21 @@ public class User {
   }
 
   /**
-   * photo getter - legacy photoUrl 마이그레이션 지원
-   * 1. photo가 null이고 photoUrl이 있으면 자동 변환
-   * 2. photo도 null이고 photoUrl도 null이면 빈 Photo 생성
+   * photo getter - null 방지
    */
+  @JsonGetter("photo")
   public Photo getPhoto() {
     if (this.photo == null) {
       this.photo = new Photo();
-      // Legacy photoUrl 마이그레이션
-      if (this.photoUrl != null) {
-        this.photo.setGoogle(this.photoUrl);
-      }
-      // Legacy customPhotoUrl 마이그레이션
-      if (this.customPhotoUrl != null) {
-        this.photo.setCustom(this.customPhotoUrl);
-      }
     }
     return this.photo;
   }
 
   /**
    * 프로필 사진 URL 가져오기 (custom 우선, 없으면 google)
+   * 백엔드 내부용 - JSON 응답에서 제외 (프론트엔드에서 동일 로직 사용)
    */
+  @JsonIgnore
   public String getDisplayPhotoUrl() {
     Photo p = getPhoto();
     if (p.getCustom() != null && !p.getCustom().isEmpty()) {
@@ -245,24 +234,15 @@ public class User {
       this.categoryCounts = new HashMap<>();
     }
 
-    /**
-     * Increment the total endorsement count.
-     */
     public void incrementCount() {
       this.count++;
       this.lastEndorsedAt = LocalDateTime.now();
     }
 
-    /**
-     * Add points to the total.
-     */
     public void addPoints(int pointsToAdd) {
       this.points += pointsToAdd;
     }
 
-    /**
-     * Increment the count for a specific category.
-     */
     public void incrementCategory(String category) {
       if (this.categoryCounts == null) {
         this.categoryCounts = new HashMap<>();
@@ -408,7 +388,7 @@ public class User {
   @Setter
   @NoArgsConstructor
   public static class Photo {
-    private String google;   // Google 프로필 사진 URL (원본, 삭제 불가)
+    private String google;   // Google 프로필 사진 URL
     private String custom;   // 사용자가 업로드한 커스텀 사진 URL (Firebase Storage)
   }
 }

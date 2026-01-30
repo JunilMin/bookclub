@@ -1,7 +1,11 @@
 package com.bookclub.backend.user;
 
 import com.bookclub.backend.moderation.PerspectiveService;
+import com.bookclub.backend.user.dto.MyMeetingsResponse;
+import com.bookclub.backend.user.dto.ProfileSummaryResponse;
+import com.bookclub.backend.user.dto.UserReputationDetailsResponse;
 import com.bookclub.backend.user.dto.UserReputationResponse;
+import com.bookclub.backend.user.dto.UserReputationSummaryResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -218,6 +222,96 @@ public class UserController {
             }
 
             UserReputationResponse response = userReputationService.getUserReputation(userOpt.get().getId(), locale);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 현재 로그인한 사용자의 평판 요약 데이터 조회 (경량화)
+     * Reputation 페이지 초기 렌더링용 - 상단 카드/핵심 지표만 포함
+     */
+    @GetMapping("/me/reputation/summary")
+    public ResponseEntity<?> getMyReputationSummary(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(defaultValue = "ko") String locale) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            UserReputationSummaryResponse response = userReputationService.getReputationSummary(userOpt.get().getId(), locale);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 현재 로그인한 사용자의 평판 상세 데이터 조회
+     * 탭 진입 시 로드 - 월별 출석/전체 배지/전체 활동 포함
+     */
+    @GetMapping("/me/reputation/details")
+    public ResponseEntity<?> getMyReputationDetails(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(defaultValue = "ko") String locale,
+            @RequestParam(defaultValue = "20") int activitiesLimit,
+            @RequestParam(defaultValue = "12") int months) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            UserReputationDetailsResponse response = userReputationService.getReputationDetails(
+                userOpt.get().getId(), locale, activitiesLimit, months);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 현재 로그인한 사용자의 미팅 목록 조회 (최소 필드)
+     * Profile 페이지 최적화용 - 전체 /posts 조회 대체
+     */
+    @GetMapping("/me/meetings")
+    public ResponseEntity<?> getMyMeetings(@RequestHeader("Authorization") String token) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            MyMeetingsResponse response = userService.getMyMeetings(userOpt.get().getId());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 현재 로그인한 사용자의 프로필 요약 데이터 조회
+     * Profile 페이지 상단 빠른 렌더링용
+     */
+    @GetMapping("/me/profile-summary")
+    public ResponseEntity<?> getMyProfileSummary(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(defaultValue = "ko") String locale) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            ProfileSummaryResponse response = userReputationService.getProfileSummary(
+                userOpt.get().getId(), locale);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());

@@ -7,8 +7,11 @@ import com.bookclub.backend.session.model.AttendanceRecord;
 import com.bookclub.backend.session.model.AttendanceRecord.AttendanceStatus;
 import com.bookclub.backend.session.model.AttendanceRecord.AttendanceType;
 import com.bookclub.backend.session.repository.AttendanceRecordRepository;
+import com.bookclub.backend.user.dto.ProfileSummaryResponse;
+import com.bookclub.backend.user.dto.UserReputationDetailsResponse;
 import com.bookclub.backend.user.dto.UserReputationResponse;
 import com.bookclub.backend.user.dto.UserReputationResponse.*;
+import com.bookclub.backend.user.dto.UserReputationSummaryResponse;
 import com.bookclub.backend.user.model.UserBadge;
 import com.bookclub.backend.user.model.UserBadge.BadgeStatus;
 import com.bookclub.backend.user.service.UserBadgeService;
@@ -75,6 +78,513 @@ public class UserReputationService {
             .recentActivities(calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean))
             .monthlyAttendance(calculateMonthlyAttendance(user, participatedPosts, createdPosts, isKorean))
             .build();
+    }
+
+    /**
+     * 프로필 요약 데이터 조회 (경량화 버전)
+     * Profile 페이지 상단 빠른 렌더링용
+     */
+    public ProfileSummaryResponse getProfileSummary(String userId, String locale) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다: " + userId));
+
+        boolean isKorean = "ko".equalsIgnoreCase(locale);
+
+        // 참여한 포스트들 조회
+        List<Post> participatedPosts = getParticipatedPosts(user);
+        List<Post> createdPosts = getCreatedPosts(user);
+
+        // 배지 정보 조회
+        UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
+
+        // 통계 계산
+        ProfileSummaryResponse.Stats stats = calculateProfileStats(user);
+
+        // 최근 배지 (최대 3개)
+        ProfileSummaryResponse.BadgeSummary badgeSummary = calculateBadgeSummary(user, participatedPosts, createdPosts, isKorean, userBadge);
+
+        // 최근 활동 (최대 5개)
+        List<ProfileSummaryResponse.ActivitySummary> activities = calculateActivitySummary(user, participatedPosts, createdPosts, userBadge, isKorean, 5);
+
+        return ProfileSummaryResponse.builder()
+            .user(ProfileSummaryResponse.UserSummary.from(user))
+            .stats(stats)
+            .badges(badgeSummary)
+            .activities(activities)
+            .build();
+    }
+
+    /**
+     * 평판 요약 데이터 조회 (경량화 버전)
+     * Reputation 페이지 초기 렌더링용 - 상단 카드/핵심 지표만 포함
+     */
+    public UserReputationSummaryResponse getReputationSummary(String userId, String locale) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다: " + userId));
+
+        boolean isKorean = "ko".equalsIgnoreCase(locale);
+
+        // 참여한 포스트들 조회
+        List<Post> participatedPosts = getParticipatedPosts(user);
+        List<Post> createdPosts = getCreatedPosts(user);
+
+        // 배지 정보 조회
+        UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
+
+        // 참여 통계 계산
+        ParticipationStats participationStats = calculateParticipationStats(user, participatedPosts, createdPosts);
+
+        // Endorsement 요약 계산
+        UserReputationSummaryResponse.EndorsementSummary endorsementSummary = calculateEndorsementSummary(user);
+
+        // 최근 배지 (최대 3개)
+        UserReputationSummaryResponse.BadgeSummary badgeSummary = calculateSummaryBadges(user, userBadge, isKorean, 3);
+
+        // 최근 활동 (최대 5개)
+        List<UserReputationSummaryResponse.ActivityItem> activities = calculateSummaryActivities(user, participatedPosts, createdPosts, userBadge, isKorean, 5);
+
+        return UserReputationSummaryResponse.builder()
+            .user(UserReputationSummaryResponse.UserSummary.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .photoUrl(user.getDisplayPhotoUrl())
+                .joinedAt(user.getCreatedAt())
+                .build())
+            .stats(UserReputationSummaryResponse.StatsSummary.builder()
+                .attendanceRate(participationStats.getAttendanceRate())
+                .onTimeRate(participationStats.getOnTimeRate())
+                .currentStreak(participationStats.getCurrentStreak())
+                .totalConfirmed(participationStats.getTotalConfirmed())
+                .feedbackGivenCount(participationStats.getFeedbackGivenCount())
+                .feedbackPossibleCount(participationStats.getFeedbackPossibleCount())
+                .build())
+            .endorsement(endorsementSummary)
+            .badgeSummary(badgeSummary)
+            .recentActivities(activities)
+            .build();
+    }
+
+    /**
+     * 평판 상세 데이터 조회
+     * 탭 진입 시 로드 - 월별 출석/전체 배지/전체 활동 포함
+     */
+    public UserReputationDetailsResponse getReputationDetails(String userId, String locale, int activitiesLimit, int months) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다: " + userId));
+
+        boolean isKorean = "ko".equalsIgnoreCase(locale);
+
+        // 참여한 포스트들 조회
+        List<Post> participatedPosts = getParticipatedPosts(user);
+        List<Post> createdPosts = getCreatedPosts(user);
+
+        // 배지 정보 조회
+        UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
+
+        // 월별 출석 기록 (months 파라미터 적용)
+        List<UserReputationDetailsResponse.MonthlyAttendance> monthlyAttendance =
+            calculateDetailsMonthlyAttendance(user, participatedPosts, createdPosts, isKorean, months);
+
+        // 전체 배지 정보
+        UserReputationDetailsResponse.BadgeInfo badgeInfo =
+            calculateDetailsBadgeInfo(user, participatedPosts, createdPosts, isKorean, userBadge);
+
+        // 활동 목록 (limit 적용)
+        List<UserReputationDetailsResponse.ActivityItem> activities =
+            calculateDetailsActivities(user, participatedPosts, createdPosts, userBadge, isKorean, activitiesLimit);
+
+        return UserReputationDetailsResponse.builder()
+            .monthlyAttendance(monthlyAttendance)
+            .badgeInfo(badgeInfo)
+            .recentActivities(activities)
+            .build();
+    }
+
+    /**
+     * Endorsement 요약 계산 (Summary용)
+     */
+    private UserReputationSummaryResponse.EndorsementSummary calculateEndorsementSummary(User user) {
+        User.EndorsementStats stats = user.getEndorsementStats();
+
+        int points = 0;
+        double averageScore = 0.0;
+        String topCategory = "";
+        double topCategoryScore = 0.0;
+
+        if (stats != null) {
+            points = stats.getPoints() != 0 ? stats.getPoints() : 0;
+            int count = stats.getCount() != 0 ? stats.getCount() : 0;
+
+            if (count > 0 && stats.getCategoryCounts() != null) {
+                // 카테고리별 점수 계산 및 최고 카테고리 찾기
+                double totalScore = 0.0;
+                for (String cat : ENDORSEMENT_CATEGORIES) {
+                    int catCount = stats.getCategoryCounts().getOrDefault(cat, 0);
+                    double score = ((double) catCount / count) * 5.0;
+                    totalScore += score;
+
+                    if (score > topCategoryScore) {
+                        topCategoryScore = score;
+                        topCategory = cat;
+                    }
+                }
+                averageScore = totalScore / ENDORSEMENT_CATEGORIES.size();
+            }
+        }
+
+        return UserReputationSummaryResponse.EndorsementSummary.builder()
+            .points(points)
+            .averageScore(Math.round(averageScore * 10) / 10.0)
+            .topCategory(topCategory)
+            .topCategoryScore(Math.round(topCategoryScore * 10) / 10.0)
+            .build();
+    }
+
+    /**
+     * 배지 요약 계산 (Summary용 - 최신 N개만)
+     */
+    private UserReputationSummaryResponse.BadgeSummary calculateSummaryBadges(User user, UserBadge userBadge, boolean isKorean, int limit) {
+        List<UserReputationSummaryResponse.Badge> latestBadges = new ArrayList<>();
+        Map<String, BadgeStatus> badgeStatuses = userBadge.getBadges();
+        int earnedCount = 0;
+
+        // 획득한 배지들 중 최신 N개
+        List<Map.Entry<BadgeDefinition, LocalDateTime>> earnedList = new ArrayList<>();
+
+        for (BadgeDefinition def : BadgeDefinition.values()) {
+            String badgeId = def.getId();
+            BadgeStatus status = badgeStatuses.get(badgeId);
+            if (status != null && status.isAchievementState()) {
+                earnedCount++;
+                earnedList.add(Map.entry(def, status.getDate()));
+            }
+        }
+
+        // 날짜 기준 정렬 (최신순)
+        earnedList.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+
+        // limit 적용
+        for (int i = 0; i < Math.min(limit, earnedList.size()); i++) {
+            BadgeDefinition def = earnedList.get(i).getKey();
+            LocalDateTime earnedAt = earnedList.get(i).getValue();
+
+            latestBadges.add(UserReputationSummaryResponse.Badge.builder()
+                .id(def.getId())
+                .name(isKorean ? def.getNameKo() : def.getNameEn())
+                .description(isKorean ? def.getDescriptionKo() : def.getDescriptionEn())
+                .icon(def.getIcon())
+                .gradientColors(def.getGradientColors())
+                .earnedAt(earnedAt)
+                .build());
+        }
+
+        return UserReputationSummaryResponse.BadgeSummary.builder()
+            .earnedCount(earnedCount)
+            .totalCount(BadgeDefinition.values().length)
+            .latestBadges(latestBadges)
+            .build();
+    }
+
+    /**
+     * 활동 요약 계산 (Summary용 - 최신 N개만)
+     */
+    private List<UserReputationSummaryResponse.ActivityItem> calculateSummaryActivities(
+            User user, List<Post> participatedPosts, List<Post> createdPosts,
+            UserBadge userBadge, boolean isKorean, int limit) {
+
+        // 기존 활동 계산 로직 재사용
+        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean);
+
+        // limit 적용하여 Summary 형식으로 변환
+        List<UserReputationSummaryResponse.ActivityItem> result = new ArrayList<>();
+        int count = 0;
+        for (ActivityItem a : fullActivities) {
+            if (count >= limit) break;
+            result.add(UserReputationSummaryResponse.ActivityItem.builder()
+                .type(a.getType())
+                .title(a.getTitle())
+                .description(a.getDescription())
+                .icon(a.getIcon())
+                .gradientColors(a.getGradientColors())
+                .timestamp(a.getTimestamp())
+                .participantCount(a.getParticipantCount())
+                .postId(a.getPostId())
+                .build());
+            count++;
+        }
+        return result;
+    }
+
+    /**
+     * 월별 출석 기록 계산 (Details용 - months 파라미터 적용)
+     */
+    private List<UserReputationDetailsResponse.MonthlyAttendance> calculateDetailsMonthlyAttendance(
+            User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, int months) {
+
+        List<UserReputationDetailsResponse.MonthlyAttendance> monthlyData = new ArrayList<>();
+        String odUserId = user.getId();
+
+        // 모든 포스트 합치기 (중복 제거)
+        Map<String, Post> allPostsMap = new HashMap<>();
+        for (Post post : createdPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+        for (Post post : participatedPosts) {
+            allPostsMap.put(post.getId(), post);
+        }
+
+        // months 파라미터 적용
+        YearMonth now = YearMonth.now();
+        DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("yyyy-MM");
+
+        for (int i = months - 1; i >= 0; i--) {
+            YearMonth month = now.minusMonths(i);
+            String monthKey = month.format(monthFormatter);
+            String monthLabel = isKorean
+                ? month.getMonthValue() + "월"
+                : month.format(DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH));
+
+            int attended = 0;
+            int late = 0;
+            int absent = 0;
+
+            // 해당 월의 포스트들 필터링
+            List<Post> monthPosts = allPostsMap.values().stream()
+                .filter(p -> p.getDue() != null)
+                .filter(p -> YearMonth.from(p.getDue()).equals(month))
+                .collect(Collectors.toList());
+
+            for (Post post : monthPosts) {
+                Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+
+                if (recordOpt.isPresent()) {
+                    AttendanceRecord record = recordOpt.get();
+                    if (record.getStatus() == AttendanceStatus.CONFIRMED) {
+                        if (record.getAttendanceType() == AttendanceType.LATE) {
+                            late++;
+                        } else {
+                            attended++;
+                        }
+                    } else {
+                        absent++;
+                    }
+                } else {
+                    absent++;
+                }
+            }
+
+            int total = attended + late + absent;
+
+            monthlyData.add(UserReputationDetailsResponse.MonthlyAttendance.builder()
+                .month(monthKey)
+                .monthLabel(monthLabel)
+                .attended(attended)
+                .late(late)
+                .absent(absent)
+                .total(total)
+                .build());
+        }
+
+        return monthlyData;
+    }
+
+    /**
+     * 배지 전체 정보 계산 (Details용)
+     */
+    private UserReputationDetailsResponse.BadgeInfo calculateDetailsBadgeInfo(
+            User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, UserBadge userBadge) {
+
+        List<UserReputationDetailsResponse.Badge> earnedBadges = new ArrayList<>();
+        List<UserReputationDetailsResponse.Badge> lockedBadges = new ArrayList<>();
+
+        Map<String, BadgeStatus> badgeStatuses = userBadge.getBadges();
+
+        int totalParticipated = participatedPosts.size();
+        int totalCreated = createdPosts.size();
+        User.EndorsementStats endorsementStats = user.getEndorsementStats();
+
+        Map<String, Integer> categoryCounts = new HashMap<>();
+        int totalPoints = 0;
+        if (endorsementStats != null) {
+            totalPoints = endorsementStats.getPoints() != 0 ? endorsementStats.getPoints() : 0;
+            if (endorsementStats.getCategoryCounts() != null) {
+                categoryCounts = endorsementStats.getCategoryCounts();
+            }
+        }
+
+        for (BadgeDefinition def : BadgeDefinition.values()) {
+            String badgeId = def.getId();
+            BadgeStatus status = badgeStatuses.get(badgeId);
+            boolean earned = status != null && status.isAchievementState();
+            LocalDateTime earnedAt = (status != null) ? status.getDate() : null;
+
+            int progress = calculateBadgeProgress(def, totalParticipated, totalCreated, totalPoints, categoryCounts, user);
+
+            UserReputationDetailsResponse.Badge badge = UserReputationDetailsResponse.Badge.builder()
+                .id(def.getId())
+                .name(isKorean ? def.getNameKo() : def.getNameEn())
+                .description(isKorean ? def.getDescriptionKo() : def.getDescriptionEn())
+                .icon(def.getIcon())
+                .gradientColors(def.getGradientColors())
+                .earnedAt(earned ? earnedAt : null)
+                .progress(earned ? null : progress)
+                .goal(earned ? null : def.getGoal())
+                .build();
+
+            if (earned) {
+                earnedBadges.add(badge);
+            } else {
+                lockedBadges.add(badge);
+            }
+        }
+
+        return UserReputationDetailsResponse.BadgeInfo.builder()
+            .earnedCount(earnedBadges.size())
+            .totalCount(BadgeDefinition.values().length)
+            .earnedBadges(earnedBadges)
+            .lockedBadges(lockedBadges)
+            .build();
+    }
+
+    /**
+     * 활동 목록 계산 (Details용 - limit 적용)
+     */
+    private List<UserReputationDetailsResponse.ActivityItem> calculateDetailsActivities(
+            User user, List<Post> participatedPosts, List<Post> createdPosts,
+            UserBadge userBadge, boolean isKorean, int limit) {
+
+        // 기존 활동 계산 로직 재사용
+        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean);
+
+        // limit 적용하여 Details 형식으로 변환
+        List<UserReputationDetailsResponse.ActivityItem> result = new ArrayList<>();
+        int count = 0;
+        for (ActivityItem a : fullActivities) {
+            if (count >= limit) break;
+            result.add(UserReputationDetailsResponse.ActivityItem.builder()
+                .type(a.getType())
+                .title(a.getTitle())
+                .description(a.getDescription())
+                .icon(a.getIcon())
+                .gradientColors(a.getGradientColors())
+                .timestamp(a.getTimestamp())
+                .participantCount(a.getParticipantCount())
+                .postId(a.getPostId())
+                .build());
+            count++;
+        }
+        return result;
+    }
+
+    /**
+     * 프로필 통계 계산
+     */
+    private ProfileSummaryResponse.Stats calculateProfileStats(User user) {
+        int createdCount = 0;
+        int participatedCount = 0;
+
+        if (user.getPosts() != null) {
+            if (user.getPosts().getCreated() != null) {
+                createdCount = user.getPosts().getCreated().size();
+            }
+            if (user.getPosts().getParticipated() != null) {
+                participatedCount = user.getPosts().getParticipated().size();
+            }
+        }
+
+        // Top rating 계산
+        double topRatingScore = 0.0;
+        String topRatingCategory = "";
+
+        User.EndorsementStats stats = user.getEndorsementStats();
+        if (stats != null && stats.getCategoryCounts() != null && stats.getCount() > 0) {
+            int count = stats.getCount();
+            for (String cat : ENDORSEMENT_CATEGORIES) {
+                int catCount = stats.getCategoryCounts().getOrDefault(cat, 0);
+                double score = ((double) catCount / count) * 5.0;
+                if (score > topRatingScore) {
+                    topRatingScore = score;
+                    topRatingCategory = cat;
+                }
+            }
+        }
+
+        return ProfileSummaryResponse.Stats.builder()
+            .createdCount(createdCount)
+            .participatedCount(participatedCount)
+            .topRatingScore(Math.round(topRatingScore * 10) / 10.0)
+            .topRatingCategory(topRatingCategory)
+            .build();
+    }
+
+    /**
+     * 배지 요약 계산 (최근 3개만)
+     */
+    private ProfileSummaryResponse.BadgeSummary calculateBadgeSummary(User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, UserBadge userBadge) {
+        List<ProfileSummaryResponse.BadgeInfo> recentBadges = new ArrayList<>();
+
+        Map<String, BadgeStatus> badgeStatuses = userBadge.getBadges();
+        int earnedCount = 0;
+
+        // 획득한 배지들 중 최근 3개
+        List<Map.Entry<BadgeDefinition, LocalDateTime>> earnedList = new ArrayList<>();
+
+        for (BadgeDefinition def : BadgeDefinition.values()) {
+            String badgeId = def.getId();
+            BadgeStatus status = badgeStatuses.get(badgeId);
+            if (status != null && status.isAchievementState()) {
+                earnedCount++;
+                earnedList.add(Map.entry(def, status.getDate()));
+            }
+        }
+
+        // 날짜 기준 정렬 (최신순)
+        earnedList.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+
+        // 최대 3개
+        for (int i = 0; i < Math.min(3, earnedList.size()); i++) {
+            BadgeDefinition def = earnedList.get(i).getKey();
+            LocalDateTime earnedAt = earnedList.get(i).getValue();
+
+            recentBadges.add(ProfileSummaryResponse.BadgeInfo.builder()
+                .id(def.getId())
+                .name(isKorean ? def.getNameKo() : def.getNameEn())
+                .icon(def.getIcon())
+                .gradientColors(def.getGradientColors())
+                .earnedAt(earnedAt != null ? earnedAt.toString() : null)
+                .build());
+        }
+
+        return ProfileSummaryResponse.BadgeSummary.builder()
+            .earnedCount(earnedCount)
+            .totalCount(BadgeDefinition.values().length)
+            .recentBadges(recentBadges)
+            .build();
+    }
+
+    /**
+     * 활동 요약 계산 (제한된 개수)
+     */
+    private List<ProfileSummaryResponse.ActivitySummary> calculateActivitySummary(User user, List<Post> participatedPosts, List<Post> createdPosts, UserBadge userBadge, boolean isKorean, int limit) {
+        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean);
+
+        // limit 적용하여 변환
+        List<ProfileSummaryResponse.ActivitySummary> result = new ArrayList<>();
+        int count = 0;
+        for (ActivityItem a : fullActivities) {
+            if (count >= limit) break;
+            result.add(ProfileSummaryResponse.ActivitySummary.builder()
+                .type(a.getType())
+                .title(a.getTitle())
+                .description(a.getDescription())
+                .icon(a.getIcon())
+                .gradientColors(a.getGradientColors())
+                .timestamp(a.getTimestamp() != null ? a.getTimestamp().toString() : null)
+                .postId(a.getPostId())
+                .build());
+            count++;
+        }
+        return result;
     }
 
     /**

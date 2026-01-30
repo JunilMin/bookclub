@@ -178,9 +178,9 @@ const Register: React.FC = () => {
           backgroundColor: '#f8f9fa',
           borderRadius: '8px'
         }}>
-          {pendingGoogleUser.photoUrl && (
+          {pendingGoogleUser.googlePhotoUrl && (
             <img
-              src={pendingGoogleUser.photoUrl}
+              src={pendingGoogleUser.googlePhotoUrl}
               alt="Google profile"
               style={{ width: '40px', height: '40px', borderRadius: '50%' }}
             />

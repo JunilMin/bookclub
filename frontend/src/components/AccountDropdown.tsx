@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
@@ -11,6 +11,17 @@ const AccountDropdown: React.FC = () => {
   const { user, handleLogout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 프로필 사진 URL 메모이제이션
+  const photoUrl = useMemo(() => getDisplayPhotoUrl(user), [user?.photo?.google, user?.photo?.custom]);
+
+  // 이미지 로드 실패 상태 (429 등)
+  const [imageError, setImageError] = useState(false);
+
+  // photoUrl 변경 시 에러 상태 리셋
+  useEffect(() => {
+    setImageError(false);
+  }, [photoUrl]);
 
   // Click outside handler
   useEffect(() => {
@@ -66,14 +77,12 @@ const AccountDropdown: React.FC = () => {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        {getDisplayPhotoUrl(user) ? (
+        {photoUrl && !imageError ? (
           <img
-            src={getDisplayPhotoUrl(user)}
+            src={photoUrl}
             alt={user.username}
             className="account-avatar"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="account-avatar-placeholder">
@@ -89,11 +98,12 @@ const AccountDropdown: React.FC = () => {
           <div className="dropdown-user-summary" onClick={() => handleNavigation('/profile')}>
             <div className="user-summary-header">
               <div className="user-avatar-wrapper">
-                {getDisplayPhotoUrl(user) ? (
+                {photoUrl && !imageError ? (
                   <img
-                    src={getDisplayPhotoUrl(user)}
+                    src={photoUrl}
                     alt={user.username}
                     className="user-avatar"
+                    onError={() => setImageError(true)}
                   />
                 ) : (
                   <i className="ri-user-line"></i>

@@ -64,7 +64,7 @@ const firebaseConfig = {
 interface PendingGoogleUser {
   uid: string;
   email: string;
-  photoUrl: string;
+  googlePhotoUrl: string;  // Google 프로필 사진 URL
   firebaseToken: string;
   googleAccessToken: string;
 }
@@ -429,7 +429,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (fetchError) {
         // 신규 사용자 - DB에 저장하지 않고 pending 상태로 유지
         console.log("신규 Google 사용자 감지 - 닉네임 설정 페이지로 이동 필요", firebaseUser.email);
-        const photoUrl = firebaseUser.photoURL || '';
+        const googlePhotoUrl = firebaseUser.photoURL || '';
 
         // onAuthStateChanged에서 자동 등록 방지
         isGoogleRegistrationPendingRef.current = true;
@@ -438,7 +438,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setPendingGoogleUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email!,
-          photoUrl: photoUrl,
+          googlePhotoUrl: googlePhotoUrl,
           firebaseToken: token,
           googleAccessToken: googleToken,
         });
@@ -460,15 +460,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      const { uid, email, photoUrl, firebaseToken, googleAccessToken: pendingGoogleToken } = pendingGoogleUser;
+      const { uid, email, googlePhotoUrl, firebaseToken, googleAccessToken: pendingGoogleToken } = pendingGoogleUser;
 
-      // DB에 사용자 등록
+      // DB에 사용자 등록 (새 photo 구조 사용)
+      // 빈 문자열도 체크하여 유효한 URL만 전송
+      const hasValidPhoto = googlePhotoUrl && googlePhotoUrl.trim() !== '';
       await registerUser({
         uid,
         email,
         username,
         password: '',
-        photoUrl,
+        photo: hasValidPhoto ? { google: googlePhotoUrl } : undefined,
       }, firebaseToken);
 
       // 등록된 사용자 정보 조회
@@ -568,7 +570,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Google Access Token 초기화
       setGoogleAccessToken("");
 
-      // 사용자 정보 새로고침 (photoUrl 등 업데이트 반영)
+      // 사용자 정보 새로고침 (프로필 사진 등 업데이트 반영)
       await refreshUserData();
     } catch (error: any) {
       console.error("Failed to unlink Google:", error);
