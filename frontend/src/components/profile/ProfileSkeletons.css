@@ -1,0 +1,229 @@
+/* ================================ */
+/* Skeleton Base Styles */
+/* ================================ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 25%,
+    #f1f5f9 50%,
+    #e2e8f0 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ================================ */
+/* Skeleton Size Variants */
+/* ================================ */
+
+.skeleton-title {
+  height: 24px;
+  border-radius: 6px;
+}
+
+.skeleton-subtitle {
+  height: 18px;
+  border-radius: 4px;
+}
+
+.skeleton-text {
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeleton-text-sm {
+  height: 12px;
+  border-radius: 3px;
+}
+
+.skeleton-value {
+  height: 28px;
+  border-radius: 6px;
+}
+
+/* ================================ */
+/* Skeleton Specific Elements */
+/* ================================ */
+
+.skeleton-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.skeleton-icon-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-avatar-large {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-badge {
+  width: 48px;
+  height: 24px;
+  border-radius: 12px;
+}
+
+.skeleton-badge-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.skeleton-book-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.skeleton-progress-bar {
+  width: 160px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.skeleton-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 8px;
+}
+
+.skeleton-stars {
+  width: 100px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.skeleton-stat-value {
+  width: 48px;
+  height: 28px;
+  border-radius: 6px;
+  margin: 0 auto 8px;
+}
+
+.skeleton-back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.skeleton-edit-btn {
+  width: 100px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.skeleton-name {
+  width: 180px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.skeleton-tag {
+  height: 36px;
+  border-radius: 9999px;
+}
+
+.skeleton-keyword {
+  height: 28px;
+  border-radius: 9999px;
+}
+
+.skeleton-introduction {
+  width: 100%;
+  height: 80px;
+  border-radius: 12px;
+}
+
+.skeleton-link-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-button {
+  width: 140px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+/* ================================ */
+/* Highlight Card Skeleton */
+/* ================================ */
+
+.skeleton-highlight-card {
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.skeleton-highlight-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* ================================ */
+/* Responsive Adjustments */
+/* ================================ */
+
+@media (max-width: 768px) {
+  .skeleton-avatar-large {
+    width: 80px;
+    height: 80px;
+  }
+
+  .skeleton-name {
+    width: 150px;
+    height: 28px;
+  }
+
+  .skeleton-progress-bar {
+    width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .skeleton-avatar-large {
+    width: 72px;
+    height: 72px;
+  }
+
+  .skeleton-badge-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+}

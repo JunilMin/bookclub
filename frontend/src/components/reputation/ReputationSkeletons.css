@@ -1,0 +1,292 @@
+/* ================================ */
+/* Reputation Skeleton Base Styles */
+/* ================================ */
+
+@keyframes rep-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.rep-skeleton {
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 25%,
+    #f1f5f9 50%,
+    #e2e8f0 75%
+  );
+  background-size: 200% 100%;
+  animation: rep-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ================================ */
+/* Common Skeleton Sizes */
+/* ================================ */
+
+.skeleton-section-title {
+  height: 28px;
+  border-radius: 6px;
+}
+
+.skeleton-text {
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeleton-text-sm {
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* ================================ */
+/* Hero Stat Cards Skeleton */
+/* ================================ */
+
+.hero-stat-cards-skeleton {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.hero-stat-card-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+
+.skeleton-icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-stat-content {
+  flex: 1;
+}
+
+.skeleton-stat-value {
+  width: 48px;
+  height: 24px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.skeleton-stat-label {
+  width: 60px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+@media (max-width: 1024px) {
+  .hero-stat-cards-skeleton {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-stat-cards-skeleton {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ================================ */
+/* Endorsement Skeleton */
+/* ================================ */
+
+.skeleton-hexagon {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  margin: 0 auto;
+}
+
+.skeleton-legend-item {
+  width: 100px;
+  height: 16px;
+  border-radius: 4px;
+  margin: 8px auto;
+}
+
+.skeleton-card {
+  background: #f8fafc !important;
+}
+
+.skeleton-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.skeleton-score {
+  width: 50px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.skeleton-progress-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  margin-top: 12px;
+}
+
+/* ================================ */
+/* Attendance Skeleton */
+/* ================================ */
+
+.skeleton-stat {
+  background: #f8fafc !important;
+}
+
+.skeleton-stat-icon-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.skeleton-stat-value-lg {
+  width: 40px;
+  height: 28px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.skeleton-stat-label-lg {
+  width: 60px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.skeleton-month-label {
+  width: 50px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.skeleton-bar {
+  flex: 1;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.skeleton-total {
+  width: 24px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.skeleton-legend {
+  width: 80px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+/* ================================ */
+/* Badges Skeleton */
+/* ================================ */
+
+.skeleton-badge-count {
+  width: 80px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.skeleton-group-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.skeleton-badge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px;
+  background: #f8fafc !important;
+}
+
+.skeleton-badge-icon-lg {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+}
+
+/* ================================ */
+/* Activity Skeleton */
+/* ================================ */
+
+.skeleton-line {
+  background: #e2e8f0 !important;
+}
+
+.skeleton-activity {
+  opacity: 1;
+}
+
+.skeleton-activity-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-activity-card {
+  flex: 1;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: none !important;
+}
+
+.skeleton-meta {
+  width: 100px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.skeleton-participants {
+  width: 80px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+/* ================================ */
+/* Responsive Adjustments */
+/* ================================ */
+
+@media (max-width: 768px) {
+  .skeleton-hexagon {
+    width: 160px;
+    height: 160px;
+  }
+
+  .hero-stat-card-skeleton {
+    padding: 12px;
+  }
+
+  .skeleton-badge-icon-lg {
+    width: 48px;
+    height: 48px;
+  }
+}

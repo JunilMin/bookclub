@@ -751,6 +751,7 @@ const ko = {
   meet_organized_invalid: '누락된 내용',
   meet_fragments: '개 항목',
   meet_fragment_id: '항목 ID',
+  meet_insert_to_notes: '요약 삽입',
   meet_insert_organized: '노트에 삽입',
   meet_organized_empty: 'AI가 모든 내용을 보존하면서 노트를 가독성 있게 정리합니다.',
   meet_organized_empty_short: '모든 내용을 보존하면서 노트를 정리하세요',

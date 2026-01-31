@@ -1,32 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext/AuthContext';
-import { getMyFav, toggleFavorite, UserFavorite, AIRecommendation } from '../api/favorites';
-import { getBookByISBN, BookSearchResult, searchBooksEN, searchBooksKO } from '../api/bookSearch';
+import { toggleFavorite } from '../api/favorites';
+import { BookSearchResult, searchBooksEN, searchBooksKO } from '../api/bookSearch';
+import {
+  useFavoritesStore,
+  EnrichedFavorite,
+  EnrichedAIRecommendation,
+} from '../store/favoritesStore';
+import { formatDateFull } from '../utils/dateUtils';
+import {
+  HeroStatsSkeleton,
+  GridSkeleton,
+} from '../components/favorites/FavoritesSkeletons';
 import './styles/Favorites.css';
-
-interface EnrichedFavorite extends UserFavorite {
-  bookInfo?: BookSearchResult;
-}
-
-interface EnrichedAIRecommendation extends AIRecommendation {
-  bookInfo?: BookSearchResult;
-}
 
 const Favorites: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Local UI state
   const [activeTab, setActiveTab] = useState<'ai' | 'liked'>('liked');
-  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('relevance');
-  const [loading, setLoading] = useState(true);
-  const [userFavorites, setUserFavorites] = useState<EnrichedFavorite[]>([]);
-  const [aiRecommendations, setAiRecommendations] = useState<EnrichedAIRecommendation[]>([]);
   const [removingIsbn, setRemovingIsbn] = useState<string | null>(null);
 
   // Search dropdown state
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -34,42 +35,53 @@ const Favorites: React.FC = () => {
   const searchRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch favorites and enrich with book info
+  // Favorites store
+  const {
+    userFavorites,
+    aiRecommendations,
+    isLoading,
+    isEnriching,
+    fetchFavorites,
+    addFavorite,
+    removeFavorite,
+  } = useFavoritesStore();
+
+  // Locale memoization
+  const locale = useMemo(
+    () => (i18n.language === 'ko' ? 'ko' : 'en') as 'ko' | 'en',
+    [i18n.language]
+  );
+
+  // Date format helper (memoized)
+  const formatDate = useCallback(
+    (dateString: string) => formatDateFull(dateString, locale),
+    [locale]
+  );
+
+  // Current items based on active tab (memoized)
+  const currentItems = useMemo(
+    () => (activeTab === 'liked' ? userFavorites : aiRecommendations),
+    [activeTab, userFavorites, aiRecommendations]
+  );
+
+  // Favorite ISBN set for efficient lookup (memoized)
+  const favoriteIsbnSet = useMemo(
+    () => new Set(userFavorites.map((f) => f.isbn)),
+    [userFavorites]
+  );
+
+  // Check if a book is in favorites (memoized)
+  const isBookInFavorites = useCallback(
+    (isbn: string | undefined) => (isbn ? favoriteIsbnSet.has(isbn) : false),
+    [favoriteIsbnSet]
+  );
+
+  // Fetch favorites on mount
   useEffect(() => {
-    const fetchFavorites = async () => {
-      if (!user) return;
-
-      setLoading(true);
-      try {
-        const fav = await getMyFav();
-
-        // Enrich user favorites with book info
-        const enrichedUserFavs = await Promise.all(
-          (fav.user || []).map(async (f) => {
-            const bookInfo = await getBookByISBN(f.isbn);
-            return { ...f, bookInfo: bookInfo || undefined };
-          })
-        );
-
-        // Enrich AI recommendations with book info
-        const enrichedAIRecs = await Promise.all(
-          (fav.ai || []).map(async (r) => {
-            const bookInfo = await getBookByISBN(r.isbn);
-            return { ...r, bookInfo: bookInfo || undefined };
-          })
-        );
-
-        setUserFavorites(enrichedUserFavs);
-        setAiRecommendations(enrichedAIRecs);
-      } catch (error) {
-        console.error('Failed to fetch favorites:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFavorites();
-  }, [user]);
+    if (user) {
+      fetchFavorites();
+    }
+  }, [user, fetchFavorites]);
 
   // Click outside handler to close dropdown
   useEffect(() => {
@@ -84,98 +96,110 @@ const Favorites: React.FC = () => {
   }, []);
 
   // Search books with debouncing
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    setSearchQuery(query);
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const query = e.target.value;
+      setSearchQuery(query);
 
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    if (query.trim().length < 2) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    // Debounce search
-    searchTimeoutRef.current = setTimeout(async () => {
-      setIsSearching(true);
-      setShowDropdown(true);
-      try {
-        const searchFn = i18n.language === 'ko' ? searchBooksKO : searchBooksEN;
-        const results = await searchFn(query);
-        setSearchResults(results.slice(0, 10)); // Limit to 10 results
-      } catch (error) {
-        console.error('Search failed:', error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
+      // Clear previous timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
-    }, 300);
-  };
 
-  // Check if a book is in favorites
-  const isBookInFavorites = (isbn: string | undefined) => {
-    if (!isbn) return false;
-    return userFavorites.some(f => f.isbn === isbn);
-  };
+      if (query.trim().length < 2) {
+        setSearchResults([]);
+        setShowDropdown(false);
+        return;
+      }
+
+      // Debounce search
+      searchTimeoutRef.current = setTimeout(async () => {
+        setIsSearching(true);
+        setShowDropdown(true);
+        try {
+          const searchFn = i18n.language === 'ko' ? searchBooksKO : searchBooksEN;
+          const results = await searchFn(query);
+          setSearchResults(results.slice(0, 10));
+        } catch (error) {
+          console.error('Search failed:', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 300);
+    },
+    [i18n.language]
+  );
 
   // Toggle favorite from dropdown
-  const handleDropdownToggleFavorite = async (book: BookSearchResult, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent dropdown from closing
-    if (!book.isbn || !user) return;
+  const handleDropdownToggleFavorite = useCallback(
+    async (book: BookSearchResult, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!book.isbn || !user) return;
 
-    setTogglingIsbn(book.isbn);
-    try {
-      const result = await toggleFavorite(book.isbn);
-      if (result.isFavorited) {
-        // Add to local state
-        setUserFavorites(prev => [...prev, {
-          isbn: book.isbn!,
-          likedAt: new Date().toISOString(),
-          bookInfo: book
-        }]);
-      } else {
-        // Remove from local state
-        setUserFavorites(prev => prev.filter(f => f.isbn !== book.isbn));
+      setTogglingIsbn(book.isbn);
+      try {
+        const result = await toggleFavorite(book.isbn);
+        if (result.isFavorited) {
+          addFavorite({
+            isbn: book.isbn,
+            likedAt: new Date().toISOString(),
+            bookInfo: book,
+          });
+        } else {
+          removeFavorite(book.isbn);
+        }
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+      } finally {
+        setTogglingIsbn(null);
       }
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    } finally {
-      setTogglingIsbn(null);
+    },
+    [user, addFavorite, removeFavorite]
+  );
+
+  // Remove favorite
+  const handleRemoveFavorite = useCallback(
+    async (isbn: string) => {
+      setRemovingIsbn(isbn);
+      try {
+        await toggleFavorite(isbn);
+        removeFavorite(isbn);
+      } catch (error) {
+        console.error('Failed to remove favorite:', error);
+      } finally {
+        setRemovingIsbn(null);
+      }
+    },
+    [removeFavorite]
+  );
+
+  // Navigate to create discussion
+  const handleCreateDiscussion = useCallback(
+    (isbn: string) => {
+      navigate(`/create?isbn=${encodeURIComponent(isbn)}`);
+    },
+    [navigate]
+  );
+
+  // Handle search focus
+  const handleSearchFocus = useCallback(() => {
+    if (searchQuery.trim().length >= 2) {
+      setShowDropdown(true);
     }
-  };
+  }, [searchQuery]);
 
-  const handleRemoveFavorite = async (isbn: string) => {
-    setRemovingIsbn(isbn);
-    try {
-      await toggleFavorite(isbn);
-      setUserFavorites(prev => prev.filter(f => f.isbn !== isbn));
-    } catch (error) {
-      console.error('Failed to remove favorite:', error);
-    } finally {
-      setRemovingIsbn(null);
-    }
-  };
+  // Handle tab change
+  const handleTabChange = useCallback((tab: 'ai' | 'liked') => {
+    setActiveTab(tab);
+  }, []);
 
-  const handleCreateDiscussion = (isbn: string) => {
-    navigate(`/create?isbn=${encodeURIComponent(isbn)}`);
-  };
+  // Handle sort change
+  const handleSortChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSortBy(e.target.value);
+  }, []);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const currentItems = activeTab === 'liked' ? userFavorites : aiRecommendations;
-  const totalCount = activeTab === 'liked' ? userFavorites.length : aiRecommendations.length;
-
+  // Login required view
   if (!user) {
     return (
       <div className="favorites-page">
@@ -191,7 +215,7 @@ const Favorites: React.FC = () => {
 
   return (
     <div className="favorites-page">
-      {/* Hero Section */}
+      {/* Hero Section - Always renders immediately */}
       <div className="favorites-hero">
         <div className="favorites-hero-bg-1"></div>
         <div className="favorites-hero-bg-2"></div>
@@ -203,38 +227,47 @@ const Favorites: React.FC = () => {
             </div>
             <h1 className="favorites-hero-title">{t('favorites_hero_title')}</h1>
             <p className="favorites-hero-subtitle">
-              {t('favorites_hero_subtitle_1')}<br />
+              {t('favorites_hero_subtitle_1')}
+              <br />
               {t('favorites_hero_subtitle_2')}
             </p>
-            <div className="favorites-hero-stats">
-              <div className="favorites-stat-item">
-                <div className="favorites-stat-icon favorites-stat-icon-ai">
-                  <i className="ri-ai-generate"></i>
+
+            {/* Hero Stats - Show skeleton while loading */}
+            {isLoading ? (
+              <HeroStatsSkeleton />
+            ) : (
+              <div className="favorites-hero-stats">
+                <div className="favorites-stat-item">
+                  <div className="favorites-stat-icon favorites-stat-icon-ai">
+                    <i className="ri-ai-generate"></i>
+                  </div>
+                  <div className="favorites-stat-info">
+                    <div className="favorites-stat-value">{aiRecommendations.length}</div>
+                    <div className="favorites-stat-label">{t('favorites_stat_ai')}</div>
+                  </div>
                 </div>
-                <div className="favorites-stat-info">
-                  <div className="favorites-stat-value">{aiRecommendations.length}</div>
-                  <div className="favorites-stat-label">{t('favorites_stat_ai')}</div>
+                <div className="favorites-stat-item">
+                  <div className="favorites-stat-icon favorites-stat-icon-liked">
+                    <i className="ri-heart-fill"></i>
+                  </div>
+                  <div className="favorites-stat-info">
+                    <div className="favorites-stat-value">{userFavorites.length}</div>
+                    <div className="favorites-stat-label">{t('favorites_stat_liked')}</div>
+                  </div>
+                </div>
+                <div className="favorites-stat-item">
+                  <div className="favorites-stat-icon favorites-stat-icon-available">
+                    <i className="ri-book-open-line"></i>
+                  </div>
+                  <div className="favorites-stat-info">
+                    <div className="favorites-stat-value">
+                      {userFavorites.length + aiRecommendations.length}
+                    </div>
+                    <div className="favorites-stat-label">{t('favorites_stat_available')}</div>
+                  </div>
                 </div>
               </div>
-              <div className="favorites-stat-item">
-                <div className="favorites-stat-icon favorites-stat-icon-liked">
-                  <i className="ri-heart-fill"></i>
-                </div>
-                <div className="favorites-stat-info">
-                  <div className="favorites-stat-value">{userFavorites.length}</div>
-                  <div className="favorites-stat-label">{t('favorites_stat_liked')}</div>
-                </div>
-              </div>
-              <div className="favorites-stat-item">
-                <div className="favorites-stat-icon favorites-stat-icon-available">
-                  <i className="ri-book-open-line"></i>
-                </div>
-                <div className="favorites-stat-info">
-                  <div className="favorites-stat-value">{userFavorites.length + aiRecommendations.length}</div>
-                  <div className="favorites-stat-label">{t('favorites_stat_available')}</div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -247,7 +280,7 @@ const Favorites: React.FC = () => {
             <div className="favorites-tabs">
               <button
                 className={`favorites-tab ${activeTab === 'ai' ? 'active' : ''}`}
-                onClick={() => setActiveTab('ai')}
+                onClick={() => handleTabChange('ai')}
               >
                 <div className="favorites-tab-icon">
                   <i className="ri-ai-generate"></i>
@@ -256,7 +289,7 @@ const Favorites: React.FC = () => {
               </button>
               <button
                 className={`favorites-tab ${activeTab === 'liked' ? 'active' : ''}`}
-                onClick={() => setActiveTab('liked')}
+                onClick={() => handleTabChange('liked')}
               >
                 <div className="favorites-tab-icon favorites-tab-icon-heart">
                   <i className="ri-heart-fill"></i>
@@ -277,7 +310,7 @@ const Favorites: React.FC = () => {
                   placeholder={t('favorites_search_add_placeholder')}
                   value={searchQuery}
                   onChange={handleSearchChange}
-                  onFocus={() => searchQuery.trim().length >= 2 && setShowDropdown(true)}
+                  onFocus={handleSearchFocus}
                 />
 
                 {/* Search Dropdown */}
@@ -341,7 +374,7 @@ const Favorites: React.FC = () => {
               <select
                 className="favorites-sort-select"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={handleSortChange}
               >
                 <option value="relevance">{t('favorites_sort_relevance')}</option>
                 <option value="rating">{t('favorites_sort_rating')}</option>
@@ -352,7 +385,11 @@ const Favorites: React.FC = () => {
             {/* Result Count */}
             <div className="favorites-result-info">
               <span>
-                <strong>{currentItems.length}{t('favorites_unit_books')}</strong>{t('favorites_of_books')}
+                <strong>
+                  {currentItems.length}
+                  {t('favorites_unit_books')}
+                </strong>
+                {t('favorites_of_books')}
               </span>
             </div>
           </div>
@@ -362,149 +399,51 @@ const Favorites: React.FC = () => {
       {/* Main Content */}
       <div className="favorites-main">
         <div className="favorites-container">
-          {loading ? (
-            <div className="favorites-loading">
-              <div className="favorites-loading-spinner"></div>
-              <p>{t('loading')}</p>
-            </div>
+          {isLoading ? (
+            <GridSkeleton count={4} />
           ) : currentItems.length === 0 ? (
             <div className="favorites-empty">
               <div className="favorites-empty-icon">
                 <i className={activeTab === 'liked' ? 'ri-heart-line' : 'ri-ai-generate'}></i>
               </div>
-              <h2>{activeTab === 'liked' ? t('favorites_empty_liked_title') : t('favorites_empty_ai_title')}</h2>
-              <p>{activeTab === 'liked' ? t('favorites_empty_liked_desc') : t('favorites_empty_ai_desc')}</p>
+              <h2>
+                {activeTab === 'liked'
+                  ? t('favorites_empty_liked_title')
+                  : t('favorites_empty_ai_title')}
+              </h2>
+              <p>
+                {activeTab === 'liked'
+                  ? t('favorites_empty_liked_desc')
+                  : t('favorites_empty_ai_desc')}
+              </p>
               <button className="favorites-browse-btn" onClick={() => navigate('/')}>
                 {t('favorites_browse_rooms')}
               </button>
             </div>
           ) : (
             <div className="favorites-grid">
-              {activeTab === 'liked' ? (
-                userFavorites.map((item) => (
-                  <div key={item.isbn} className="favorites-card group">
-                    {/* Book Cover */}
-                    <div className="favorites-card-cover">
-                      {item.bookInfo?.thumbnail?.medium || item.bookInfo?.thumbnail?.small ? (
-                        <img
-                          src={item.bookInfo.thumbnail.medium || item.bookInfo.thumbnail.small}
-                          alt={item.bookInfo?.title || 'Book cover'}
-                        />
-                      ) : (
-                        <div className="favorites-card-no-cover">
-                          <i className="ri-book-2-line"></i>
-                        </div>
-                      )}
-                      {/* Genre Badge */}
-                      {item.bookInfo?.categories?.[0] && (
-                        <div className="favorites-card-genre">
-                          <span>{item.bookInfo.categories[0]}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Book Info */}
-                    <div className="favorites-card-content">
-                      <div className="favorites-card-header">
-                        <h3 className="favorites-card-title">
-                          {item.bookInfo?.title || t('favorites_unknown_title')}
-                        </h3>
-                        <p className="favorites-card-author">
-                          {item.bookInfo?.author || t('favorites_unknown_author')}
-                        </p>
-                      </div>
-
-                      {/* Liked Info */}
-                      <div className="favorites-card-liked-info">
-                        <div className="favorites-card-liked-badge">
-                          <i className="ri-heart-fill"></i>
-                          <span>{formatDate(item.likedAt)}{t('favorites_liked_at')}</span>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="favorites-card-actions">
-                        <button
-                          className="favorites-card-btn favorites-card-btn-remove"
-                          onClick={() => handleRemoveFavorite(item.isbn)}
-                          disabled={removingIsbn === item.isbn}
-                        >
-                          <i className={removingIsbn === item.isbn ? 'ri-loader-4-line' : 'ri-heart-fill'}></i>
-                          <span>{t('favorites_remove')}</span>
-                        </button>
-                        <button
-                          className="favorites-card-btn favorites-card-btn-create"
-                          onClick={() => handleCreateDiscussion(item.isbn)}
-                        >
-                          <i className="ri-discussion-line"></i>
-                          <span>{t('favorites_create_discussion')}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                aiRecommendations.map((item) => (
-                  <div key={item.isbn} className="favorites-card group">
-                    {/* Book Cover */}
-                    <div className="favorites-card-cover">
-                      {item.bookInfo?.thumbnail?.medium || item.bookInfo?.thumbnail?.small ? (
-                        <img
-                          src={item.bookInfo.thumbnail.medium || item.bookInfo.thumbnail.small}
-                          alt={item.bookInfo?.title || 'Book cover'}
-                        />
-                      ) : (
-                        <div className="favorites-card-no-cover">
-                          <i className="ri-book-2-line"></i>
-                        </div>
-                      )}
-                      {/* AI Badge */}
-                      <div className="favorites-card-ai-badge">
-                        <i className="ri-ai-generate"></i>
-                        <span>AI</span>
-                      </div>
-                      {/* Genre Badge */}
-                      {item.bookInfo?.categories?.[0] && (
-                        <div className="favorites-card-genre">
-                          <span>{item.bookInfo.categories[0]}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Book Info */}
-                    <div className="favorites-card-content">
-                      <div className="favorites-card-header">
-                        <h3 className="favorites-card-title">
-                          {item.bookInfo?.title || t('favorites_unknown_title')}
-                        </h3>
-                        <p className="favorites-card-author">
-                          {item.bookInfo?.author || t('favorites_unknown_author')}
-                        </p>
-                      </div>
-
-                      {/* AI Reason */}
-                      <div className="favorites-card-ai-reason">
-                        <div className="favorites-card-ai-reason-header">
-                          <i className="ri-lightbulb-line"></i>
-                          <span>{t('favorites_ai_reason')}</span>
-                        </div>
-                        <p>{item.reason}</p>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="favorites-card-actions">
-                        <button
-                          className="favorites-card-btn favorites-card-btn-create"
-                          onClick={() => handleCreateDiscussion(item.isbn)}
-                        >
-                          <i className="ri-discussion-line"></i>
-                          <span>{t('favorites_create_discussion')}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+              {activeTab === 'liked'
+                ? userFavorites.map((item) => (
+                    <LikedBookCard
+                      key={item.isbn}
+                      item={item}
+                      isEnriching={isEnriching}
+                      removingIsbn={removingIsbn}
+                      formatDate={formatDate}
+                      onRemove={handleRemoveFavorite}
+                      onCreateDiscussion={handleCreateDiscussion}
+                      t={t}
+                    />
+                  ))
+                : aiRecommendations.map((item) => (
+                    <AIBookCard
+                      key={item.isbn}
+                      item={item}
+                      isEnriching={isEnriching}
+                      onCreateDiscussion={handleCreateDiscussion}
+                      t={t}
+                    />
+                  ))}
             </div>
           )}
         </div>
@@ -512,5 +451,169 @@ const Favorites: React.FC = () => {
     </div>
   );
 };
+
+// =============================================================================
+// Sub-components (memoized)
+// =============================================================================
+
+interface LikedBookCardProps {
+  item: EnrichedFavorite;
+  isEnriching: boolean;
+  removingIsbn: string | null;
+  formatDate: (dateString: string) => string;
+  onRemove: (isbn: string) => void;
+  onCreateDiscussion: (isbn: string) => void;
+  t: (key: string) => string;
+}
+
+const LikedBookCard: React.FC<LikedBookCardProps> = React.memo(
+  ({ item, isEnriching, removingIsbn, formatDate, onRemove, onCreateDiscussion, t }) => (
+    <div className="favorites-card group">
+      {/* Book Cover */}
+      <div className="favorites-card-cover">
+        {item.bookInfo?.thumbnail?.medium || item.bookInfo?.thumbnail?.small ? (
+          <img
+            src={item.bookInfo.thumbnail.medium || item.bookInfo.thumbnail.small}
+            alt={item.bookInfo?.title || 'Book cover'}
+          />
+        ) : (
+          <div className="favorites-card-no-cover">
+            {isEnriching ? (
+              <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
+            ) : (
+              <i className="ri-book-2-line"></i>
+            )}
+          </div>
+        )}
+        {/* Genre Badge */}
+        {item.bookInfo?.categories?.[0] && (
+          <div className="favorites-card-genre">
+            <span>{item.bookInfo.categories[0]}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Book Info */}
+      <div className="favorites-card-content">
+        <div className="favorites-card-header">
+          <h3 className="favorites-card-title">
+            {item.bookInfo?.title || t('favorites_unknown_title')}
+          </h3>
+          <p className="favorites-card-author">
+            {item.bookInfo?.author || t('favorites_unknown_author')}
+          </p>
+        </div>
+
+        {/* Liked Info */}
+        <div className="favorites-card-liked-info">
+          <div className="favorites-card-liked-badge">
+            <i className="ri-heart-fill"></i>
+            <span>
+              {formatDate(item.likedAt)}
+              {t('favorites_liked_at')}
+            </span>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="favorites-card-actions">
+          <button
+            className="favorites-card-btn favorites-card-btn-remove"
+            onClick={() => onRemove(item.isbn)}
+            disabled={removingIsbn === item.isbn}
+          >
+            <i className={removingIsbn === item.isbn ? 'ri-loader-4-line' : 'ri-heart-fill'}></i>
+            <span>{t('favorites_remove')}</span>
+          </button>
+          <button
+            className="favorites-card-btn favorites-card-btn-create"
+            onClick={() => onCreateDiscussion(item.isbn)}
+          >
+            <i className="ri-discussion-line"></i>
+            <span>{t('favorites_create_discussion')}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+);
+
+LikedBookCard.displayName = 'LikedBookCard';
+
+interface AIBookCardProps {
+  item: EnrichedAIRecommendation;
+  isEnriching: boolean;
+  onCreateDiscussion: (isbn: string) => void;
+  t: (key: string) => string;
+}
+
+const AIBookCard: React.FC<AIBookCardProps> = React.memo(
+  ({ item, isEnriching, onCreateDiscussion, t }) => (
+    <div className="favorites-card group">
+      {/* Book Cover */}
+      <div className="favorites-card-cover">
+        {item.bookInfo?.thumbnail?.medium || item.bookInfo?.thumbnail?.small ? (
+          <img
+            src={item.bookInfo.thumbnail.medium || item.bookInfo.thumbnail.small}
+            alt={item.bookInfo?.title || 'Book cover'}
+          />
+        ) : (
+          <div className="favorites-card-no-cover">
+            {isEnriching ? (
+              <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
+            ) : (
+              <i className="ri-book-2-line"></i>
+            )}
+          </div>
+        )}
+        {/* AI Badge */}
+        <div className="favorites-card-ai-badge">
+          <i className="ri-ai-generate"></i>
+          <span>AI</span>
+        </div>
+        {/* Genre Badge */}
+        {item.bookInfo?.categories?.[0] && (
+          <div className="favorites-card-genre">
+            <span>{item.bookInfo.categories[0]}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Book Info */}
+      <div className="favorites-card-content">
+        <div className="favorites-card-header">
+          <h3 className="favorites-card-title">
+            {item.bookInfo?.title || t('favorites_unknown_title')}
+          </h3>
+          <p className="favorites-card-author">
+            {item.bookInfo?.author || t('favorites_unknown_author')}
+          </p>
+        </div>
+
+        {/* AI Reason */}
+        <div className="favorites-card-ai-reason">
+          <div className="favorites-card-ai-reason-header">
+            <i className="ri-lightbulb-line"></i>
+            <span>{t('favorites_ai_reason')}</span>
+          </div>
+          <p>{item.reason}</p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="favorites-card-actions">
+          <button
+            className="favorites-card-btn favorites-card-btn-create"
+            onClick={() => onCreateDiscussion(item.isbn)}
+          >
+            <i className="ri-discussion-line"></i>
+            <span>{t('favorites_create_discussion')}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+);
+
+AIBookCard.displayName = 'AIBookCard';
 
 export default Favorites;

@@ -39,7 +39,7 @@ import './styles/MeetRoom.css';
 import ModeratorControls from '../components/meet/LeftPanel/ModeratorControls';
 import VoiceChat from '../components/meet/VoiceChat';
 // Center Panel Components
-import CollaborativeNotes, { CollaborativeNotesRef } from '../components/meet/CenterPanel/CollaborativeNotes';
+import BlockBasedNotes, { BlockBasedNotesRef } from '../components/meet/CenterPanel/BlockBasedNotes';
 // Right Panel Components
 import RecordingPanel from '../components/meet/RightPanel/RecordingPanel';
 import AISummaryPanel from '../components/meet/RightPanel/AISummaryPanel';
@@ -55,7 +55,7 @@ const MeetRoom: React.FC = () => {
   const { accessToken, user, isLoading, setInMeeting } = useAuth();
 
   // Refs
-  const notesRef = useRef<CollaborativeNotesRef>(null);
+  const notesRef = useRef<BlockBasedNotesRef>(null);
   // Store the speaker info when recording starts (to avoid race condition with handleEndTurn)
   const recordingSpeakerRef = useRef<{
     userId: string;
@@ -1221,15 +1221,25 @@ const MeetRoom: React.FC = () => {
 
   // Check if current user is moderator (host)
   // Use queue.moderatorId if available, otherwise fall back to post creator
-  const isHost = queue?.moderatorId
-    ? user?.id === queue.moderatorId
-    : user?.id === session?.post?.createrId;
+  const isHost = useMemo(
+    () =>
+      queue?.moderatorId
+        ? user?.id === queue.moderatorId
+        : user?.id === session?.post?.createrId,
+    [queue?.moderatorId, user?.id, session?.post?.createrId]
+  );
 
   // Check if current user is the room creator (has kick permission)
-  const isCreator = user?.id === session?.post?.createrId;
+  const isCreator = useMemo(
+    () => user?.id === session?.post?.createrId,
+    [user?.id, session?.post?.createrId]
+  );
 
   // Check if current user has raised hand
-  const hasRaisedHand = queue?.participants?.find(p => p.userId === user?.id)?.hasRaisedHand || false;
+  const hasRaisedHand = useMemo(
+    () => queue?.participants?.find((p) => p.userId === user?.id)?.hasRaisedHand || false,
+    [queue?.participants, user?.id]
+  );
 
   // Loading state (wait for both auth and session data)
   if (isLoading || isLoadingState) {
@@ -1339,96 +1349,100 @@ const MeetRoom: React.FC = () => {
 
       {/* Main Content - 3 Panel Layout */}
       <div className="meetroom-content">
-        {/* Left Panel - Moderator Controls */}
-        <aside className="meetroom-left-panel">
-          {/* Attendance Progress - hide when confirmed */}
-          {attendance?.status !== 'CONFIRMED' && (
-            <AttendanceProgress
-              attendance={attendance}
-              meetingStartTime={session?.post?.due}
+        {/* Left Area - Split into top content and sticky moderator controls */}
+        <div className="meetroom-left-wrapper">
+          {/* Non-sticky content */}
+          <aside className="meetroom-left-panel">
+            {/* Attendance Progress - hide when confirmed */}
+            {attendance?.status !== 'CONFIRMED' && (
+              <AttendanceProgress
+                attendance={attendance}
+                meetingStartTime={session?.post?.due}
+              />
+            )}
+
+            {/* Voice Chat */}
+            <VoiceChat
+              communicationMode={communicationMode}
+              onCommunicationModeChange={setCommunicationMode}
+              meetLink={session?.meetLink || undefined}
+              isJoined={isVoiceJoined}
+              isMuted={isVoiceMuted}
+              error={voiceError}
+              remotePeers={remotePeers}
+              currentUserId={user?.id || ''}
+              currentUsername={user?.username || 'Anonymous'}
+              currentPhotoUrl={userPhotoUrl}
+              voiceChatMode={queue?.voiceChatMode || 'RULES'}
+              isHost={isHost || false}
+              currentSpeakerId={queue?.currentSpeaker?.userId || null}
+              moderatorId={queue?.moderatorId || null}
+              audioInputDevices={audioInputDevices}
+              audioOutputDevices={audioOutputDevices}
+              currentInputDeviceId={currentInputDeviceId}
+              currentOutputDeviceId={currentOutputDeviceId}
+              volume={voiceVolume}
+              hasSinkIdSupport={hasSinkIdSupport}
+              isSpeaking={isSpeaking}
+              peerSpeakingStatus={peerSpeakingStatus}
+              connectionQualities={connectionQualities}
+              meshWarning={meshWarning}
+              isWsConnected={isConnected}
+              onJoin={joinVoice}
+              onLeave={leaveVoice}
+              onToggleMute={toggleVoiceMute}
+              onChangeInputDevice={changeInputDevice}
+              onChangeOutputDevice={changeOutputDevice}
+              onVolumeChange={setVoiceVolume}
+              onChangeChatMode={handleChangeVoiceChatMode}
+              registerAudioElement={registerAudioElement}
+              unregisterAudioElement={unregisterAudioElement}
             />
-          )}
+          </aside>
 
-          {/* Voice Chat */}
-          <VoiceChat
-            communicationMode={communicationMode}
-            onCommunicationModeChange={setCommunicationMode}
-            meetLink={session?.meetLink || undefined}
-            isJoined={isVoiceJoined}
-            isMuted={isVoiceMuted}
-            error={voiceError}
-            remotePeers={remotePeers}
-            currentUserId={user?.id || ''}
-            currentUsername={user?.username || 'Anonymous'}
-            currentPhotoUrl={userPhotoUrl}
-            voiceChatMode={queue?.voiceChatMode || 'RULES'}
-            isHost={isHost || false}
-            currentSpeakerId={queue?.currentSpeaker?.userId || null}
-            moderatorId={queue?.moderatorId || null}
-            audioInputDevices={audioInputDevices}
-            audioOutputDevices={audioOutputDevices}
-            currentInputDeviceId={currentInputDeviceId}
-            currentOutputDeviceId={currentOutputDeviceId}
-            volume={voiceVolume}
-            hasSinkIdSupport={hasSinkIdSupport}
-            isSpeaking={isSpeaking}
-            peerSpeakingStatus={peerSpeakingStatus}
-            connectionQualities={connectionQualities}
-            meshWarning={meshWarning}
-            isWsConnected={isConnected}
-            onJoin={joinVoice}
-            onLeave={leaveVoice}
-            onToggleMute={toggleVoiceMute}
-            onChangeInputDevice={changeInputDevice}
-            onChangeOutputDevice={changeOutputDevice}
-            onVolumeChange={setVoiceVolume}
-            onChangeChatMode={handleChangeVoiceChatMode}
-            registerAudioElement={registerAudioElement}
-            unregisterAudioElement={unregisterAudioElement}
-          />
+          {/* Sticky Moderator Controls */}
+          <div className="meetroom-left-sticky">
+            <ModeratorControls
+              queue={queue}
+              voiceChatMode={queue?.voiceChatMode || 'RULES'}
+              isHost={isHost}
+              isCreator={isCreator}
+              currentUserId={user?.id || ''}
+              hasRaisedHand={hasRaisedHand}
+              blockedUsers={blockedUsers}
+              reportedUserIds={reportedUserIds}
+              isRecordingUtterance={isRecordingUtterance}
+              recordingElapsedSeconds={utteranceRecordingSeconds}
+              communicationMode={communicationMode}
+              isVoiceJoined={isVoiceJoined}
+              onJoinVoice={joinVoice}
+              onRaiseHand={handleRaiseHand}
+              onNextSpeaker={handleNextSpeaker}
+              onEndTurn={handleEndTurn}
+              onRemoveFromQueue={handleRemoveFromQueue}
+              onAddParticipantToQueue={handleAddParticipantToQueue}
+              onReorderQueue={handleReorderQueue}
+              onDelegateModerator={handleDelegateModerator}
+              onKickParticipant={handleKickParticipant}
+              onRestoreParticipant={handleRestoreParticipant}
+              onReportParticipant={handleReportParticipant}
+            />
+          </div>
+        </div>
 
-          <ModeratorControls
-            queue={queue}
-            voiceChatMode={queue?.voiceChatMode || 'RULES'}
-            isHost={isHost}
-            isCreator={isCreator}
-            currentUserId={user?.id || ''}
-            hasRaisedHand={hasRaisedHand}
-            blockedUsers={blockedUsers}
-            reportedUserIds={reportedUserIds}
-            isRecordingUtterance={isRecordingUtterance}
-            recordingElapsedSeconds={utteranceRecordingSeconds}
-            communicationMode={communicationMode}
-            isVoiceJoined={isVoiceJoined}
-            onJoinVoice={joinVoice}
-            onRaiseHand={handleRaiseHand}
-            onNextSpeaker={handleNextSpeaker}
-            onEndTurn={handleEndTurn}
-            onRemoveFromQueue={handleRemoveFromQueue}
-            onAddParticipantToQueue={handleAddParticipantToQueue}
-            onReorderQueue={handleReorderQueue}
-            onDelegateModerator={handleDelegateModerator}
-            onKickParticipant={handleKickParticipant}
-            onRestoreParticipant={handleRestoreParticipant}
-            onReportParticipant={handleReportParticipant}
-          />
-        </aside>
-
-        {/* Center Panel - Collaborative Notes (Op-based) */}
+        {/* Center Panel - Block-based Collaborative Notes */}
         <main className="meetroom-center-panel">
           {user && sessionId && (
-            <CollaborativeNotes
+            <BlockBasedNotes
               ref={notesRef}
               docId={sessionId}
               userId={user.id!}
               username={user.username || 'Anonymous'}
               photoUrl={userPhotoUrl || ''}
-              initialContent={initialNoteContent}
-              initialTitle={initialNoteTitle}
+              initialTitle={initialNoteTitle || 'Discussion Notes'}
               aiContent={aiNoteContent}
               aiValidation={aiValidation}
               isOrganizing={isOrganizing}
-              onCharCountChange={handleNoteCharCountChange}
               onOrganizeNotes={handleOrganizeNotes}
             />
           )}

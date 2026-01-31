@@ -135,6 +135,28 @@ export const updateNoteTitle = async (
   return response.data;
 };
 
+/**
+ * Update AI organized notes (for collaborative editing of AI content)
+ */
+export const updateAiNotes = async (
+  sessionId: string,
+  content: string,
+  userId: string,
+  username: string,
+  token: string
+): Promise<SessionNote> => {
+  setAccessToken(token);
+  const message: NoteUpdateMessage = {
+    content,
+    userId,
+    username,
+    uid: '',
+    timestamp: Date.now(),
+  };
+  const response = await axiosInstance.put(`/sessions/${sessionId}/notes/ai`, message);
+  return response.data;
+};
+
 // ==================== User Session Notes API ====================
 
 /**
@@ -233,5 +255,109 @@ export const getMyNotesEnriched = async (token: string): Promise<UserNoteRespons
 export const getNoteEnriched = async (noteId: string, token: string): Promise<UserNoteResponse> => {
   setAccessToken(token);
   const response = await axiosInstance.get(`/user-notes/${noteId}/enriched`);
+  return response.data;
+};
+
+// ==================== Block Management API (v1.5) ====================
+
+/**
+ * Block metadata interface
+ */
+export interface BlockMeta {
+  id: string;
+  type: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lockedBy?: string;
+  lockToken?: string;
+  lockUntil?: string;
+}
+
+/**
+ * Get block order for a session
+ * GET /api/sessions/{sessionId}/notes/blocks/order
+ */
+export const getBlockOrder = async (sessionId: string, token: string): Promise<string[]> => {
+  setAccessToken(token);
+  const response = await axiosInstance.get(`/sessions/${sessionId}/notes/blocks/order`);
+  return response.data;
+};
+
+/**
+ * Update block order for a session
+ * PUT /api/sessions/{sessionId}/notes/blocks/order
+ */
+export const updateBlockOrder = async (
+  sessionId: string,
+  blockOrder: string[],
+  userId: string,
+  token: string
+): Promise<SessionNote> => {
+  setAccessToken(token);
+  const response = await axiosInstance.put(`/sessions/${sessionId}/notes/blocks/order`, {
+    blockOrder,
+    userId,
+  });
+  return response.data;
+};
+
+/**
+ * Get all block metadata for a session
+ * GET /api/sessions/{sessionId}/notes/blocks
+ */
+export const getAllBlocks = async (
+  sessionId: string,
+  token: string
+): Promise<Record<string, BlockMeta>> => {
+  setAccessToken(token);
+  const response = await axiosInstance.get(`/sessions/${sessionId}/notes/blocks`);
+  return response.data;
+};
+
+/**
+ * Get specific block metadata
+ * GET /api/sessions/{sessionId}/notes/blocks/{blockId}
+ */
+export const getBlock = async (
+  sessionId: string,
+  blockId: string,
+  token: string
+): Promise<BlockMeta> => {
+  setAccessToken(token);
+  const response = await axiosInstance.get(`/sessions/${sessionId}/notes/blocks/${blockId}`);
+  return response.data;
+};
+
+/**
+ * Create or update block metadata
+ * PUT /api/sessions/{sessionId}/notes/blocks/{blockId}
+ */
+export const upsertBlock = async (
+  sessionId: string,
+  blockId: string,
+  type: string,
+  createdBy: string,
+  token: string
+): Promise<SessionNote> => {
+  setAccessToken(token);
+  const response = await axiosInstance.put(`/sessions/${sessionId}/notes/blocks/${blockId}`, {
+    type,
+    createdBy,
+  });
+  return response.data;
+};
+
+/**
+ * Delete block metadata
+ * DELETE /api/sessions/{sessionId}/notes/blocks/{blockId}
+ */
+export const deleteBlock = async (
+  sessionId: string,
+  blockId: string,
+  token: string
+): Promise<SessionNote> => {
+  setAccessToken(token);
+  const response = await axiosInstance.delete(`/sessions/${sessionId}/notes/blocks/${blockId}`);
   return response.data;
 };

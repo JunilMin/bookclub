@@ -274,51 +274,93 @@ public class OpenAIService {
      */
     private String buildOrganizeSystemPrompt(String language) {
         String languageInstruction;
+        String exampleSection;
         if ("ko".equalsIgnoreCase(language) || "kr".equalsIgnoreCase(language)) {
-            languageInstruction = "IMPORTANT: You MUST respond in Korean (한국어). Keep fragment markers as-is.";
+            languageInstruction = "IMPORTANT: You MUST respond in Korean (한국어).";
+            exampleSection = """
+                예시 출력 형식:
+                ## 📖 핵심 논점
+
+                ### 캐릭터 분석
+                주인공의 성장 과정이 **매우 인상적**이었다. 특히 중반부에서 보여준 변화는...
+
+                ### 주제와 메시지
+                이 책은 _정체성과 소속감_에 대해 깊이 있게 다루고 있다.
+
+                ---
+
+                ## 💬 인상 깊은 구절
+                > "삶은 당신이 다른 계획을 세우느라 바쁠 때 일어나는 것이다"
+
+                ---
+
+                ## ❓ 열린 질문들
+                - 작가가 다른 결말을 선택했다면 어땠을까?
+                - 현대적 맥락에서 이 이야기는 어떻게 재해석될 수 있을까?
+                """;
         } else {
-            languageInstruction = "IMPORTANT: You MUST respond in English. Keep fragment markers as-is.";
+            languageInstruction = "IMPORTANT: You MUST respond in English.";
+            exampleSection = """
+                Example output format:
+                ## 📖 Key Discussion Points
+
+                ### Character Analysis
+                The protagonist's growth was **remarkably well-developed**. Especially the transformation in the middle section...
+
+                ### Themes and Messages
+                The book deeply explores _identity and belonging_.
+
+                ---
+
+                ## 💬 Memorable Quotes
+                > "Life is what happens when you're busy making other plans"
+
+                ---
+
+                ## ❓ Open Questions
+                - What if the author had chosen a different ending?
+                - How would this story be reinterpreted in a modern context?
+                """;
         }
 
         return """
-            You are an AI editor that reorganizes discussion notes for better readability.
+            You are an AI editor that reorganizes book club discussion notes into a clean, well-formatted document.
 
-            YOUR ROLE IS TO REORGANIZE, NOT TO SUMMARIZE.
-
-            CRITICAL RULES:
-            1. PRESERVE ALL CONTENT - Every single fragment must appear in your output exactly once
-            2. DO NOT DELETE anything - reorganization only, no content loss
-            3. DO NOT ADD new content - only reorganize existing fragments
-            4. Each fragment is marked with ⟦note_XXX⟧ - these markers MUST be preserved
-            5. You may reorder fragments to group related topics together
-            6. You may add section headers to organize content
-            7. You may add brief transitional phrases between sections
+            YOUR ROLE: Reorganize and format the notes for better readability and presentation.
 
             %s
 
-            INPUT FORMAT:
-            The input will contain fragments like:
-            ⟦note_001⟧ Some discussion point here
-            ⟦note_002⟧ Another point about the book
+            FORMATTING RULES:
+            1. Use ## for main section headers (with relevant emoji)
+            2. Use ### for subsection headers
+            3. Use **bold** for emphasis on key terms and important phrases
+            4. Use _italic_ for book titles, quotes context, or subtle emphasis
+            5. Use > for blockquotes (memorable quotes from the book or discussion)
+            6. Use - for bullet lists
+            7. Use --- for horizontal dividers between major sections
+            8. Use numbered lists (1. 2. 3.) for sequential points or rankings
+
+            CONTENT STRUCTURE:
+            - Group related discussion points together under clear headings
+            - Preserve all original content - reorganize but don't delete
+            - Add appropriate section headers based on content type:
+              - Key Discussion Points / 핵심 논점
+              - Character Analysis / 캐릭터 분석
+              - Themes and Messages / 주제와 메시지
+              - Memorable Quotes / 인상 깊은 구절
+              - Agreements and Debates / 합의와 논쟁
+              - Open Questions / 열린 질문
+            - Only include sections that have relevant content
+
+            %s
 
             OUTPUT FORMAT (JSON):
             {
-                "sections": [
-                    {
-                        "title": "Section Title (e.g., 'Character Analysis')",
-                        "fragments": ["note_001", "note_003"]
-                    },
-                    {
-                        "title": "Another Section",
-                        "fragments": ["note_002", "note_004"]
-                    }
-                ],
-                "organizedText": "Full reorganized text with all fragments preserved in new order"
+                "organizedText": "Full markdown-formatted text with proper headers, bold, italic, quotes, lists, etc."
             }
 
-            VALIDATION: Your output MUST contain ALL fragment IDs from the input.
-            If there are N fragments in input, there must be exactly N fragments in output.
-            """.formatted(languageInstruction);
+            IMPORTANT: Return ONLY valid JSON. The organizedText should be the fully formatted markdown text.
+            """.formatted(languageInstruction, exampleSection);
     }
 
     /**
@@ -425,18 +467,21 @@ public class OpenAIService {
     }
 
     /**
-     * Organize notes using AI while preserving all content.
+     * Organize notes using AI for better readability and presentation.
      * @param bookTitle Book title for context
-     * @param noteContent Note content (may or may not have fragment IDs)
+     * @param noteContent Note content in TipTap JSON or plain text
      * @param language Output language ("ko" or "en")
      */
     public AIOrganizedContent organizeNotes(String bookTitle, String noteContent, String language) {
-        logger.info("=== AI Context-Preserving Editor Started ===");
+        logger.info("=== AI Note Organizer Started ===");
         logger.info("Book Title: {}", bookTitle);
         logger.info("Language: {}", language);
 
         AIOrganizedContent result = new AIOrganizedContent();
         result.setGeneratedAt(LocalDateTime.now());
+        result.setSourceFragmentIds(new ArrayList<>());
+        result.setOutputFragmentIds(new ArrayList<>());
+        result.setMissingFragments(new ArrayList<>());
 
         // Check API configuration
         if (!openAiClient.isConfigured()) {
@@ -459,46 +504,38 @@ public class OpenAIService {
             return createMockOrganizedContent(plainTextContent, language);
         }
 
-        // Add fragment IDs if not present
-        String contentWithIds = plainTextContent;
-        if (!plainTextContent.contains("⟦note_")) {
-            contentWithIds = addFragmentIds(plainTextContent);
-            logger.info("Added fragment IDs to content");
-        }
-
-        // Extract source fragment IDs
-        List<String> sourceFragmentIds = extractFragmentIds(contentWithIds);
-        result.setSourceFragmentIds(sourceFragmentIds);
-        logger.info("Source fragment count: {}", sourceFragmentIds.size());
+        logger.info("Content preview: {}", plainTextContent.length() > 300
+            ? plainTextContent.substring(0, 300) + "..." : plainTextContent);
 
         // Build prompts
         String systemPrompt = buildOrganizeSystemPrompt(language);
         String userPrompt = String.format(
-            "Book Title: %s\n\nDiscussion Notes with Fragment IDs:\n%s",
-            bookTitle, contentWithIds
+            "Book Title: %s\n\nDiscussion Notes:\n%s",
+            bookTitle, plainTextContent
         );
 
         // Call OpenAI API with higher max tokens (4000) for organize feature
-        // The organize feature needs to preserve ALL content, so it requires more tokens
         OpenAiResponse response = openAiClient.getChatCompletion(systemPrompt, userPrompt, 4000);
 
         if (response != null && response.getContent() != null) {
             logger.info("Successfully received organization response from OpenAI");
-            return parseOrganizedContent(response.getContent(), sourceFragmentIds);
+            return parseOrganizedContent(response.getContent(), new ArrayList<>());
         } else {
             logger.warn("Failed to get response from OpenAI - returning mock organized content");
-            return createMockOrganizedContent(contentWithIds, language);
+            return createMockOrganizedContent(plainTextContent, language);
         }
     }
 
     /**
-     * Parse the AI response and validate fragment preservation
+     * Parse the AI response and extract organized text
      */
     private AIOrganizedContent parseOrganizedContent(String json, List<String> sourceFragmentIds) {
         AIOrganizedContent result = new AIOrganizedContent();
         result.setGeneratedAt(LocalDateTime.now());
         result.setModelUsed(MODEL);
         result.setSourceFragmentIds(sourceFragmentIds);
+        result.setOutputFragmentIds(new ArrayList<>());
+        result.setMissingFragments(new ArrayList<>());
 
         try {
             // Clean up JSON
@@ -514,74 +551,48 @@ public class OpenAIService {
             json = json.trim();
 
             logger.info("Parsing organized content JSON...");
-            logger.info("Raw JSON (first 500 chars): {}", json.length() > 500 ? json.substring(0, 500) : json);
 
             JsonNode root = objectMapper.readTree(json);
 
             // Extract organized text
             String organizedText = root.path("organizedText").asText("");
+
+            // Remove any leftover fragment markers (⟦note_XXX⟧)
+            organizedText = removeFragmentMarkers(organizedText);
+
             logger.info("Extracted organizedText length: {} chars", organizedText.length());
             logger.info("OrganizedText preview: {}", organizedText.length() > 300 ? organizedText.substring(0, 300) : organizedText);
+
             result.setOrganizedText(organizedText);
-
-            // Extract fragment IDs from output
-            List<String> outputFragmentIds = extractFragmentIds(organizedText);
-            result.setOutputFragmentIds(outputFragmentIds);
-
-            // Validate: all source fragments must be in output
-            List<String> missingFragments = new ArrayList<>();
-            for (String sourceId : sourceFragmentIds) {
-                if (!outputFragmentIds.contains(sourceId)) {
-                    missingFragments.add(sourceId);
-                }
-            }
-            result.setMissingFragments(missingFragments);
-
-            // Check validity
-            if (missingFragments.isEmpty()) {
-                result.setValid(true);
-                logger.info("Validation passed: all {} fragments preserved", sourceFragmentIds.size());
-            } else {
-                result.setValid(false);
-                result.setValidationError("Missing fragments: " + String.join(", ", missingFragments));
-                logger.warn("Validation failed: {} fragments missing", missingFragments.size());
-            }
+            result.setValid(true);
 
         } catch (Exception e) {
             logger.error("Failed to parse organized content: {}", e.getMessage());
-            logger.error("Raw JSON that failed to parse: {}", json);
 
             // Try to extract organizedText even if JSON parsing fails
-            // Sometimes the AI response has the text but with malformed JSON structure
             String fallbackText = extractOrganizedTextFallback(json);
             if (fallbackText != null && !fallbackText.isEmpty()) {
                 logger.info("Using fallback text extraction, length: {}", fallbackText.length());
+                fallbackText = removeFragmentMarkers(fallbackText);
                 result.setOrganizedText(fallbackText);
-                List<String> outputIds = extractFragmentIds(fallbackText);
-                result.setOutputFragmentIds(outputIds);
-
-                // Check for missing fragments
-                List<String> missing = new ArrayList<>();
-                for (String id : sourceFragmentIds) {
-                    if (!outputIds.contains(id)) {
-                        missing.add(id);
-                    }
-                }
-                result.setMissingFragments(missing);
-                result.setValid(missing.isEmpty());
-                if (!missing.isEmpty()) {
-                    result.setValidationError("Parse error, used fallback. Missing: " + String.join(", ", missing));
-                }
+                result.setValid(true);
             } else {
                 result.setValid(false);
                 result.setValidationError("Parse error: " + e.getMessage());
                 result.setOrganizedText("");
-                result.setOutputFragmentIds(new ArrayList<>());
-                result.setMissingFragments(sourceFragmentIds);
             }
         }
 
         return result;
+    }
+
+    /**
+     * Remove fragment markers like ⟦note_XXX⟧ from text
+     */
+    private String removeFragmentMarkers(String text) {
+        if (text == null) return null;
+        // Remove patterns like ⟦note_001⟧ or ⟦note_XXX⟧
+        return text.replaceAll("⟦note_\\d{3}⟧\\s*", "");
     }
 
     /**
@@ -644,14 +655,19 @@ public class OpenAIService {
         AIOrganizedContent result = new AIOrganizedContent();
         result.setGeneratedAt(LocalDateTime.now());
         result.setModelUsed("mock-model");
+        result.setSourceFragmentIds(new ArrayList<>());
+        result.setOutputFragmentIds(new ArrayList<>());
+        result.setMissingFragments(new ArrayList<>());
+        result.setValid(true);
+
+        boolean isKorean = "ko".equalsIgnoreCase(language) || "kr".equalsIgnoreCase(language);
 
         if (content == null || content.trim().isEmpty()) {
             logger.info("Content is empty, returning empty mock");
-            result.setOrganizedText("");
-            result.setSourceFragmentIds(new ArrayList<>());
-            result.setOutputFragmentIds(new ArrayList<>());
-            result.setMissingFragments(new ArrayList<>());
-            result.setValid(true);
+            String emptyMsg = isKorean
+                ? "## 📝 AI 정리\n\n아직 정리할 내용이 없습니다. 토론 노트를 작성한 후 다시 시도해주세요."
+                : "## 📝 AI Summary\n\nNo content to organize yet. Please add discussion notes first.";
+            result.setOrganizedText(emptyMsg);
             return result;
         }
 
@@ -662,25 +678,30 @@ public class OpenAIService {
             plainContent = convertTipTapToPlainText(content);
         }
 
-        // Add fragment IDs if not present
-        String contentWithIds = plainContent;
-        if (!plainContent.contains("⟦note_")) {
-            contentWithIds = addFragmentIds(plainContent);
-            logger.info("Added fragment IDs to mock content");
+        // Generate well-formatted mock content
+        StringBuilder organized = new StringBuilder();
+
+        if (isKorean) {
+            organized.append("## 📖 토론 요약\n\n");
+            organized.append("### 주요 논의 사항\n");
+            organized.append("토론에서 다룬 **핵심 주제**들입니다:\n\n");
+            organized.append(plainContent.trim());
+            organized.append("\n\n---\n\n");
+            organized.append("### 💡 참고\n");
+            organized.append("_이 내용은 AI가 정리한 결과입니다. 자유롭게 편집할 수 있습니다._\n");
+        } else {
+            organized.append("## 📖 Discussion Summary\n\n");
+            organized.append("### Key Discussion Points\n");
+            organized.append("Here are the **main topics** covered in the discussion:\n\n");
+            organized.append(plainContent.trim());
+            organized.append("\n\n---\n\n");
+            organized.append("### 💡 Note\n");
+            organized.append("_This content has been organized by AI. Feel free to edit as needed._\n");
         }
 
-        List<String> fragmentIds = extractFragmentIds(contentWithIds);
-        result.setSourceFragmentIds(fragmentIds);
-        result.setOutputFragmentIds(fragmentIds);
-        result.setMissingFragments(new ArrayList<>());
-        result.setValid(true);
+        result.setOrganizedText(organized.toString());
 
-        // For mock, just return content as-is with a header
-        boolean isKorean = "ko".equalsIgnoreCase(language) || "kr".equalsIgnoreCase(language);
-        String header = isKorean ? "## 정리된 노트\n\n" : "## Organized Notes\n\n";
-        result.setOrganizedText(header + contentWithIds);
-
-        logger.info("Mock organized content created: {} fragments, valid={}", fragmentIds.size(), result.isValid());
+        logger.info("Mock organized content created");
         return result;
     }
 }

@@ -18,6 +18,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -100,6 +101,20 @@ public class SessionNoteController {
     }
 
     /**
+     * REST: Update AI organized notes (for collaborative editing of AI content)
+     */
+    @PutMapping("/{sessionId}/notes/ai")
+    public ResponseEntity<SessionNote> updateAiNotes(
+            @PathVariable String sessionId,
+            @RequestBody NoteUpdateMessage message) {
+        SessionNote note = sessionNoteService.updateAiContent(
+                sessionId,
+                message.getContent()
+        );
+        return ResponseEntity.ok(note);
+    }
+
+    /**
      * WebSocket: Handle note updates
      */
     @MessageMapping("/session/{sessionId}/notes")
@@ -122,5 +137,154 @@ public class SessionNoteController {
         sessionNoteService.updateNote(sessionId, message.getContent(), message.getUserId());
 
         return message;
+    }
+
+    // ============================================
+    // Block Management Endpoints (v2.0 - Block-based SSOT)
+    // ============================================
+
+    /**
+     * REST: Get block order for a session
+     */
+    @GetMapping("/{sessionId}/notes/blocks/order")
+    public ResponseEntity<List<String>> getBlockOrder(@PathVariable String sessionId) {
+        List<String> blockOrder = sessionNoteService.getBlockOrder(sessionId);
+        return ResponseEntity.ok(blockOrder);
+    }
+
+    /**
+     * REST: Update block order for a session (reorder via drag-drop)
+     */
+    @PutMapping("/{sessionId}/notes/blocks/order")
+    public ResponseEntity<SessionNote> updateBlockOrder(
+            @PathVariable String sessionId,
+            @RequestBody Map<String, Object> payload) {
+
+        @SuppressWarnings("unchecked")
+        List<String> blockOrder = (List<String>) payload.get("blockOrder");
+        String userId = (String) payload.get("userId");
+
+        if (blockOrder == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        SessionNote note = sessionNoteService.updateBlockOrder(sessionId, blockOrder, userId);
+        return ResponseEntity.ok(note);
+    }
+
+    /**
+     * REST: Get all blocks for a session (v2.0)
+     */
+    @GetMapping("/{sessionId}/notes/blocks")
+    public ResponseEntity<Map<String, SessionNote.Block>> getAllBlocks(@PathVariable String sessionId) {
+        Map<String, SessionNote.Block> blocks = sessionNoteService.getAllBlocks(sessionId);
+        return ResponseEntity.ok(blocks);
+    }
+
+    /**
+     * REST: Get specific block (v2.0)
+     */
+    @GetMapping("/{sessionId}/notes/blocks/{blockId}")
+    public ResponseEntity<SessionNote.Block> getBlock(
+            @PathVariable String sessionId,
+            @PathVariable String blockId) {
+
+        SessionNote.Block block = sessionNoteService.getBlock(sessionId, blockId);
+        if (block == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(block);
+    }
+
+    /**
+     * REST: Update block content (v2.0)
+     * Used for saving block edits after lock acquisition
+     */
+    @PutMapping("/{sessionId}/notes/blocks/{blockId}/content")
+    public ResponseEntity<?> updateBlockContent(
+            @PathVariable String sessionId,
+            @PathVariable String blockId,
+            @RequestBody Map<String, Object> payload) {
+
+        String content = (String) payload.get("content");
+        String userId = (String) payload.get("userId");
+        Integer version = payload.get("version") != null
+            ? ((Number) payload.get("version")).intValue()
+            : 0;
+
+        if (content == null || userId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "content and userId are required"));
+        }
+
+        SessionNote.Block block = sessionNoteService.updateBlockContent(sessionId, blockId, content, userId, version);
+        if (block == null) {
+            return ResponseEntity.status(409).body(Map.of(
+                "error", "VERSION_CONFLICT",
+                "message", "Block version mismatch. Please refresh and try again."
+            ));
+        }
+
+        return ResponseEntity.ok(block);
+    }
+
+    /**
+     * REST: Add new block (v2.0)
+     */
+    @PostMapping("/{sessionId}/notes/blocks")
+    public ResponseEntity<SessionNote.Block> addBlock(
+            @PathVariable String sessionId,
+            @RequestBody Map<String, String> payload) {
+
+        String type = payload.get("type");
+        String content = payload.get("content");
+        String afterBlockId = payload.get("afterBlockId");
+        String userId = payload.get("userId");
+
+        if (type == null || content == null || userId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        SessionNote.Block block = sessionNoteService.addBlock(sessionId, type, content, afterBlockId, userId);
+        return ResponseEntity.status(201).body(block);
+    }
+
+    /**
+     * REST: Delete block (v2.0)
+     */
+    @DeleteMapping("/{sessionId}/notes/blocks/{blockId}")
+    public ResponseEntity<?> deleteBlock(
+            @PathVariable String sessionId,
+            @PathVariable String blockId,
+            @RequestParam(required = false) String userId) {
+
+        boolean deleted = sessionNoteService.deleteBlock(sessionId, blockId, userId);
+        if (!deleted) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(Map.of("success", true, "blockId", blockId));
+    }
+
+    // ============================================
+    // Legacy Endpoints (deprecated, for backward compatibility)
+    // ============================================
+
+    /**
+     * @deprecated Use PUT /{sessionId}/notes/blocks/{blockId}/content instead
+     */
+    @Deprecated
+    @PutMapping("/{sessionId}/notes/blocks/{blockId}/meta")
+    public ResponseEntity<SessionNote> upsertBlock(
+            @PathVariable String sessionId,
+            @PathVariable String blockId,
+            @RequestBody Map<String, String> payload) {
+
+        String type = payload.get("type");
+        String createdBy = payload.get("createdBy");
+
+        SessionNote.BlockMeta blockMeta = new SessionNote.BlockMeta(blockId, type, createdBy);
+        SessionNote note = sessionNoteService.upsertBlockMeta(sessionId, blockMeta);
+
+        return ResponseEntity.ok(note);
     }
 }

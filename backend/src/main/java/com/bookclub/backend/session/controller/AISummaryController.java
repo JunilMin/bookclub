@@ -78,9 +78,9 @@ public class AISummaryController {
                     .map(p -> p.getBookData() != null ? p.getBookData().getTitle() : null)
                     .orElse("Unknown Book");
 
-            // Get notes content
+            // Get notes content from block-based structure
             Optional<SessionNote> noteOpt = sessionNoteService.getNoteBySessionId(sessionId);
-            String noteContent = noteOpt.map(SessionNote::getContent).orElse("");
+            String noteContent = noteOpt.map(SessionNote::getContentFromBlocks).orElse("");
 
             // Generate summary with specified language
             AISummary summary = openAIService.generateSummary(bookTitle, noteContent, language);
@@ -120,9 +120,9 @@ public class AISummaryController {
                     .map(p -> p.getBookData() != null ? p.getBookData().getTitle() : null)
                     .orElse("Unknown Book");
 
-            // Get notes content
+            // Get notes content from block-based structure
             Optional<SessionNote> noteOpt = sessionNoteService.getNoteBySessionId(sessionId);
-            String noteContent = noteOpt.map(SessionNote::getContent).orElse("");
+            String noteContent = noteOpt.map(SessionNote::getContentFromBlocks).orElse("");
 
             // Organize notes with AI
             AIOrganizedContent organizedContent = openAIService.organizeNotes(bookTitle, noteContent, language);
@@ -152,57 +152,206 @@ public class AISummaryController {
     }
 
     /**
-     * Convert plain text (with optional markdown headers) to TipTap JSON format
+     * Convert markdown-formatted text to TipTap JSON format
+     * Supports: ## headings, ### subheadings, **bold**, _italic_, > blockquotes, - lists, --- dividers
      */
     private String convertToTipTapJson(String text, String language) {
         if (text == null || text.trim().isEmpty()) {
             return getEmptyTipTapDoc(language);
         }
 
+        // Remove fragment markers if any remain
+        text = text.replaceAll("⟦note_\\d{3}⟧\\s*", "");
+
         StringBuilder json = new StringBuilder();
         json.append("{\"type\":\"doc\",\"content\":[");
 
-        // Add heading
-        String heading = "ko".equalsIgnoreCase(language) ? "AI 정리된 노트" : "AI Organized Notes";
-        json.append("{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"")
-            .append(escapeJson(heading))
-            .append("\"}]},");
-
-        // Split by lines and convert each to paragraph or heading
+        // Split by lines
         String[] lines = text.split("\n");
         boolean firstContent = true;
+        boolean inList = false;
+        StringBuilder listItems = new StringBuilder();
 
         for (String line : lines) {
             String trimmed = line.trim();
             if (trimmed.isEmpty()) continue;
 
-            if (!firstContent) {
-                json.append(",");
+            // Check if we need to close a list
+            if (inList && !trimmed.startsWith("- ") && !trimmed.matches("^\\d+\\.\\s.*")) {
+                // Close the list
+                if (!firstContent) json.append(",");
+                json.append("{\"type\":\"bulletList\",\"content\":[").append(listItems).append("]}");
+                listItems = new StringBuilder();
+                inList = false;
+                firstContent = false;
             }
-            firstContent = false;
 
-            if (trimmed.startsWith("## ")) {
-                // H2 heading
-                String headingText = trimmed.substring(3);
-                json.append("{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"")
-                    .append(escapeJson(headingText))
-                    .append("\"}]}");
-            } else if (trimmed.startsWith("### ")) {
-                // H3 heading
-                String headingText = trimmed.substring(4);
-                json.append("{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":[{\"type\":\"text\",\"text\":\"")
-                    .append(escapeJson(headingText))
-                    .append("\"}]}");
-            } else {
-                // Regular paragraph
-                json.append("{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"")
-                    .append(escapeJson(trimmed))
-                    .append("\"}]}");
+            // Handle horizontal rule
+            if (trimmed.equals("---") || trimmed.equals("***") || trimmed.equals("___")) {
+                if (!firstContent) json.append(",");
+                json.append("{\"type\":\"horizontalRule\"}");
+                firstContent = false;
+                continue;
             }
+
+            // Handle headings
+            if (trimmed.startsWith("## ")) {
+                if (!firstContent) json.append(",");
+                String headingText = trimmed.substring(3);
+                json.append("{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":")
+                    .append(convertInlineFormatting(headingText))
+                    .append("}");
+                firstContent = false;
+                continue;
+            }
+
+            if (trimmed.startsWith("### ")) {
+                if (!firstContent) json.append(",");
+                String headingText = trimmed.substring(4);
+                json.append("{\"type\":\"heading\",\"attrs\":{\"level\":3},\"content\":")
+                    .append(convertInlineFormatting(headingText))
+                    .append("}");
+                firstContent = false;
+                continue;
+            }
+
+            // Handle blockquote
+            if (trimmed.startsWith("> ")) {
+                if (!firstContent) json.append(",");
+                String quoteText = trimmed.substring(2);
+                json.append("{\"type\":\"blockquote\",\"content\":[{\"type\":\"paragraph\",\"content\":")
+                    .append(convertInlineFormatting(quoteText))
+                    .append("}]}");
+                firstContent = false;
+                continue;
+            }
+
+            // Handle bullet list
+            if (trimmed.startsWith("- ")) {
+                String itemText = trimmed.substring(2);
+                if (listItems.length() > 0) listItems.append(",");
+                listItems.append("{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":")
+                    .append(convertInlineFormatting(itemText))
+                    .append("}]}");
+                inList = true;
+                continue;
+            }
+
+            // Handle numbered list
+            if (trimmed.matches("^\\d+\\.\\s.*")) {
+                String itemText = trimmed.replaceFirst("^\\d+\\.\\s*", "");
+                if (listItems.length() > 0) listItems.append(",");
+                listItems.append("{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":")
+                    .append(convertInlineFormatting(itemText))
+                    .append("}]}");
+                inList = true;
+                continue;
+            }
+
+            // Regular paragraph
+            if (!firstContent) json.append(",");
+            json.append("{\"type\":\"paragraph\",\"content\":")
+                .append(convertInlineFormatting(trimmed))
+                .append("}");
+            firstContent = false;
+        }
+
+        // Close any remaining list
+        if (inList && listItems.length() > 0) {
+            if (!firstContent) json.append(",");
+            json.append("{\"type\":\"bulletList\",\"content\":[").append(listItems).append("]}");
         }
 
         json.append("]}");
         return json.toString();
+    }
+
+    /**
+     * Convert inline markdown formatting (**bold**, _italic_) to TipTap marks
+     */
+    private String convertInlineFormatting(String text) {
+        if (text == null || text.isEmpty()) {
+            return "[]";
+        }
+
+        StringBuilder result = new StringBuilder("[");
+        StringBuilder currentText = new StringBuilder();
+        boolean inBold = false;
+        boolean inItalic = false;
+        boolean firstNode = true;
+        int i = 0;
+
+        while (i < text.length()) {
+            // Check for **bold**
+            if (i + 1 < text.length() && text.charAt(i) == '*' && text.charAt(i + 1) == '*') {
+                // Flush current text
+                if (currentText.length() > 0) {
+                    if (!firstNode) result.append(",");
+                    result.append(createTextNode(currentText.toString(), inBold, inItalic));
+                    currentText = new StringBuilder();
+                    firstNode = false;
+                }
+                inBold = !inBold;
+                i += 2;
+                continue;
+            }
+
+            // Check for _italic_ (but not in the middle of a word)
+            if (text.charAt(i) == '_') {
+                boolean isWordBoundary = (i == 0 || !Character.isLetterOrDigit(text.charAt(i - 1)))
+                    || (i + 1 >= text.length() || !Character.isLetterOrDigit(text.charAt(i + 1)));
+                if (isWordBoundary) {
+                    // Flush current text
+                    if (currentText.length() > 0) {
+                        if (!firstNode) result.append(",");
+                        result.append(createTextNode(currentText.toString(), inBold, inItalic));
+                        currentText = new StringBuilder();
+                        firstNode = false;
+                    }
+                    inItalic = !inItalic;
+                    i++;
+                    continue;
+                }
+            }
+
+            currentText.append(text.charAt(i));
+            i++;
+        }
+
+        // Flush remaining text
+        if (currentText.length() > 0) {
+            if (!firstNode) result.append(",");
+            result.append(createTextNode(currentText.toString(), inBold, inItalic));
+        }
+
+        result.append("]");
+        return result.toString();
+    }
+
+    /**
+     * Create a TipTap text node with optional marks
+     */
+    private String createTextNode(String text, boolean bold, boolean italic) {
+        StringBuilder node = new StringBuilder("{\"type\":\"text\",\"text\":\"");
+        node.append(escapeJson(text));
+        node.append("\"");
+
+        if (bold || italic) {
+            node.append(",\"marks\":[");
+            boolean firstMark = true;
+            if (bold) {
+                node.append("{\"type\":\"bold\"}");
+                firstMark = false;
+            }
+            if (italic) {
+                if (!firstMark) node.append(",");
+                node.append("{\"type\":\"italic\"}");
+            }
+            node.append("]");
+        }
+
+        node.append("}");
+        return node.toString();
     }
 
     private String getEmptyTipTapDoc(String language) {
@@ -248,8 +397,8 @@ public class AISummaryController {
                     .orElse("Discussion Notes");
         }
 
-        // Convert TipTap JSON to Markdown (simplified)
-        String markdown = convertToMarkdown(bookTitle, note.getContent());
+        // Convert TipTap JSON to Markdown (simplified) - use block-based structure
+        String markdown = convertToMarkdown(bookTitle, note.getContentFromBlocks());
 
         return ResponseEntity.ok()
                 .header("Content-Type", "text/markdown")

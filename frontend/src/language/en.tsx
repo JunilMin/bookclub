@@ -751,6 +751,7 @@ const en = {
   meet_organized_invalid: 'Missing content',
   meet_fragments: 'fragments',
   meet_fragment_id: 'Fragment ID',
+  meet_insert_to_notes: 'Insert to Notes',
   meet_insert_organized: 'Insert to Notes',
   meet_organized_empty: 'AI will reorganize your notes for better readability while preserving all content.',
   meet_organized_empty_short: 'Reorganize notes while preserving all content',

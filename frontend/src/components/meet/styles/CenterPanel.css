@@ -224,11 +224,26 @@
 /* TipTap Editor Styles */
 .tiptap-editor-content {
   padding: 24px;
+  padding-left: 48px; /* Extra space for drag handles */
   min-height: 400px;
   outline: none;
   font-size: 15px;
   line-height: 1.7;
   color: #374151;
+}
+
+/* Make block-level elements relative for absolute positioning of drag handles */
+.tiptap-editor-content > p,
+.tiptap-editor-content > h1,
+.tiptap-editor-content > h2,
+.tiptap-editor-content > h3,
+.tiptap-editor-content > ul,
+.tiptap-editor-content > ol,
+.tiptap-editor-content > blockquote,
+.tiptap-editor-content > pre,
+.tiptap-editor-content > hr,
+.tiptap-editor-content > .utterance-block {
+  position: relative;
 }
 
 .tiptap-editor-content h1 {
@@ -672,12 +687,49 @@
   animation: spin 1s linear infinite;
 }
 
+/* Toolbar Status - AI toolbar inline status */
+.toolbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+.sync-status.small {
+  font-size: 0;
+  gap: 0;
+}
+
+.editors-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  background: #10b981;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 0 6px;
+}
+
 /* ============================================
    AI Editor - AI 정리 탭 에디터
    ============================================ */
 
 .notes-editor-wrapper.ai-editor {
   background: #fafafa;
+  border: 1px solid #e5e7eb;
+}
+
+.notes-editor-wrapper.ai-editor.has-content {
+  background: white;
+  border: 1px solid #bbf7d0;
+}
+
+.notes-editor-wrapper.ai-editor.empty {
   border: 1px dashed #d1d5db;
 }
 
@@ -777,5 +829,219 @@
 
   .ai-organize-btn {
     justify-content: center;
+  }
+}
+
+/* ============================================
+   Drag Handle - 블록 드래그 앤 드롭 (v1.5)
+   NodeView wrapper 기반 구현
+   ============================================ */
+
+/* Block wrapper - NodeView container with drag handle and content */
+.block-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  margin-left: -32px;
+  padding: 2px 0;
+}
+
+/* Block content - reset margins, let wrapper handle spacing */
+.block-wrapper .block-content {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+  margin: 0 !important; /* Reset all margins from global styles */
+}
+
+/* Paragraph spacing via wrapper */
+.block-wrapper[data-node-type="paragraph"] {
+  margin-bottom: 8px;
+}
+
+/* Heading spacing via wrapper */
+.block-wrapper[data-node-type="heading"] {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+/* List spacing via wrapper */
+.block-wrapper[data-node-type="bulletList"],
+.block-wrapper[data-node-type="orderedList"],
+.block-wrapper[data-node-type="taskList"] {
+  margin-bottom: 8px;
+}
+
+/* Blockquote spacing via wrapper */
+.block-wrapper[data-node-type="blockquote"] {
+  margin-bottom: 12px;
+}
+
+/* Code block spacing via wrapper */
+.block-wrapper[data-node-type="codeBlock"] {
+  margin-bottom: 12px;
+}
+
+/* Horizontal rule spacing via wrapper */
+.block-wrapper[data-node-type="horizontalRule"] {
+  margin: 16px 0;
+}
+
+/* Utterance block spacing via wrapper */
+.block-wrapper[data-node-type="utteranceBlock"] {
+  margin-bottom: 12px;
+}
+
+.block-wrapper[data-node-type="utteranceBlock"] .block-content {
+  /* Keep existing utterance-block styles */
+}
+
+/* Drag handle inside wrapper */
+.block-drag-handle {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: #d1d5db;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+  user-select: none;
+  margin-top: 2px;
+}
+
+/* Show handles when wrapper is hovered */
+.block-wrapper:hover .block-drag-handle {
+  opacity: 0.6;
+}
+
+.block-drag-handle:hover {
+  opacity: 1 !important;
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.block-drag-handle:active {
+  opacity: 1 !important;
+  cursor: grabbing;
+  color: #10b981;
+  background: #ecfdf5;
+}
+
+/* Dragging state on wrapper */
+.block-wrapper.dragging {
+  opacity: 0.5;
+  background: #f0fdf4;
+  border-radius: 4px;
+}
+
+.block-wrapper.dragging .block-drag-handle {
+  opacity: 1 !important;
+  color: #10b981;
+  background: #ecfdf5;
+  cursor: grabbing;
+}
+
+/* Selected state */
+.block-wrapper.selected {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.block-drag-handle svg {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+/* Drag ghost (hidden element for drag image) */
+.drag-ghost {
+  padding: 4px 8px;
+  background: #10b981;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Drop indicators on wrapper */
+.block-wrapper.block-drop-above {
+  position: relative;
+}
+
+.block-wrapper.block-drop-above::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 2px;
+  animation: dropPulse 1s ease-in-out infinite;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.block-wrapper.block-drop-below {
+  position: relative;
+}
+
+.block-wrapper.block-drop-below::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 2px;
+  animation: dropPulse 1s ease-in-out infinite;
+  z-index: 100;
+  pointer-events: none;
+}
+
+@keyframes dropPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Block locked by another user */
+.block-locked {
+  position: relative;
+  background: rgba(239, 68, 68, 0.05);
+  border-left: 3px solid #ef4444;
+  padding-left: 12px;
+}
+
+.block-locked::before {
+  content: attr(data-locked-by);
+  position: absolute;
+  top: -8px;
+  left: 12px;
+  font-size: 10px;
+  background: #ef4444;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Block locked by current user */
+.block-locked-self {
+  background: rgba(16, 185, 129, 0.05);
+  border-left: 3px solid #10b981;
+  padding-left: 12px;
+}
+
+/* Mobile: hide drag handles */
+@media (max-width: 768px) {
+  .global-drag-handle {
+    display: none !important;
   }
 }

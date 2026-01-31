@@ -70,6 +70,29 @@ export interface BlockPresence {
   timestamp: number;
 }
 
+/**
+ * Block Info (for tracking blocks in editor)
+ */
+export interface BlockInfo {
+  id: string;
+  type: BlockType;
+  pos: number;              // Position in document
+  size: number;             // Node size
+  lockedBy?: string;        // User ID who has the lock
+  lockUntil?: number;       // Lock expiration timestamp
+}
+
+/**
+ * Block Lock State (client-side tracking)
+ */
+export interface BlockLockState {
+  blockId: string;
+  lockedBy: string;
+  username: string;
+  lockToken: string;
+  lockUntil: number;
+}
+
 // ============================================
 // Operation Model (ProseMirror Step 기반)
 // ============================================
@@ -141,7 +164,41 @@ export interface JoinLeaveOperation {
   timestamp: number;
 }
 
-export type Operation = EditOperation | PresenceOperation | JoinLeaveOperation;
+/**
+ * Block Reorder Operation (v1.5)
+ * - Reorder blocks within the document
+ */
+export interface ReorderOperation {
+  type: 'reorder';
+  docId: string;
+  userId: string;
+  username: string;
+  clientId: string;
+  blockId: string;           // Block being moved
+  fromIndex: number;         // Original position
+  toIndex: number;           // New position
+  baseVersion: number;       // Document version for conflict detection
+  timestamp: number;
+}
+
+/**
+ * Block Lock Operation (v1.5)
+ * - Request/release lock on a block
+ */
+export interface LockOperation {
+  type: 'lock_request' | 'lock_acquired' | 'lock_release' | 'lock_renew' | 'lock_denied';
+  docId: string;
+  userId: string;
+  username: string;
+  clientId: string;
+  blockId: string;
+  lockToken?: string;        // Token for lock validation
+  lockUntil?: number;        // Lock expiration timestamp
+  reason?: string;           // Reason for denial
+  timestamp: number;
+}
+
+export type Operation = EditOperation | PresenceOperation | JoinLeaveOperation | ReorderOperation | LockOperation;
 
 // ============================================
 // WebSocket Message Types
@@ -157,10 +214,18 @@ export const TOPICS = {
   SEND_JOIN: (docId: string) => `/app/docs/${docId}/join`,
   SEND_LEAVE: (docId: string) => `/app/docs/${docId}/leave`,
 
+  // Block reorder/lock (v1.5)
+  SEND_REORDER: (docId: string) => `/app/docs/${docId}/reorder`,
+  SEND_LOCK: (docId: string) => `/app/docs/${docId}/lock`,
+
   // 서버 → 클라이언트 (SUBSCRIBE)
   RECEIVE_EDIT: (docId: string) => `/topic/docs/${docId}/edit`,
   RECEIVE_PRESENCE: (docId: string) => `/topic/docs/${docId}/presence`,
   RECEIVE_USERS: (docId: string) => `/topic/docs/${docId}/users`,
+
+  // Block reorder/lock (v1.5)
+  RECEIVE_REORDER: (docId: string) => `/topic/docs/${docId}/reorder`,
+  RECEIVE_LOCK: (docId: string) => `/topic/docs/${docId}/lock`,
 } as const;
 
 /**

@@ -1,9 +1,17 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
-import { getMyReputation, UserReputationResponse, getDisplayPhotoUrl } from '../api/user';
+import { getDisplayPhotoUrl } from '../api/user';
 import { useBoardStore } from '../store/boardStore';
+import { useProfileStore, selectTopRating } from '../store/profileStore';
+import { getGradientStyle } from '../utils/gradientUtils';
+import { formatDateLocalized, formatDateCompact } from '../utils/dateUtils';
+import {
+  OverviewSkeleton,
+  ActivitySkeleton,
+  BadgesSkeleton,
+} from '../components/profile/ProfileSkeletons';
 import './styles/Profile.css';
 
 const Profile: React.FC = () => {
@@ -15,12 +23,18 @@ const Profile: React.FC = () => {
   // boardStore에서 posts 가져오기 (데이터 재사용)
   const { byId, order, initBoard, isInitialLoading: isBoardLoading } = useBoardStore();
 
+  // profileStore에서 reputation 데이터 가져오기 (캐싱)
+  const {
+    reputationData,
+    isLoading: isReputationLoading,
+    fetchReputation,
+  } = useProfileStore();
+
   const [activeSection, setActiveSection] = useState<string>('overview');
-  const [reputationData, setReputationData] = useState<UserReputationResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [showAllCreated, setShowAllCreated] = useState(false);
   const [showAllParticipating, setShowAllParticipating] = useState(false);
   const [showAllActivities, setShowAllActivities] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // boardStore의 posts를 배열로 변환
   const allPosts = useMemo(() => {
@@ -40,6 +54,28 @@ const Profile: React.FC = () => {
     );
   }, [allPosts, user?.id]);
 
+  // Top rating calculation (memoized)
+  const topRating = useMemo(() => {
+    return selectTopRating(useProfileStore.getState());
+  }, [reputationData]);
+
+  const topRatingStars = useMemo(() => Math.round(topRating.score), [topRating.score]);
+  const topRatingScore = useMemo(() => topRating.score.toFixed(1), [topRating.score]);
+
+  // Avatar URL (memoized)
+  const avatarUrl = useMemo(() => {
+    const url = getDisplayPhotoUrl(user);
+    return url || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+';
+  }, [user?.photo?.google, user?.photo?.custom]);
+
+  // Reset image error when avatar changes
+  useEffect(() => {
+    setImageError(false);
+  }, [avatarUrl]);
+
+  // Default avatar for fallback
+  const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+';
+
   // Handle hash navigation
   useEffect(() => {
     const hash = location.hash.replace('#', '');
@@ -55,26 +91,36 @@ const Profile: React.FC = () => {
     }
   }, [accessToken, user?.id, order.length, initBoard]);
 
-  // Fetch reputation data only (posts는 boardStore에서 가져옴)
+  // Fetch reputation data (with caching)
   useEffect(() => {
-    const fetchReputationData = async () => {
-      if (!accessToken || !user) return;
+    if (!accessToken || !user) return;
+    const locale = i18n.language === 'ko' ? 'ko' : 'en';
+    fetchReputation(accessToken, locale);
+  }, [accessToken, user, i18n.language, fetchReputation]);
 
-      setIsLoading(true);
-      try {
-        const locale = i18n.language === 'ko' ? 'ko' : 'en';
-        const repData = await getMyReputation(accessToken, locale);
-        setReputationData(repData);
-      } catch (error) {
-        console.error('Error fetching reputation data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Locale for date formatting
+  const locale = useMemo(() => (i18n.language === 'ko' ? 'ko' : 'en') as 'ko' | 'en', [i18n.language]);
 
-    fetchReputationData();
-  }, [accessToken, user, i18n.language]);
+  // Format helpers using shared utils
+  const formatDate = useCallback(
+    (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    },
+    []
+  );
 
+  const formatJoinDate = useCallback(
+    (dateString?: string) => formatDateCompact(dateString, locale),
+    [locale]
+  );
+
+  const formatBadgeDate = useCallback(
+    (dateString: string) => formatDateLocalized(dateString, locale),
+    [locale]
+  );
+
+  // Login required state
   if (!user) {
     return (
       <div className="profile-container">
@@ -88,81 +134,18 @@ const Profile: React.FC = () => {
     );
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
-
-  const formatJoinDate = (dateString?: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  };
-
-  // Default avatar as data URI
-  const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+';
-  const avatarUrl = getDisplayPhotoUrl(user) || defaultAvatar;
-
-  // Calculate top rating from endorsement category scores
-  const getTopRating = () => {
-    const scores = reputationData?.endorsementStats?.categoryScores;
-    if (!scores) return { score: 0, category: '' };
-    const entries = Object.entries(scores);
-    if (entries.length === 0) return { score: 0, category: '' };
-    const [maxCategory, maxScore] = entries.reduce((max, curr) => curr[1] > max[1] ? curr : max);
-    return { score: maxScore, category: maxCategory };
-  };
-  const topRating = getTopRating();
-  const topRatingStars = Math.round(topRating.score);
-  const topRatingScore = topRating.score.toFixed(1);
-
-  // Gradient helper function for badges and activities
-  const getGradientStyle = (gradientColors: string) => {
-    if (!gradientColors) return 'linear-gradient(135deg, #6b7280, #4b5563)';
-
-    // hex 형식이면 linear-gradient로 변환 ("#10B981,#059669")
-    if (gradientColors.startsWith('#')) {
-      const parts = gradientColors.split(',');
-      return `linear-gradient(135deg, ${parts.join(', ')})`;
+  // Determine loading state per tab
+  const isTabLoading = (tab: string): boolean => {
+    if (tab === 'overview' || tab === 'activity' || tab === 'badges') {
+      return isReputationLoading && !reputationData;
     }
-
-    // Tailwind 클래스 형식이면 매핑
-    const gradientMap: Record<string, string> = {
-      'from-yellow-400 to-yellow-600': 'linear-gradient(135deg, #facc15, #ca8a04)',
-      'from-blue-400 to-blue-600': 'linear-gradient(135deg, #60a5fa, #2563eb)',
-      'from-orange-400 to-red-600': 'linear-gradient(135deg, #fb923c, #dc2626)',
-      'from-purple-400 to-purple-600': 'linear-gradient(135deg, #c084fc, #9333ea)',
-      'from-amber-400 to-amber-600': 'linear-gradient(135deg, #fbbf24, #d97706)',
-      'from-indigo-400 to-indigo-600': 'linear-gradient(135deg, #818cf8, #4f46e5)',
-      'from-teal-400 to-teal-600': 'linear-gradient(135deg, #2dd4bf, #0d9488)',
-      'from-violet-400 to-violet-600': 'linear-gradient(135deg, #a78bfa, #7c3aed)',
-      'from-emerald-400 to-emerald-600': 'linear-gradient(135deg, #34d399, #059669)',
-      'from-lime-400 to-lime-600': 'linear-gradient(135deg, #a3e635, #65a30d)',
-      'from-rose-400 to-rose-600': 'linear-gradient(135deg, #fb7185, #e11d48)',
-      'from-cyan-400 to-cyan-600': 'linear-gradient(135deg, #22d3ee, #0891b2)',
-      'from-pink-400 to-pink-600': 'linear-gradient(135deg, #f472b6, #db2777)',
-      'from-yellow-400 to-amber-600': 'linear-gradient(135deg, #facc15, #d97706)',
-      'from-orange-400 to-orange-600': 'linear-gradient(135deg, #fb923c, #ea580c)',
-    };
-    return gradientMap[gradientColors] || 'linear-gradient(135deg, #6b7280, #4b5563)';
-  };
-
-  const formatBadgeDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    // interests tab uses user data, which is already available
+    return false;
   };
 
   return (
     <div className="profile-page">
-      {/* Profile Hero Section */}
+      {/* Profile Hero Section - ALWAYS RENDERS IMMEDIATELY */}
       <div className="profile-hero-section">
         <div className="profile-hero-container">
           {/* Header */}
@@ -184,12 +167,10 @@ const Profile: React.FC = () => {
             {/* Avatar */}
             <div className="profile-hero-avatar-wrapper">
               <img
-                src={avatarUrl}
+                src={imageError ? defaultAvatar : avatarUrl}
                 alt={user.username || ''}
                 className="profile-hero-avatar"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = defaultAvatar;
-                }}
+                onError={() => setImageError(true)}
               />
               <div className="profile-hero-avatar-badge">
                 <i className="ri-star-fill"></i>
@@ -228,14 +209,18 @@ const Profile: React.FC = () => {
             </div>
           </div>
 
-          {/* Stats Grid */}
+          {/* Stats Grid - Uses cached/immediate data */}
           <div className="profile-hero-stats">
             <div className="profile-hero-stat-card">
-              <div className="profile-hero-stat-value">{createdMeetings.length}</div>
+              <div className="profile-hero-stat-value">
+                {isBoardLoading ? '-' : createdMeetings.length}
+              </div>
               <div className="profile-hero-stat-label">{t('profile_stat_created')}</div>
             </div>
             <div className="profile-hero-stat-card">
-              <div className="profile-hero-stat-value">{participatingMeetings.length}</div>
+              <div className="profile-hero-stat-value">
+                {isBoardLoading ? '-' : participatingMeetings.length}
+              </div>
               <div className="profile-hero-stat-label">{t('profile_stat_participated')}</div>
             </div>
             <div className="profile-hero-stat-card">
@@ -283,14 +268,13 @@ const Profile: React.FC = () => {
       </div>
 
       <div className="profile-container">
-
-      {/* Content Sections */}
-      <div className="profile-content">
-        {(isLoading || isBoardLoading) ? (
-          <div className="profile-loading">{t('loading')}</div>
-        ) : (
-          <>
-            {activeSection === 'overview' && (
+        {/* Content Sections - Tab-based loading */}
+        <div className="profile-content">
+          {/* Overview Tab */}
+          {activeSection === 'overview' && (
+            isTabLoading('overview') ? (
+              <OverviewSkeleton />
+            ) : (
               <div className="profile-overview-section">
                 <div className="profile-overview-grid">
                   {/* Left Column - Main Content */}
@@ -389,25 +373,9 @@ const Profile: React.FC = () => {
                             </div>
                             <span className="profile-highlight-label">{t('profile_top_rating')}</span>
                           </div>
-                          <div className="profile-highlight-value">
-                            {(() => {
-                              const scores = reputationData?.endorsementStats?.categoryScores;
-                              if (!scores) return '0.0';
-                              const entries = Object.entries(scores);
-                              if (entries.length === 0) return '0.0';
-                              const [, maxScore] = entries.reduce((max, curr) => curr[1] > max[1] ? curr : max);
-                              return maxScore.toFixed(1);
-                            })()}
-                          </div>
+                          <div className="profile-highlight-value">{topRatingScore}</div>
                           <div className="profile-highlight-sub">
-                            {(() => {
-                              const scores = reputationData?.endorsementStats?.categoryScores;
-                              if (!scores) return '';
-                              const entries = Object.entries(scores);
-                              if (entries.length === 0) return '';
-                              const [maxCategory] = entries.reduce((max, curr) => curr[1] > max[1] ? curr : max);
-                              return t(`endorsement_category_${maxCategory}`);
-                            })()}
+                            {topRating.category && t(`endorsement_category_${topRating.category}`)}
                           </div>
                         </div>
                         <div className="profile-highlight-card cyan">
@@ -495,9 +463,14 @@ const Profile: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+            )
+          )}
 
-            {activeSection === 'activity' && (
+          {/* Activity Tab */}
+          {activeSection === 'activity' && (
+            isTabLoading('activity') ? (
+              <ActivitySkeleton />
+            ) : (
               <div className="profile-section">
                 {/* Recent Activity Timeline */}
                 <div className="recent-activity-card">
@@ -566,7 +539,9 @@ const Profile: React.FC = () => {
                     </div>
                     <h3>{t('dropdown_my_created_meetings')}</h3>
                   </div>
-                  {createdMeetings.length === 0 ? (
+                  {isBoardLoading ? (
+                    <div className="profile-loading">{t('loading')}</div>
+                  ) : createdMeetings.length === 0 ? (
                     <div className="no-meetings">
                       <i className="ri-calendar-line"></i>
                       <p>{t('profile_no_created_meetings')}</p>
@@ -619,7 +594,9 @@ const Profile: React.FC = () => {
                     </div>
                     <h3>{t('dropdown_participating_meetings')}</h3>
                   </div>
-                  {participatingMeetings.length === 0 ? (
+                  {isBoardLoading ? (
+                    <div className="profile-loading">{t('loading')}</div>
+                  ) : participatingMeetings.length === 0 ? (
                     <div className="no-meetings">
                       <i className="ri-calendar-line"></i>
                       <p>{t('profile_no_participating_meetings')}</p>
@@ -664,9 +641,14 @@ const Profile: React.FC = () => {
                   )}
                 </div>
               </div>
-            )}
+            )
+          )}
 
-            {activeSection === 'badges' && (
+          {/* Badges Tab */}
+          {activeSection === 'badges' && (
+            isTabLoading('badges') ? (
+              <BadgesSkeleton />
+            ) : (
               <div className="profile-section profile-badges-section">
                 {/* Header */}
                 <div className="profile-badges-header">
@@ -774,142 +756,142 @@ const Profile: React.FC = () => {
                   </div>
                 )}
               </div>
-            )}
+            )
+          )}
 
-            {activeSection === 'interests' && (
-              <div className="profile-section profile-interests-section">
-                {/* Interests & Preferences Card */}
-                <div className="profile-interests-card">
-                  <div className="profile-interests-header">
-                    <h3 className="profile-interests-title">{t('profile_interests_title')}</h3>
-                    <p className="profile-interests-subtitle">{t('profile_interests_subtitle')}</p>
-                  </div>
-
-                  <div className="profile-interests-content">
-                    {/* Introduction */}
-                    <div className="profile-interests-group">
-                      <h4 className="profile-interests-group-title">{t('profile_introduction')}</h4>
-                      <div className="profile-introduction-box">
-                        {user.profile?.introduce?.introduction ? (
-                          <p className="profile-introduction-text">{user.profile.introduce.introduction}</p>
-                        ) : (
-                          <span className="profile-empty-text">{t('profile_no_introduction')}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Preferred Genres */}
-                    <div className="profile-interests-group">
-                      <h4 className="profile-interests-group-title">{t('profile_preferred_genres')}</h4>
-                      <div className="profile-genre-tags">
-                        {user.profile?.introduce?.preferredGenre && user.profile.introduce.preferredGenre.length > 0 ? (
-                          user.profile.introduce.preferredGenre.map((genre, index) => (
-                            <span key={index} className="profile-genre-tag">{t(`settings_genre_${genre}`)}</span>
-                          ))
-                        ) : (
-                          <span className="profile-empty-text">{t('profile_no_genres_set')}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Reading Style */}
-                    <div className="profile-interests-group">
-                      <h4 className="profile-interests-group-title">{t('profile_reading_style')}</h4>
-                      <div className="profile-style-grid">
-                        <div className="profile-style-card">
-                          <h5 className="profile-style-card-title">{t('profile_discussion_style')}</h5>
-                          <p className="profile-style-card-desc">
-                            {user.profile?.introduce?.styles?.discussionStyle
-                              ? t(`settings_style_${user.profile.introduce.styles.discussionStyle}`)
-                              : t('profile_not_set')}
-                          </p>
-                        </div>
-                        <div className="profile-style-card">
-                          <h5 className="profile-style-card-title">{t('profile_preferred_time')}</h5>
-                          <p className="profile-style-card-desc">
-                            {user.profile?.introduce?.styles?.preferredTime
-                              ? t(`settings_time_${user.profile.introduce.styles.preferredTime}`)
-                              : t('profile_not_set')}
-                          </p>
-                        </div>
-                        <div className="profile-style-card">
-                          <h5 className="profile-style-card-title">{t('profile_discussion_size')}</h5>
-                          <p className="profile-style-card-desc">
-                            {user.profile?.introduce?.styles?.preferredSize
-                              ? t(`settings_size_${user.profile.introduce.styles.preferredSize}`)
-                              : t('profile_not_set')}
-                          </p>
-                        </div>
-                        <div className="profile-style-card">
-                          <h5 className="profile-style-card-title">{t('profile_ai_usage')}</h5>
-                          <p className="profile-style-card-desc">
-                            {user.profile?.introduce?.styles?.useAI
-                              ? t(`settings_ai_${user.profile.introduce.styles.useAI}`)
-                              : t('profile_not_set')}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Interest Keywords */}
-                    <div className="profile-interests-group">
-                      <h4 className="profile-interests-group-title">{t('profile_interest_keywords')}</h4>
-                      <div className="profile-keyword-tags">
-                        {user.profile?.introduce?.keywords && user.profile.introduce.keywords.length > 0 ? (
-                          user.profile.introduce.keywords.map((keyword, index) => (
-                            <span key={index} className="profile-keyword-tag">#{keyword}</span>
-                          ))
-                        ) : (
-                          <span className="profile-empty-text">{t('profile_no_keywords_set')}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Goals */}
-                    <div className="profile-interests-group">
-                      <h4 className="profile-interests-group-title">{t('profile_monthly_goals')}</h4>
-                      <div className="profile-goals-list">
-                        <div className="profile-goal-item">
-                          <span className="profile-goal-label">{t('profile_goal_participate')}</span>
-                          <span className="profile-goal-value">
-                            {participatingMeetings.length}/{user.profile?.introduce?.goals?.participate || 0}
-                          </span>
-                        </div>
-                        <div className="profile-goal-item">
-                          <span className="profile-goal-label">{t('profile_goal_create')}</span>
-                          <span className="profile-goal-value">
-                            {createdMeetings.length}/{user.profile?.introduce?.goals?.create || 0}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+          {/* Interests Tab - Uses user data, no API loading needed */}
+          {activeSection === 'interests' && (
+            <div className="profile-section profile-interests-section">
+              {/* Interests & Preferences Card */}
+              <div className="profile-interests-card">
+                <div className="profile-interests-header">
+                  <h3 className="profile-interests-title">{t('profile_interests_title')}</h3>
+                  <p className="profile-interests-subtitle">{t('profile_interests_subtitle')}</p>
                 </div>
 
-                {/* Go to Settings */}
-                <div className="profile-settings-link-card">
-                  <div className="profile-settings-link-content">
-                    <div className="profile-settings-link-icon">
-                      <i className="ri-settings-3-line"></i>
-                    </div>
-                    <div className="profile-settings-link-text">
-                      <h3>{t('dropdown_account_settings')}</h3>
-                      <p>{t('profile_settings_link_desc')}</p>
+                <div className="profile-interests-content">
+                  {/* Introduction */}
+                  <div className="profile-interests-group">
+                    <h4 className="profile-interests-group-title">{t('profile_introduction')}</h4>
+                    <div className="profile-introduction-box">
+                      {user.profile?.introduce?.introduction ? (
+                        <p className="profile-introduction-text">{user.profile.introduce.introduction}</p>
+                      ) : (
+                        <span className="profile-empty-text">{t('profile_no_introduction')}</span>
+                      )}
                     </div>
                   </div>
-                  <button
-                    className="profile-settings-link-btn"
-                    onClick={() => navigate('/settings')}
-                  >
-                    {t('profile_go_to_settings')}
-                    <i className="ri-arrow-right-line"></i>
-                  </button>
+
+                  {/* Preferred Genres */}
+                  <div className="profile-interests-group">
+                    <h4 className="profile-interests-group-title">{t('profile_preferred_genres')}</h4>
+                    <div className="profile-genre-tags">
+                      {user.profile?.introduce?.preferredGenre && user.profile.introduce.preferredGenre.length > 0 ? (
+                        user.profile.introduce.preferredGenre.map((genre, index) => (
+                          <span key={index} className="profile-genre-tag">{t(`settings_genre_${genre}`)}</span>
+                        ))
+                      ) : (
+                        <span className="profile-empty-text">{t('profile_no_genres_set')}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reading Style */}
+                  <div className="profile-interests-group">
+                    <h4 className="profile-interests-group-title">{t('profile_reading_style')}</h4>
+                    <div className="profile-style-grid">
+                      <div className="profile-style-card">
+                        <h5 className="profile-style-card-title">{t('profile_discussion_style')}</h5>
+                        <p className="profile-style-card-desc">
+                          {user.profile?.introduce?.styles?.discussionStyle
+                            ? t(`settings_style_${user.profile.introduce.styles.discussionStyle}`)
+                            : t('profile_not_set')}
+                        </p>
+                      </div>
+                      <div className="profile-style-card">
+                        <h5 className="profile-style-card-title">{t('profile_preferred_time')}</h5>
+                        <p className="profile-style-card-desc">
+                          {user.profile?.introduce?.styles?.preferredTime
+                            ? t(`settings_time_${user.profile.introduce.styles.preferredTime}`)
+                            : t('profile_not_set')}
+                        </p>
+                      </div>
+                      <div className="profile-style-card">
+                        <h5 className="profile-style-card-title">{t('profile_discussion_size')}</h5>
+                        <p className="profile-style-card-desc">
+                          {user.profile?.introduce?.styles?.preferredSize
+                            ? t(`settings_size_${user.profile.introduce.styles.preferredSize}`)
+                            : t('profile_not_set')}
+                        </p>
+                      </div>
+                      <div className="profile-style-card">
+                        <h5 className="profile-style-card-title">{t('profile_ai_usage')}</h5>
+                        <p className="profile-style-card-desc">
+                          {user.profile?.introduce?.styles?.useAI
+                            ? t(`settings_ai_${user.profile.introduce.styles.useAI}`)
+                            : t('profile_not_set')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interest Keywords */}
+                  <div className="profile-interests-group">
+                    <h4 className="profile-interests-group-title">{t('profile_interest_keywords')}</h4>
+                    <div className="profile-keyword-tags">
+                      {user.profile?.introduce?.keywords && user.profile.introduce.keywords.length > 0 ? (
+                        user.profile.introduce.keywords.map((keyword, index) => (
+                          <span key={index} className="profile-keyword-tag">#{keyword}</span>
+                        ))
+                      ) : (
+                        <span className="profile-empty-text">{t('profile_no_keywords_set')}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Goals */}
+                  <div className="profile-interests-group">
+                    <h4 className="profile-interests-group-title">{t('profile_monthly_goals')}</h4>
+                    <div className="profile-goals-list">
+                      <div className="profile-goal-item">
+                        <span className="profile-goal-label">{t('profile_goal_participate')}</span>
+                        <span className="profile-goal-value">
+                          {participatingMeetings.length}/{user.profile?.introduce?.goals?.participate || 0}
+                        </span>
+                      </div>
+                      <div className="profile-goal-item">
+                        <span className="profile-goal-label">{t('profile_goal_create')}</span>
+                        <span className="profile-goal-value">
+                          {createdMeetings.length}/{user.profile?.introduce?.goals?.create || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-          </>
-        )}
-      </div>
+
+              {/* Go to Settings */}
+              <div className="profile-settings-link-card">
+                <div className="profile-settings-link-content">
+                  <div className="profile-settings-link-icon">
+                    <i className="ri-settings-3-line"></i>
+                  </div>
+                  <div className="profile-settings-link-text">
+                    <h3>{t('dropdown_account_settings')}</h3>
+                    <p>{t('profile_settings_link_desc')}</p>
+                  </div>
+                </div>
+                <button
+                  className="profile-settings-link-btn"
+                  onClick={() => navigate('/settings')}
+                >
+                  {t('profile_go_to_settings')}
+                  <i className="ri-arrow-right-line"></i>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

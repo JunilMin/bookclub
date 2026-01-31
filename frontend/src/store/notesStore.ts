@@ -3,6 +3,21 @@ import { create } from 'zustand';
 import { getMyNotesEnriched, UserNoteResponse } from '../api/notes';
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+const isCacheValid = (lastFetchTime: number | null): boolean => {
+  if (!lastFetchTime) return false;
+  return Date.now() - lastFetchTime < CACHE_DURATION_MS;
+};
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -34,7 +49,8 @@ export interface NotesActions {
   removeNote: (noteId: string) => void;
   toggleFavorite: (noteId: string) => void;
 
-  // Reset
+  // Cache control
+  invalidateCache: () => void;
   reset: () => void;
 }
 
@@ -67,7 +83,12 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   initNotes: async (accessToken: string) => {
     const state = get();
 
-    // If already have data, do silent refresh instead
+    // If cache is still valid, skip fetch entirely
+    if (isCacheValid(state.lastFetchTime)) {
+      return;
+    }
+
+    // If already have data but cache expired, do silent refresh
     if (Object.keys(state.byId).length > 0) {
       get().refreshNotes(accessToken);
       return;
@@ -192,8 +213,12 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   },
 
   // ---------------------------------------------------------------------------
-  // Reset
+  // Cache control
   // ---------------------------------------------------------------------------
+  invalidateCache: () => {
+    set({ lastFetchTime: null });
+  },
+
   reset: () => {
     set(initialState);
   },
