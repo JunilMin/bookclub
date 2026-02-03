@@ -377,13 +377,17 @@
   color: white;
 }
 
-.insert-text-btn:hover:not(:disabled) {
+.insert-text-btn:hover {
   background: var(--primary-hover, #2563eb);
 }
 
-.insert-text-btn:disabled {
+/* Inserted state - green with hover for re-insert */
+.insert-text-btn.inserted {
   background: var(--success-color, #22c55e);
-  cursor: default;
+}
+
+.insert-text-btn.inserted:hover {
+  background: var(--success-hover, #16a34a);
 }
 
 .insert-summary-btn {

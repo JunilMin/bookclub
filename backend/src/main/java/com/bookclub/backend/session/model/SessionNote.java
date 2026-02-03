@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.AllArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,7 @@ public class SessionNote {
     @Id
     private String id;
 
+    @Indexed(unique = true)
     private String sessionId;
 
     private String title;  // Note title (default: "{bookTitle} 북클럽" or "{bookTitle} Book Club")

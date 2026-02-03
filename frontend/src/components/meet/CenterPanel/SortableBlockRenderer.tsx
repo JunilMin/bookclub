@@ -27,6 +27,9 @@ interface SortableBlockRendererProps {
   isPartOfMultiDrag?: boolean; // True when this is a selected block (not the dragged one) during multi-drag
   additionalDragBlocks?: Block[]; // Other selected blocks to render in placeholder (for the dragged block)
 
+  // Skip keyboard navigation during pending transitions
+  skipKeyboardNavigation?: boolean;
+
   // Callbacks
   onStartEdit: () => void;
   onSaveEdit: (content: string) => void;
@@ -36,10 +39,10 @@ interface SortableBlockRendererProps {
   onMoveToPrevBlock?: () => void;
   onMoveToNextBlock?: () => void;
   onCreateBlockAfter: (type: BlockType) => void;
-  onSaveAndCreateNext?: (content: string) => void;
+  onSaveAndCreateNext?: (content: string, nextBlockType?: BlockType, nextListStart?: number) => void;
 
   // Editor ref for toolbar control
-  editorRef?: React.RefObject<BlockEditorRef | null>;
+  editorRef?: React.RefObject<BlockEditorRef>;
 }
 
 const SortableBlockRenderer: React.FC<SortableBlockRendererProps> = ({
@@ -53,6 +56,7 @@ const SortableBlockRenderer: React.FC<SortableBlockRendererProps> = ({
   onSelect,
   isPartOfMultiDrag,
   additionalDragBlocks,
+  skipKeyboardNavigation,
   onStartEdit,
   onSaveEdit,
   onAutoSave,
@@ -110,6 +114,7 @@ const SortableBlockRenderer: React.FC<SortableBlockRendererProps> = ({
         currentUserId={currentUserId}
         isSelected={isSelected}
         onSelect={onSelect}
+        skipKeyboardNavigation={skipKeyboardNavigation}
         onStartEdit={onStartEdit}
         onSaveEdit={onSaveEdit}
         onAutoSave={onAutoSave}

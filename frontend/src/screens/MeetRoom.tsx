@@ -12,11 +12,21 @@ import {
 import { getSession, GetSessionResponse } from '../api/sessions';
 import { getNotes } from '../api/notes';
 import { getQueue, raiseHand, nextSpeaker, removeFromQueue, addParticipantToQueue, reorderQueue, delegateModerator, joinQueueRest, changeVoiceChatMode } from '../api/speakingQueue';
-import { getRecording, toggleRecording, generateAISummary, organizeNotes } from '../api/aiSummary';
+import {
+  getRecording,
+  generateAISummary,
+  organizeNotes,
+  getAiContentVersions,
+  getAiContentVersion,
+  updateAiVersionBlockContent,
+  addAiVersionBlock,
+  deleteAiVersionBlock,
+} from '../api/aiSummary';
+import { AIContentVersionSummary, AIContentVersion } from '../types/meetRoom';
 import { getUserById, getDisplayPhotoUrl } from '../api/user';
 import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
 import { getReportedUserIds } from '../api/reports';
-import { getMyAttendance, updateNoteAttendance, AttendanceRecord } from '../api/attendance';
+import { getMyAttendance, AttendanceRecord } from '../api/attendance';
 import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
 import AttendanceProgress from '../components/meet/LeftPanel/AttendanceProgress';
 import ReportModal from '../components/meet/ReportModal';
@@ -41,11 +51,10 @@ import VoiceChat from '../components/meet/VoiceChat';
 // Center Panel Components
 import BlockBasedNotes, { BlockBasedNotesRef } from '../components/meet/CenterPanel/BlockBasedNotes';
 // Right Panel Components
-import RecordingPanel from '../components/meet/RightPanel/RecordingPanel';
 import AISummaryPanel from '../components/meet/RightPanel/AISummaryPanel';
 import UtterancePanel from '../components/meet/RightPanel/UtterancePanel';
 // Utterance Hooks
-import { useUtteranceRecorder, formatRecordingTime } from '../hooks/useUtteranceRecorder';
+import { useUtteranceRecorder } from '../hooks/useUtteranceRecorder';
 import { useUtterances } from '../hooks/useUtterances';
 
 const MeetRoom: React.FC = () => {
@@ -66,7 +75,7 @@ const MeetRoom: React.FC = () => {
   // State (note 상태 제거 - CollaborativeNotes가 자체 관리)
   const [session, setSession] = useState<GetSessionResponse | null>(null);
   const [hostUsername, setHostUsername] = useState<string>('');
-  const [initialNoteContent, setInitialNoteContent] = useState<any>(null);
+  const [_initialNoteContent, setInitialNoteContent] = useState<any>(null);
   const [initialNoteTitle, setInitialNoteTitle] = useState<string>('');
   const [aiNoteContent, setAiNoteContent] = useState<any>(null);  // AI Organized Notes
   const [aiValidation, setAiValidation] = useState<{
@@ -77,6 +86,12 @@ const MeetRoom: React.FC = () => {
     validationError: string;
   } | null>(null);
   const [isOrganizing, setIsOrganizing] = useState(false);
+
+  // AI Version states
+  const [aiVersions, setAiVersions] = useState<AIContentVersionSummary[]>([]);
+  const [selectedAiVersion, setSelectedAiVersion] = useState<number | null>(null);
+  const [aiVersionData, setAiVersionData] = useState<AIContentVersion | null>(null);
+  const [isLoadingVersion, setIsLoadingVersion] = useState(false);
   const [queue, setQueue] = useState<SpeakingQueue | null>(null);
   const [recording, setRecording] = useState<SessionRecording | null>(null);
   const [_presence, setPresence] = useState<PresenceMessage[]>([]);
@@ -287,7 +302,7 @@ const MeetRoom: React.FC = () => {
     elapsedSeconds: utteranceRecordingSeconds,
     startRecording: startUtteranceRecording,
     stopRecording: stopUtteranceRecording,
-    error: utteranceRecordingError,
+    error: _utteranceRecordingError,
   } = useUtteranceRecorder({
     onRecordingComplete: handleRecordingComplete,
   });
@@ -414,13 +429,29 @@ const MeetRoom: React.FC = () => {
             setInitialNoteContent(noteData.content);
           }
         }
-        // 초기 AI 노트 내용 설정
+        // 초기 AI 노트 내용 설정 (버전이 없을 때 fallback)
         if (noteData?.aiContent) {
           try {
             setAiNoteContent(JSON.parse(noteData.aiContent));
           } catch {
             setAiNoteContent(noteData.aiContent);
           }
+        }
+
+        // AI 버전 목록 로드
+        try {
+          const versionsResponse = await getAiContentVersions(sessionId, accessToken);
+          setAiVersions(versionsResponse.versions);
+          // 최신 버전 자동 선택
+          if (versionsResponse.versions.length > 0) {
+            const latestVersion = versionsResponse.versions[0].version;
+            setSelectedAiVersion(latestVersion);
+            // 최신 버전 데이터 로드
+            const versionData = await getAiContentVersion(sessionId, latestVersion, accessToken);
+            setAiVersionData(versionData);
+          }
+        } catch (err) {
+          console.log('[AI Versions] No versions found or failed to load:', err);
         }
         // 초기 노트 제목 설정
         if (noteData?.title) {
@@ -816,16 +847,6 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken]);
 
-  const handleToggleRecording = useCallback(async () => {
-    if (!sessionId || !accessToken) return;
-    try {
-      const result = await toggleRecording(sessionId, accessToken);
-      setRecording(result);
-    } catch (err) {
-      console.error('Failed to toggle recording:', err);
-    }
-  }, [sessionId, accessToken]);
-
   const handleGenerateSummary = useCallback(async () => {
     if (!sessionId || !accessToken) return;
     try {
@@ -838,6 +859,130 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken, t]);
 
+  // Load AI content versions
+  const loadAiVersions = useCallback(async () => {
+    if (!sessionId || !accessToken) return;
+    try {
+      const response = await getAiContentVersions(sessionId, accessToken);
+      setAiVersions(response.versions);
+      // Auto-select the latest version if none selected
+      if (response.versions.length > 0 && selectedAiVersion === null) {
+        const latestVersion = response.versions[0].version;
+        setSelectedAiVersion(latestVersion);
+        // Load the version data
+        loadAiVersionData(latestVersion);
+      }
+    } catch (err) {
+      console.error('Failed to load AI versions:', err);
+    }
+  }, [sessionId, accessToken, selectedAiVersion]);
+
+  // Load specific AI version data
+  const loadAiVersionData = useCallback(async (version: number) => {
+    if (!sessionId || !accessToken) return;
+    setIsLoadingVersion(true);
+    try {
+      const versionData = await getAiContentVersion(sessionId, version, accessToken);
+      setAiVersionData(versionData);
+      setSelectedAiVersion(version);
+      // Also set validation from version data
+      if (versionData.missingFragments && versionData.missingFragments.length > 0) {
+        setAiValidation({
+          valid: versionData.valid,
+          sourceFragmentIds: [],
+          outputFragmentIds: [],
+          missingFragments: versionData.missingFragments,
+          validationError: '',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load AI version data:', err);
+    } finally {
+      setIsLoadingVersion(false);
+    }
+  }, [sessionId, accessToken]);
+
+  // Handle version selection
+  const handleSelectAiVersion = useCallback((version: number) => {
+    if (version !== selectedAiVersion) {
+      loadAiVersionData(version);
+    }
+  }, [selectedAiVersion, loadAiVersionData]);
+
+  // Version-specific block update handler
+  const handleAiVersionBlockUpdate = useCallback(async (version: number, blockId: string, content: string) => {
+    if (!sessionId || !accessToken || !user?.id) return;
+    try {
+      const updatedBlock = await updateAiVersionBlockContent(sessionId, version, blockId, content, user.id, accessToken);
+      // Update local state
+      setAiVersionData(prev => {
+        if (!prev || prev.version !== version) return prev;
+        return {
+          ...prev,
+          blocks: {
+            ...prev.blocks,
+            [blockId]: updatedBlock,
+          },
+        };
+      });
+    } catch (err) {
+      console.error('Failed to update AI version block:', err);
+    }
+  }, [sessionId, accessToken, user?.id]);
+
+  // Version-specific block add handler
+  const handleAiVersionBlockAdd = useCallback(async (
+    version: number,
+    type: string,
+    content: string,
+    afterBlockId: string | null
+  ): Promise<string | null> => {
+    if (!sessionId || !accessToken || !user?.id) return null;
+    try {
+      const newBlock = await addAiVersionBlock(sessionId, version, type, content, afterBlockId, user.id, accessToken);
+      // Update local state
+      setAiVersionData(prev => {
+        if (!prev || prev.version !== version) return prev;
+        const newBlockOrder = [...prev.blockOrder];
+        const insertIndex = afterBlockId ? newBlockOrder.indexOf(afterBlockId) + 1 : newBlockOrder.length;
+        newBlockOrder.splice(insertIndex, 0, newBlock.id);
+        return {
+          ...prev,
+          blockOrder: newBlockOrder,
+          blocks: {
+            ...prev.blocks,
+            [newBlock.id]: newBlock,
+          },
+        };
+      });
+      return newBlock.id;
+    } catch (err) {
+      console.error('Failed to add AI version block:', err);
+      return null;
+    }
+  }, [sessionId, accessToken, user?.id]);
+
+  // Version-specific block delete handler
+  const handleAiVersionBlockDelete = useCallback(async (version: number, blockId: string) => {
+    if (!sessionId || !accessToken || !user?.id) return;
+    try {
+      await deleteAiVersionBlock(sessionId, version, blockId, user.id, accessToken);
+      // Update local state
+      setAiVersionData(prev => {
+        if (!prev || prev.version !== version) return prev;
+        const newBlockOrder = prev.blockOrder.filter(id => id !== blockId);
+        const { [blockId]: _, ...remainingBlocks } = prev.blocks;
+        return {
+          ...prev,
+          blockOrder: newBlockOrder,
+          blocks: remainingBlocks,
+        };
+      });
+    } catch (err) {
+      console.error('Failed to delete AI version block:', err);
+    }
+  }, [sessionId, accessToken, user?.id]);
+
   const handleOrganizeNotes = useCallback(async () => {
     if (!sessionId || !accessToken) return;
     setIsOrganizing(true);
@@ -845,19 +990,27 @@ const MeetRoom: React.FC = () => {
       // Get current language from i18n
       const currentLanguage = t('code') || 'en'; // 'ko' or 'en'
       console.log('[AI Organize] Calling API with language:', currentLanguage);
-      const result = await organizeNotes(sessionId, accessToken, currentLanguage);
+      const result = await organizeNotes(sessionId, accessToken, currentLanguage, user?.id);
       console.log('[AI Organize] API Response:', result);
 
-      // New API response format: { note: SessionNote, validation: {...} }
-      if (result.note?.aiContent) {
-        try {
-          const parsedContent = JSON.parse(result.note.aiContent);
-          console.log('[AI Organize] Parsed aiContent:', parsedContent);
-          setAiNoteContent(parsedContent);
-        } catch {
-          console.log('[AI Organize] aiContent is not JSON, using as-is');
-          setAiNoteContent(result.note.aiContent);
-        }
+      // New API response format with version info
+      // Set the new version as selected
+      if (result.version) {
+        setSelectedAiVersion(result.version);
+        // Set version data from response
+        setAiVersionData({
+          id: result.versionId,
+          sessionId: sessionId,
+          version: result.version,
+          blockOrder: result.blockOrder || [],
+          blocks: result.blocks || {},
+          generatedAt: result.generatedAt,
+          updatedAt: result.generatedAt,
+          generatedBy: user?.id || null,
+          lastEditedBy: null,
+          valid: result.validation?.valid ?? true,
+          missingFragments: result.validation?.missingFragments || [],
+        });
       }
 
       // Set validation info
@@ -865,12 +1018,15 @@ const MeetRoom: React.FC = () => {
         console.log('[AI Organize] Validation:', result.validation);
         setAiValidation(result.validation);
       }
+
+      // Refresh version list
+      loadAiVersions();
     } catch (err) {
       console.error('Failed to organize notes:', err);
     } finally {
       setIsOrganizing(false);
     }
-  }, [sessionId, accessToken, t]);
+  }, [sessionId, accessToken, t, user?.id, loadAiVersions]);
 
   const handleInsertToNotes = useCallback(() => {
     if (!recording?.aiSummary || !notesRef.current) return;
@@ -1016,19 +1172,6 @@ const MeetRoom: React.FC = () => {
     // Insert to notes
     notesRef.current.insertContentAtEnd(organizedContent);
   }, [recording?.aiOrganizedContent, t]);
-
-  // Handle note character count change for attendance tracking
-  const handleNoteCharCountChange = useCallback(async (charCount: number) => {
-    if (!sessionId || !accessToken) return;
-    try {
-      const updatedAttendance = await updateNoteAttendance(sessionId, charCount, accessToken);
-      if (updatedAttendance) {
-        setAttendance(updatedAttendance);
-      }
-    } catch (err) {
-      console.error('Failed to update attendance note count:', err);
-    }
-  }, [sessionId, accessToken]);
 
   const handleDelegateModerator = useCallback(async (newModeratorId: string) => {
     if (!sessionId || !accessToken) return;
@@ -1444,6 +1587,13 @@ const MeetRoom: React.FC = () => {
               aiValidation={aiValidation}
               isOrganizing={isOrganizing}
               onOrganizeNotes={handleOrganizeNotes}
+              // AI Version props
+              aiVersions={aiVersions}
+              selectedAiVersion={selectedAiVersion}
+              aiVersionData={aiVersionData}
+              onAiVersionBlockUpdate={handleAiVersionBlockUpdate}
+              onAiVersionBlockAdd={handleAiVersionBlockAdd}
+              onAiVersionBlockDelete={handleAiVersionBlockDelete}
             />
           )}
         </main>
@@ -1457,6 +1607,11 @@ const MeetRoom: React.FC = () => {
             onOrganizeNotes={handleOrganizeNotes}
             onInsertToNotes={handleInsertToNotes}
             onInsertOrganizedToNotes={handleInsertOrganizedToNotes}
+            // AI Version props
+            aiVersions={aiVersions}
+            selectedAiVersion={selectedAiVersion}
+            onSelectAiVersion={handleSelectAiVersion}
+            isLoadingVersion={isLoadingVersion}
           />
 
           {/* Utterance Panel */}

@@ -23,7 +23,7 @@ import {
   createEmptyBlockContent,
   BlockType,
 } from '../types/blockDocument';
-import { TOPICS, LockOperation, generateClientId, getUserColor } from '../types/collaborative';
+import { TOPICS, LockOperation, generateClientId } from '../types/collaborative';
 import axiosInstance from '../api/axiosInstance';
 
 // ============================================
@@ -67,6 +67,7 @@ interface UseBlockDocumentReturn {
 
   // Block operations
   startEditing: (blockId: string) => Promise<boolean>;
+  startEditingOwnBlock: (blockId: string) => boolean; // For newly created blocks (no server lock needed)
   saveBlock: (blockId: string, content: string) => Promise<boolean>;
   broadcastContent: (blockId: string, content: string) => void; // Real-time sync without save
   updateLocalContent: (blockId: string, content: string) => void; // Update local state only
@@ -74,7 +75,7 @@ interface UseBlockDocumentReturn {
   cancelEditing: () => void;
 
   // Block CRUD
-  addBlock: (type: BlockType, afterBlockId?: string | null, initialContent?: string) => Promise<string | null>;
+  addBlock: (type: BlockType, afterBlockId?: string | null, initialContent?: string, options?: { startEditing?: boolean }) => Promise<string | null>;
   deleteBlock: (blockId: string) => Promise<boolean>;
   reorderBlocks: (fromIndex: number, toIndex: number) => void;
   reorderMultiple: (blockIds: string[], targetIndex: number) => void;
@@ -428,6 +429,42 @@ export function useBlockDocument({
         // Replace tempId with serverId
         return prev.map(id => id === tempBlockId ? newBlock.id : id);
       });
+
+      // CRITICAL: Also update editingBlockId if we were editing the temp block
+      // This prevents the cursor from disappearing when temp ID is replaced with server ID
+      setEditingBlockId((prev) => {
+        if (prev === tempBlockId) {
+          return newBlock.id;
+        }
+        return prev;
+      });
+
+      // Also update editingState if it was for the temp block
+      setEditingState((prev) => {
+        if (prev && prev.blockId === tempBlockId) {
+          return {
+            ...prev,
+            blockId: newBlock.id,
+          };
+        }
+        return prev;
+      });
+
+      // Also update locks map - move lock from tempId to serverId
+      setLocks((prev) => {
+        const lockInfo = prev.get(tempBlockId);
+        if (lockInfo) {
+          const newLocks = new Map(prev);
+          newLocks.delete(tempBlockId);
+          newLocks.set(newBlock.id, {
+            ...lockInfo,
+            blockId: newBlock.id,
+          });
+          return newLocks;
+        }
+        return prev;
+      });
+
       return;
     }
 
@@ -767,6 +804,52 @@ export function useBlockDocument({
     return requestLock(blockId);
   }, [editingBlockId, blocks, locks, userId, requestLock, finishEditing]);
 
+  /**
+   * Start editing a block we just created (no need to request lock from server)
+   * Used after addBlock() to immediately start editing the new block
+   * This avoids race conditions with temp ID -> server ID transitions
+   */
+  const startEditingOwnBlock = useCallback((blockId: string): boolean => {
+    // Already editing this block
+    if (editingBlockId === blockId) return true;
+
+    // Finish current editing if any (releases lock without restoring content)
+    if (editingBlockId) {
+      finishEditing();
+    }
+
+    // Check if block exists
+    if (!blocks[blockId]) return false;
+
+    // Set editing state directly (we own this block, no need to request lock)
+    const block = blocks[blockId];
+    setEditingState({
+      blockId,
+      originalContent: block.content,
+      lockToken: `local-${Date.now()}`, // Local token for newly created block
+      lockUntil: Date.now() + 60000, // 1 minute local lock
+    });
+    setEditingBlockId(blockId);
+
+    // Broadcast lock to other clients so they know we're editing
+    send(TOPICS.SEND_LOCK(docId), {
+      type: 'lock_acquired',
+      docId,
+      blockId,
+      userId,
+      username,
+      clientId: clientIdRef.current,
+      lockToken: `local-${Date.now()}`,
+      lockUntil: Date.now() + 60000,
+      timestamp: Date.now(),
+    });
+
+    // Start lock renewal (will request proper lock from server on next renewal)
+    startLockRenewal(blockId, `local-${Date.now()}`);
+
+    return true;
+  }, [editingBlockId, blocks, docId, userId, username, finishEditing, send, startLockRenewal]);
+
   const saveBlock = useCallback(async (blockId: string, content: string): Promise<boolean> => {
     if (!editingState || editingState.blockId !== blockId) return false;
     if (!isConnected) return false;
@@ -909,7 +992,12 @@ export function useBlockDocument({
     });
   }, []);
 
-  const addBlock = useCallback(async (type: BlockType, afterBlockId?: string | null, initialContent?: string): Promise<string | null> => {
+  const addBlock = useCallback(async (
+    type: BlockType,
+    afterBlockId?: string | null,
+    initialContent?: string,
+    options?: { startEditing?: boolean }
+  ): Promise<string | null> => {
     if (!isConnected) return null;
 
     // Use provided content or create empty content
@@ -958,8 +1046,90 @@ export function useBlockDocument({
       return [...prev, tempId];
     });
 
+    // If startEditing is requested, set up editing state directly here
+    // This avoids React state batching issues where blocks[tempId] isn't available yet
+    if (options?.startEditing) {
+      // First release any existing lock
+      if (editingBlockId) {
+        // Clear broadcast timer
+        if (broadcastTimerRef.current) {
+          clearTimeout(broadcastTimerRef.current);
+          broadcastTimerRef.current = null;
+        }
+
+        // Flush pending content
+        if (pendingContentRef.current && pendingContentRef.current.blockId === editingBlockId) {
+          const pendingBlock = blocks[editingBlockId];
+          if (pendingBlock && isConnected) {
+            if (dbSaveTimerRef.current) {
+              clearTimeout(dbSaveTimerRef.current);
+              dbSaveTimerRef.current = null;
+            }
+            send(BLOCK_TOPICS.SEND_BLOCK_UPDATE(docId), {
+              type: 'block_update',
+              docId,
+              blockId: editingBlockId,
+              content: pendingContentRef.current.content,
+              version: pendingBlock.version,
+              userId,
+              username,
+              clientId: clientIdRef.current,
+              timestamp: Date.now(),
+            });
+          }
+          pendingContentRef.current = null;
+        }
+
+        // Release old lock
+        if (editingState) {
+          if (lockRenewalTimerRef.current) {
+            clearTimeout(lockRenewalTimerRef.current);
+            lockRenewalTimerRef.current = null;
+          }
+          send(TOPICS.SEND_LOCK(docId), {
+            type: 'lock_release',
+            docId,
+            blockId: editingBlockId,
+            userId,
+            username,
+            clientId: clientIdRef.current,
+            lockToken: editingState.lockToken,
+            timestamp: Date.now(),
+          });
+        }
+      }
+
+      // Set up editing state for new block
+      const lockToken = `local-${Date.now()}`;
+      const lockUntil = Date.now() + 60000;
+
+      setEditingState({
+        blockId: tempId,
+        originalContent: content,
+        lockToken,
+        lockUntil,
+      });
+      setEditingBlockId(tempId);
+
+      // Broadcast lock to other clients
+      send(TOPICS.SEND_LOCK(docId), {
+        type: 'lock_acquired',
+        docId,
+        blockId: tempId,
+        userId,
+        username,
+        clientId: clientIdRef.current,
+        lockToken,
+        lockUntil,
+        timestamp: Date.now(),
+      });
+
+      // Start lock renewal
+      startLockRenewal(tempId, lockToken);
+    }
+
     return tempId;
-  }, [docId, userId, username, isConnected, send]);
+  }, [docId, userId, username, isConnected, send, editingBlockId, editingState, blocks, startLockRenewal]);
 
   const deleteBlock = useCallback(async (blockId: string): Promise<boolean> => {
     if (!isConnected) return false;
@@ -1049,7 +1219,7 @@ export function useBlockDocument({
       ];
 
       // Send reorder messages for each block
-      orderedBlockIds.forEach((blockId, i) => {
+      orderedBlockIds.forEach((blockId) => {
         const originalIndex = prev.indexOf(blockId);
         const newIndex = newOrder.indexOf(blockId);
         if (originalIndex !== newIndex) {
@@ -1153,6 +1323,7 @@ export function useBlockDocument({
 
     // Block operations
     startEditing,
+    startEditingOwnBlock,
     saveBlock,
     broadcastContent,
     updateLocalContent,

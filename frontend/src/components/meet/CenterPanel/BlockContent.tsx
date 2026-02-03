@@ -115,10 +115,40 @@ function renderContent(content: TipTapContent): React.ReactNode {
       return <br />;
 
     case 'utteranceBlock':
+      const speakerName = (attrs?.speakerName as string) || 'Unknown';
+      const speakerPhotoUrl = attrs?.speakerPhotoUrl as string;
+      const timestamp = attrs?.timestamp as string;
+      const utteranceIndex = attrs?.utteranceIndex as number;
+
       return (
-        <div className="utterance-block" data-speaker={attrs?.speaker as string}>
-          <span className="utterance-speaker">{attrs?.speaker as string}:</span>
-          <span className="utterance-text">{renderedChildren}</span>
+        <div className="utterance-block" data-type="utterance-block">
+          <div className="utterance-block-header">
+            {speakerPhotoUrl ? (
+              <img
+                src={speakerPhotoUrl}
+                alt={speakerName}
+                className="utterance-block-avatar"
+              />
+            ) : (
+              <div className="utterance-block-avatar-placeholder">
+                {speakerName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="utterance-block-info">
+              <div className="utterance-block-meta">
+                <span className="utterance-block-name">{speakerName}</span>
+                {utteranceIndex > 0 && (
+                  <span className="utterance-block-index">#{utteranceIndex}</span>
+                )}
+                {timestamp && (
+                  <span className="utterance-block-time">{timestamp}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="utterance-block-content">
+            {renderedChildren}
+          </div>
         </div>
       );
 
@@ -144,7 +174,7 @@ const BlockContent: React.FC<BlockContentProps> = ({ block, onClick }) => {
    * Handle click - only trigger edit if no text is selected
    * This allows users to select text across blocks without entering edit mode
    */
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (_e: React.MouseEvent) => {
     // Check if there's a text selection
     const selection = window.getSelection();
     const hasSelection = selection && selection.toString().trim().length > 0;

@@ -193,7 +193,7 @@ function createDraggableNodeView(
   };
 
   const handleDragLeave = (e: DragEvent) => {
-    const relatedTarget = e.relatedTarget as Node | null;
+    const relatedTarget = e.relatedTarget as globalThis.Node | null;
     if (!relatedTarget || !dom.contains(relatedTarget)) {
       dom.classList.remove('block-drop-above', 'block-drop-below');
     }
@@ -315,8 +315,11 @@ function createDraggableNodeView(
       return true;
     },
 
-    ignoreMutation(mutation: MutationRecord): boolean {
-      if (handle.contains(mutation.target as Node)) {
+    ignoreMutation(mutation: MutationRecord | { type: 'selection'; target: globalThis.Node }): boolean {
+      if (mutation.type === 'selection') {
+        return true;
+      }
+      if (handle.contains(mutation.target as globalThis.Node)) {
         return true;
       }
       return false;
@@ -348,8 +351,9 @@ function makeDraggable<T extends Node>(
   onReorder?: (blockId: string, fromIndex: number, toIndex: number) => void
 ) {
   return NodeExtension.extend({
-    addNodeView() {
-      return ({ node, view, getPos }) => {
+    addNodeView(): ReturnType<typeof createDraggableNodeView> extends infer R ? () => R : never {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (({ node, view, getPos }: any) => {
         return createDraggableNodeView(
           node,
           view,
@@ -357,7 +361,7 @@ function makeDraggable<T extends Node>(
           defaultContentTag,
           onReorder
         );
-      };
+      }) as any;
     },
   });
 }

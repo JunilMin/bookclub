@@ -5,18 +5,23 @@ import com.bookclub.backend.post.Post;
 import com.bookclub.backend.post.PostRepository;
 import com.bookclub.backend.session.Session;
 import com.bookclub.backend.session.SessionRepository;
+import com.bookclub.backend.session.model.AIContentVersion;
 import com.bookclub.backend.session.model.SessionNote;
 import com.bookclub.backend.session.model.SessionRecording;
 import com.bookclub.backend.session.model.SessionRecording.AISummary;
 import com.bookclub.backend.session.model.SessionRecording.AIOrganizedContent;
+import com.bookclub.backend.session.service.AIContentVersionService;
 import com.bookclub.backend.session.service.SessionNoteService;
 import com.bookclub.backend.session.service.SessionRecordingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -31,6 +36,9 @@ public class AISummaryController {
 
     @Autowired
     private SessionRecordingService sessionRecordingService;
+
+    @Autowired
+    private AIContentVersionService aiContentVersionService;
 
     @Autowired
     private SessionRepository sessionRepository;
@@ -99,12 +107,13 @@ public class AISummaryController {
     /**
      * Organize notes using AI Context-Preserving Editor
      * Reorganizes content for readability while preserving ALL original content
-     * Saves the result to SessionNote.aiContent as TipTap JSON
+     * Saves the result as a new AI content version
      */
     @PostMapping("/{sessionId}/ai-organize")
     public ResponseEntity<?> organizeNotes(
             @PathVariable String sessionId,
-            @RequestParam(defaultValue = "en") String language) {
+            @RequestParam(defaultValue = "en") String language,
+            @RequestParam(required = false) String userId) {
         try {
             // Get session to find post
             Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
@@ -130,20 +139,42 @@ public class AISummaryController {
             // Convert organized text to TipTap JSON format
             String aiContentJson = convertToTipTapJson(organizedContent.getOrganizedText(), language);
 
-            // Save to SessionNote.aiContent
-            SessionNote updatedNote = sessionNoteService.updateAiContent(sessionId, aiContentJson);
+            // Save as new AI content version
+            AIContentVersion newVersion = aiContentVersionService.createVersion(
+                sessionId,
+                aiContentJson,
+                userId,
+                organizedContent.getModelUsed() != null ? organizedContent.getModelUsed() : "gpt-4o-mini",
+                organizedContent.isValid(),
+                organizedContent.getSourceFragmentIds(),
+                organizedContent.getOutputFragmentIds(),
+                organizedContent.getMissingFragments(),
+                organizedContent.getValidationError()
+            );
 
-            // Return both the note and the validation info
-            return ResponseEntity.ok(Map.of(
-                "note", updatedNote,
-                "validation", Map.of(
-                    "valid", organizedContent.isValid(),
-                    "sourceFragmentIds", organizedContent.getSourceFragmentIds(),
-                    "outputFragmentIds", organizedContent.getOutputFragmentIds(),
-                    "missingFragments", organizedContent.getMissingFragments(),
-                    "validationError", organizedContent.getValidationError() != null ? organizedContent.getValidationError() : ""
-                )
+            // Also update SessionNote.aiContent for backward compatibility
+            sessionNoteService.updateAiContent(sessionId, aiContentJson);
+
+            // Get total version count
+            long totalVersions = aiContentVersionService.getVersionCount(sessionId);
+
+            // Return version info along with validation
+            Map<String, Object> response = new HashMap<>();
+            response.put("version", newVersion.getVersion());
+            response.put("totalVersions", totalVersions);
+            response.put("versionId", newVersion.getId());
+            response.put("generatedAt", newVersion.getGeneratedAt());
+            response.put("blockOrder", newVersion.getBlockOrder());
+            response.put("blocks", newVersion.getBlocks());
+            response.put("validation", Map.of(
+                "valid", organizedContent.isValid(),
+                "sourceFragmentIds", organizedContent.getSourceFragmentIds() != null ? organizedContent.getSourceFragmentIds() : List.of(),
+                "outputFragmentIds", organizedContent.getOutputFragmentIds() != null ? organizedContent.getOutputFragmentIds() : List.of(),
+                "missingFragments", organizedContent.getMissingFragments() != null ? organizedContent.getMissingFragments() : List.of(),
+                "validationError", organizedContent.getValidationError() != null ? organizedContent.getValidationError() : ""
             ));
+
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
@@ -426,5 +457,175 @@ public class AISummaryController {
                 .trim());
 
         return md.toString();
+    }
+
+    // ============================================
+    // AI Content Version Management APIs
+    // ============================================
+
+    /**
+     * Get all AI content versions for a session
+     * Returns summary info (version number, generatedAt)
+     */
+    @GetMapping("/{sessionId}/ai-versions")
+    public ResponseEntity<?> getAiVersions(@PathVariable String sessionId) {
+        List<AIContentVersion> versions = aiContentVersionService.getVersions(sessionId);
+
+        // Convert to summary format
+        List<Map<String, Object>> summaries = versions.stream()
+            .map(v -> {
+                Map<String, Object> summary = new HashMap<>();
+                summary.put("version", v.getVersion());
+                summary.put("generatedAt", v.getGeneratedAt());
+                summary.put("updatedAt", v.getUpdatedAt());
+                summary.put("generatedBy", v.getGeneratedBy());
+                summary.put("valid", v.isValid());
+                return summary;
+            })
+            .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of(
+            "versions", summaries,
+            "totalVersions", versions.size()
+        ));
+    }
+
+    /**
+     * Get a specific AI content version with full block data
+     */
+    @GetMapping("/{sessionId}/ai-versions/{version}")
+    public ResponseEntity<?> getAiVersion(
+            @PathVariable String sessionId,
+            @PathVariable int version) {
+
+        Optional<AIContentVersion> versionOpt = aiContentVersionService.getVersion(sessionId, version);
+
+        if (versionOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        AIContentVersion ver = versionOpt.get();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", ver.getId());
+        response.put("sessionId", ver.getSessionId());
+        response.put("version", ver.getVersion());
+        response.put("blockOrder", ver.getBlockOrder());
+        response.put("blocks", ver.getBlocks());
+        response.put("generatedAt", ver.getGeneratedAt());
+        response.put("updatedAt", ver.getUpdatedAt());
+        response.put("generatedBy", ver.getGeneratedBy());
+        response.put("lastEditedBy", ver.getLastEditedBy());
+        response.put("valid", ver.isValid());
+        response.put("missingFragments", ver.getMissingFragments());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Update a block's content in a specific version
+     */
+    @PutMapping("/{sessionId}/ai-versions/{version}/blocks/{blockId}/content")
+    public ResponseEntity<?> updateAiVersionBlockContent(
+            @PathVariable String sessionId,
+            @PathVariable int version,
+            @PathVariable String blockId,
+            @RequestBody Map<String, Object> payload) {
+
+        String content = (String) payload.get("content");
+        String userId = (String) payload.get("userId");
+
+        if (content == null || userId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "content and userId are required"));
+        }
+
+        SessionNote.Block block = aiContentVersionService.updateBlockContent(
+            sessionId, version, blockId, content, userId
+        );
+
+        if (block == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(block);
+    }
+
+    /**
+     * Add a new block to a specific version
+     */
+    @PostMapping("/{sessionId}/ai-versions/{version}/blocks")
+    public ResponseEntity<?> addAiVersionBlock(
+            @PathVariable String sessionId,
+            @PathVariable int version,
+            @RequestBody Map<String, String> payload) {
+
+        String type = payload.get("type");
+        String content = payload.get("content");
+        String afterBlockId = payload.get("afterBlockId");
+        String userId = payload.get("userId");
+
+        if (type == null || content == null || userId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "type, content, and userId are required"));
+        }
+
+        SessionNote.Block block = aiContentVersionService.addBlock(
+            sessionId, version, type, content, afterBlockId, userId
+        );
+
+        if (block == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.status(201).body(block);
+    }
+
+    /**
+     * Delete a block from a specific version
+     */
+    @DeleteMapping("/{sessionId}/ai-versions/{version}/blocks/{blockId}")
+    public ResponseEntity<?> deleteAiVersionBlock(
+            @PathVariable String sessionId,
+            @PathVariable int version,
+            @PathVariable String blockId,
+            @RequestParam(required = false) String userId) {
+
+        boolean deleted = aiContentVersionService.deleteBlock(sessionId, version, blockId, userId);
+
+        if (!deleted) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(Map.of("success", true, "blockId", blockId));
+    }
+
+    /**
+     * Update block order for a specific version
+     */
+    @PutMapping("/{sessionId}/ai-versions/{version}/blocks/order")
+    public ResponseEntity<?> updateAiVersionBlockOrder(
+            @PathVariable String sessionId,
+            @PathVariable int version,
+            @RequestBody Map<String, Object> payload) {
+
+        @SuppressWarnings("unchecked")
+        List<String> blockOrder = (List<String>) payload.get("blockOrder");
+        String userId = (String) payload.get("userId");
+
+        if (blockOrder == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "blockOrder is required"));
+        }
+
+        AIContentVersion updated = aiContentVersionService.updateBlockOrder(
+            sessionId, version, blockOrder, userId
+        );
+
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(Map.of(
+            "success", true,
+            "blockOrder", updated.getBlockOrder()
+        ));
     }
 }

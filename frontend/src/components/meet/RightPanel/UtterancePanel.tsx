@@ -242,13 +242,12 @@ const UtterancePanel: React.FC<UtterancePanelProps> = ({
                 {/* Action buttons */}
                 <div className="utterance-actions">
                   <button
-                    className="insert-text-btn"
+                    className={`insert-text-btn ${utterance.insertedToNotes ? 'inserted' : ''}`}
                     onClick={() => onInsertTextToNotes(utterance)}
-                    disabled={utterance.insertedToNotes}
                   >
-                    <FiDownload size={14} />
+                    {utterance.insertedToNotes ? <FiCheck size={14} /> : <FiDownload size={14} />}
                     {utterance.insertedToNotes
-                      ? t('utterance_inserted') || 'Inserted'
+                      ? t('utterance_insert_again') || 'Insert Again'
                       : t('utterance_insert_text') || 'Insert Text'}
                   </button>
                   <button

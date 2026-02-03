@@ -21,6 +21,7 @@ import {
   deleteComment,
 } from '../../api/suggestions';
 import { useAuth } from '../../AuthContext/AuthContext';
+import { getDisplayPhotoUrl } from '../../api/user';
 import './SuggestionDetailModal.css';
 
 interface SuggestionDetailModalProps {
@@ -297,10 +298,10 @@ const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
                   <form className="comment-form" onSubmit={handleSubmitComment}>
                     <div className="comment-input-wrapper">
                       <div className="comment-input-avatar">
-                        {user.photoURL ? (
-                          <img src={user.photoURL} alt="Me" />
+                        {getDisplayPhotoUrl(user) ? (
+                          <img src={getDisplayPhotoUrl(user)} alt="Me" />
                         ) : (
-                          <span>{user.displayName?.charAt(0) || 'U'}</span>
+                          <span>{user.username?.charAt(0) || 'U'}</span>
                         )}
                       </div>
                       <input

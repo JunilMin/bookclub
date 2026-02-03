@@ -10,8 +10,9 @@ import {
   FiEdit3,
   FiCheckCircle,
   FiXCircle,
+  FiLoader,
 } from 'react-icons/fi';
-import { SessionRecording } from '../../../types/meetRoom';
+import { SessionRecording, AIContentVersionSummary } from '../../../types/meetRoom';
 import '../styles/RightPanel.css';
 
 type AIViewTab = 'summary' | 'organized';
@@ -22,6 +23,11 @@ interface AISummaryPanelProps {
   onOrganizeNotes: () => void;
   onInsertToNotes: () => void;
   onInsertOrganizedToNotes: () => void;
+  // AI Version props
+  aiVersions?: AIContentVersionSummary[];
+  selectedAiVersion?: number | null;
+  onSelectAiVersion?: (version: number) => void;
+  isLoadingVersion?: boolean;
 }
 
 const AISummaryPanel: React.FC<AISummaryPanelProps> = ({
@@ -30,6 +36,11 @@ const AISummaryPanel: React.FC<AISummaryPanelProps> = ({
   onOrganizeNotes,
   onInsertToNotes,
   onInsertOrganizedToNotes,
+  // AI Version props
+  aiVersions = [],
+  selectedAiVersion = null,
+  onSelectAiVersion,
+  isLoadingVersion = false,
 }) => {
   const { t } = useTranslation();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -182,6 +193,32 @@ const AISummaryPanel: React.FC<AISummaryPanelProps> = ({
           {/* Organized Tab */}
           {activeTab === 'organized' && (
             <>
+              {/* AI Version Selector */}
+              {aiVersions.length > 0 && (
+                <div className="ai-version-selector">
+                  <span className="version-label">{t('meet_ai_versions') || '버전:'}</span>
+                  <div className="version-chips">
+                    {aiVersions.map((ver) => (
+                      <button
+                        key={ver.version}
+                        className={`version-chip ${selectedAiVersion === ver.version ? 'active' : ''}`}
+                        onClick={() => onSelectAiVersion?.(ver.version)}
+                        title={`${t('meet_ai_version_generated') || '생성:'} ${new Date(ver.generatedAt).toLocaleString()}`}
+                        disabled={isLoadingVersion}
+                      >
+                        v{ver.version}
+                        {!ver.valid && <span className="version-warning">!</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {isLoadingVersion && (
+                    <span className="version-loading">
+                      <FiLoader size={14} className="spin" />
+                    </span>
+                  )}
+                </div>
+              )}
+
               {organizedContent ? (
                 <div className="organized-content-compact">
                   {/* Validation Status */}

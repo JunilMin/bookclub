@@ -256,7 +256,7 @@ NoteCard.displayName = 'NoteCard';
 const Notes: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { accessToken, user } = useAuth();
+  const { accessToken, user: _user } = useAuth();
 
   // Zustand Store
   const { byId, order, isInitialLoading, error: storeError, initNotes, toggleFavorite } =

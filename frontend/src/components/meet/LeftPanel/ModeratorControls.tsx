@@ -16,7 +16,6 @@ import {
   FiChevronDown,
   FiChevronUp,
   FiMic,
-  FiMicOff,
   FiStopCircle,
 } from 'react-icons/fi';
 import { RiHandHeartLine } from 'react-icons/ri';

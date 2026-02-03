@@ -12,9 +12,14 @@ export interface SessionNote {
   lastEditedById: string;
 }
 
-// AI Organize API Response
+// AI Organize API Response (updated to include version info)
 export interface AIOrganizeResponse {
-  note: SessionNote;
+  version: number;
+  totalVersions: number;
+  versionId: string;
+  generatedAt: string;
+  blockOrder: string[];
+  blocks: Record<string, Block>;
   validation: {
     valid: boolean;
     sourceFragmentIds: string[];
@@ -22,6 +27,48 @@ export interface AIOrganizeResponse {
     missingFragments: string[];
     validationError: string;
   };
+}
+
+// Block type (shared with SessionNote.Block)
+export interface Block {
+  id: string;
+  type: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  lockedBy?: string;
+  lockToken?: string;
+  lockUntil?: string;
+}
+
+// AI Content Version Types
+export interface AIContentVersionSummary {
+  version: number;
+  generatedAt: string;
+  updatedAt: string;
+  generatedBy: string | null;
+  valid: boolean;
+}
+
+export interface AIContentVersionsResponse {
+  versions: AIContentVersionSummary[];
+  totalVersions: number;
+}
+
+export interface AIContentVersion {
+  id: string;
+  sessionId: string;
+  version: number;
+  blockOrder: string[];
+  blocks: Record<string, Block>;
+  generatedAt: string;
+  updatedAt: string;
+  generatedBy: string | null;
+  lastEditedBy: string | null;
+  valid: boolean;
+  missingFragments: string[];
 }
 
 export interface NoteUpdateMessage {

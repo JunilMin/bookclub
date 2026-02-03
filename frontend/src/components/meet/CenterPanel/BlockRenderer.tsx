@@ -25,6 +25,9 @@ interface BlockRendererProps {
   isSelected?: boolean;
   onSelect?: (event: React.MouseEvent) => void;
 
+  // Skip keyboard navigation during pending transitions
+  skipKeyboardNavigation?: boolean;
+
   // Callbacks
   onStartEdit: () => void;
   onSaveEdit: (content: string) => void;
@@ -34,10 +37,10 @@ interface BlockRendererProps {
   onMoveToPrevBlock?: () => void;
   onMoveToNextBlock?: () => void;
   onCreateBlockAfter: (type: BlockType) => void;
-  onSaveAndCreateNext?: (content: string) => void;
+  onSaveAndCreateNext?: (content: string, nextBlockType?: BlockType, nextListStart?: number) => void;
 
   // Editor ref for toolbar control
-  editorRef?: React.RefObject<BlockEditorRef | null>;
+  editorRef?: React.RefObject<BlockEditorRef>;
 
   // Drag props (for dnd-kit or react-beautiful-dnd)
   dragHandleProps?: Record<string, unknown>;
@@ -52,6 +55,7 @@ const BlockRenderer: React.FC<BlockRendererProps> = ({
   lockInfo,
   isSelected,
   onSelect,
+  skipKeyboardNavigation,
   onStartEdit,
   onSaveEdit,
   onAutoSave,
@@ -115,6 +119,7 @@ const BlockRenderer: React.FC<BlockRendererProps> = ({
             onMoveToNextBlock={onMoveToNextBlock}
             onCreateBlockAfter={onCreateBlockAfter}
             onSaveAndCreateNext={onSaveAndCreateNext}
+            skipKeyboardNavigation={skipKeyboardNavigation}
             autoFocus={true}
           />
         ) : (

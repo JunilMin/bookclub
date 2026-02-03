@@ -220,8 +220,8 @@ public class UserSessionNoteService {
         }
         Session session = sessionOpt.get();
 
-        // 2. 공용 노트 조회
-        Optional<SessionNote> noteOpt = sessionNoteRepository.findBySessionId(sessionId);
+        // 2. 공용 노트 조회 (findFirst로 중복 처리)
+        Optional<SessionNote> noteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
         if (noteOpt.isEmpty()) {
             logger.warn("Session note not found for forking: {}", sessionId);
             return forkedNotes;
@@ -366,8 +366,8 @@ public class UserSessionNoteService {
         }
         Session session = sessionOpt.get();
 
-        // 공용 노트 조회
-        Optional<SessionNote> noteOpt = sessionNoteRepository.findBySessionId(sessionId);
+        // 공용 노트 조회 (findFirst로 중복 처리)
+        Optional<SessionNote> noteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
         if (noteOpt.isEmpty()) {
             throw new NotFoundException("Session note not found");
         }

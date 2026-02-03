@@ -30,10 +30,11 @@ public class SessionNoteService {
     private ObjectMapper objectMapper;
 
     /**
-     * Get or create a note, triggering migration if needed
+     * Get or create a note, triggering migration if needed.
+     * Uses findFirstBySessionId to safely handle potential duplicates.
      */
     public SessionNote getOrCreateNote(String sessionId) {
-        Optional<SessionNote> noteOpt = sessionNoteRepository.findBySessionId(sessionId);
+        Optional<SessionNote> noteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
 
         if (noteOpt.isPresent()) {
             SessionNote note = noteOpt.get();
@@ -49,10 +50,11 @@ public class SessionNoteService {
     }
 
     /**
-     * Get or create a note with title, triggering migration if needed
+     * Get or create a note with title, triggering migration if needed.
+     * Uses findFirstBySessionId to safely handle potential duplicates.
      */
     public SessionNote getOrCreateNote(String sessionId, String title) {
-        Optional<SessionNote> noteOpt = sessionNoteRepository.findBySessionId(sessionId);
+        Optional<SessionNote> noteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
 
         if (noteOpt.isPresent()) {
             SessionNote note = noteOpt.get();
@@ -133,7 +135,7 @@ public class SessionNoteService {
     }
 
     public Optional<SessionNote> getNoteBySessionId(String sessionId) {
-        return sessionNoteRepository.findBySessionId(sessionId);
+        return sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
     }
 
     /**
@@ -175,7 +177,7 @@ public class SessionNoteService {
      * Get a single block by ID
      */
     public Block getBlock(String sessionId, String blockId) {
-        Optional<SessionNote> noteOpt = sessionNoteRepository.findBySessionId(sessionId);
+        Optional<SessionNote> noteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
         if (noteOpt.isEmpty() || noteOpt.get().getBlocks() == null) {
             return null;
         }

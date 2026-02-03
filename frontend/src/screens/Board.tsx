@@ -2,13 +2,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiMessageCircle, FiAward, FiWifiOff, FiChevronUp, FiChevronDown } from 'react-icons/fi';
+import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiWifiOff, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { Post, BookData, joinBookMeeting, deletePost, updatePostBookData } from '../api/posts';
 import { getUserCount } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import RoomModal, { Room } from '../components/RoomModal';
-import Footer from '../components/Footer';
 import './styles/Board.css';
 
 // Post background images
@@ -259,7 +258,7 @@ const Board: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
+  const [selectedStatus, _setSelectedStatus] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [activeTab, setActiveTab] = useState<TabType>('all');
@@ -305,9 +304,6 @@ const Board: React.FC = () => {
   // ==========================================================================
   // Scroll Direction Detection for Sticky Header
   // ==========================================================================
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isTransitioningRef = useRef(false);
-
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -673,26 +669,6 @@ const Board: React.FC = () => {
       scheduleNextPoll(accessToken, user?.id);
     }
   }, [accessToken, user?.id, refreshNow, scheduleNextPoll, sortBy]);
-
-  // Toggle ended meetings section with animation
-  const handleToggleEndedMeetings = useCallback(() => {
-    if (showEndedMeetings) {
-      // Closing: scroll so hero is hidden (hero bottom at viewport top)
-      if (heroRef.current) {
-        const heroBottom = heroRef.current.getBoundingClientRect().bottom + window.scrollY;
-        window.scrollTo({ top: heroBottom, behavior: 'smooth' });
-      }
-      setIsEndedSectionClosing(true);
-      setTimeout(() => {
-        setShowEndedMeetings(false);
-        setIsEndedSectionClosing(false);
-      }, 500); // Match animation duration
-    } else {
-      // Opening
-      setShowEndedMeetings(true);
-    }
-  }, [showEndedMeetings]);
-
   // ==========================================================================
   // Action Handlers
   // ==========================================================================

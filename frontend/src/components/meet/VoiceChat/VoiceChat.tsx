@@ -13,7 +13,6 @@ import {
   FiInfo,
   FiVideo,
   FiExternalLink,
-  FiWifi,
   FiWifiOff,
   FiAlertTriangle,
 } from 'react-icons/fi';

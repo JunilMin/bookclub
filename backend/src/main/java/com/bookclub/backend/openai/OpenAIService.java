@@ -274,93 +274,54 @@ public class OpenAIService {
      */
     private String buildOrganizeSystemPrompt(String language) {
         String languageInstruction;
-        String exampleSection;
         if ("ko".equalsIgnoreCase(language) || "kr".equalsIgnoreCase(language)) {
             languageInstruction = "IMPORTANT: You MUST respond in Korean (한국어).";
-            exampleSection = """
-                예시 출력 형식:
-                ## 📖 핵심 논점
-
-                ### 캐릭터 분석
-                주인공의 성장 과정이 **매우 인상적**이었다. 특히 중반부에서 보여준 변화는...
-
-                ### 주제와 메시지
-                이 책은 _정체성과 소속감_에 대해 깊이 있게 다루고 있다.
-
-                ---
-
-                ## 💬 인상 깊은 구절
-                > "삶은 당신이 다른 계획을 세우느라 바쁠 때 일어나는 것이다"
-
-                ---
-
-                ## ❓ 열린 질문들
-                - 작가가 다른 결말을 선택했다면 어땠을까?
-                - 현대적 맥락에서 이 이야기는 어떻게 재해석될 수 있을까?
-                """;
         } else {
             languageInstruction = "IMPORTANT: You MUST respond in English.";
-            exampleSection = """
-                Example output format:
-                ## 📖 Key Discussion Points
-
-                ### Character Analysis
-                The protagonist's growth was **remarkably well-developed**. Especially the transformation in the middle section...
-
-                ### Themes and Messages
-                The book deeply explores _identity and belonging_.
-
-                ---
-
-                ## 💬 Memorable Quotes
-                > "Life is what happens when you're busy making other plans"
-
-                ---
-
-                ## ❓ Open Questions
-                - What if the author had chosen a different ending?
-                - How would this story be reinterpreted in a modern context?
-                """;
         }
 
         return """
-            You are an AI editor that reorganizes book club discussion notes into a clean, well-formatted document.
-
-            YOUR ROLE: Reorganize and format the notes for better readability and presentation.
+            You are an AI editor that reorganizes book club discussion notes.
 
             %s
 
-            FORMATTING RULES:
-            1. Use ## for main section headers (with relevant emoji)
-            2. Use ### for subsection headers
-            3. Use **bold** for emphasis on key terms and important phrases
-            4. Use _italic_ for book titles, quotes context, or subtle emphasis
-            5. Use > for blockquotes (memorable quotes from the book or discussion)
-            6. Use - for bullet lists
-            7. Use --- for horizontal dividers between major sections
-            8. Use numbered lists (1. 2. 3.) for sequential points or rankings
+            ⚠️ CRITICAL RULES - YOU MUST FOLLOW THESE EXACTLY:
 
-            CONTENT STRUCTURE:
-            - Group related discussion points together under clear headings
-            - Preserve all original content - reorganize but don't delete
-            - Add appropriate section headers based on content type:
-              - Key Discussion Points / 핵심 논점
-              - Character Analysis / 캐릭터 분석
-              - Themes and Messages / 주제와 메시지
-              - Memorable Quotes / 인상 깊은 구절
-              - Agreements and Debates / 합의와 논쟁
-              - Open Questions / 열린 질문
-            - Only include sections that have relevant content
+            1. **PRESERVE 100%% OF CONTENT**: Every single sentence, phrase, idea, and detail from the original notes MUST appear in your output. Do NOT summarize, condense, or omit ANYTHING.
 
-            %s
+            2. **NO OMISSIONS ALLOWED**: If the original has 10 points, your output must have all 10 points. If someone said something specific, include their exact words.
 
-            OUTPUT FORMAT (JSON):
+            3. **REORGANIZE ONLY**: Your job is ONLY to:
+               - Group related content under appropriate headings
+               - Add markdown formatting (bold, italic, headers, lists)
+               - Improve structure and readability
+               - You may slightly rephrase for clarity, but keep ALL information
+
+            4. **FORMATTING TO USE**:
+               - ## for main section headers (with emoji)
+               - ### for subsection headers
+               - **bold** for key terms
+               - _italic_ for emphasis
+               - > for quotes
+               - - for bullet lists
+               - --- for section dividers
+
+            5. **SECTION HEADERS** (use as needed):
+               - 📖 핵심 논의 / Key Discussion Points
+               - 👤 캐릭터 분석 / Character Analysis
+               - 💭 주제와 메시지 / Themes and Messages
+               - 💬 인상 깊은 구절 / Memorable Quotes
+               - ✅ 합의 사항 / Agreements
+               - ❓ 열린 질문 / Open Questions
+               - 📝 기타 의견 / Other Comments
+
+            OUTPUT FORMAT:
             {
-                "organizedText": "Full markdown-formatted text with proper headers, bold, italic, quotes, lists, etc."
+                "organizedText": "The COMPLETE reorganized content in markdown format. Include EVERYTHING from the original."
             }
 
-            IMPORTANT: Return ONLY valid JSON. The organizedText should be the fully formatted markdown text.
-            """.formatted(languageInstruction, exampleSection);
+            Remember: The output should be LONGER or EQUAL in content to the input, never shorter. If you find yourself summarizing, STOP and include the full details instead.
+            """.formatted(languageInstruction);
     }
 
     /**
@@ -514,8 +475,8 @@ public class OpenAIService {
             bookTitle, plainTextContent
         );
 
-        // Call OpenAI API with higher max tokens (4000) for organize feature
-        OpenAiResponse response = openAiClient.getChatCompletion(systemPrompt, userPrompt, 4000);
+        // Call OpenAI API with high max tokens (8000) for organize feature to preserve all content
+        OpenAiResponse response = openAiClient.getChatCompletion(systemPrompt, userPrompt, 8000);
 
         if (response != null && response.getContent() != null) {
             logger.info("Successfully received organization response from OpenAI");

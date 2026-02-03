@@ -113,7 +113,7 @@ export function useWebRTC({
   sessionId,
   userId,
   username,
-  photoUrl = '',
+  photoUrl: _photoUrl = '',
   participants,
   subscribe,
   send,

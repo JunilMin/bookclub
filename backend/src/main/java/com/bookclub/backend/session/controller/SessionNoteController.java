@@ -36,35 +36,61 @@ public class SessionNoteController {
     @Autowired
     private PostRepository postRepository;
 
+    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(SessionNoteController.class.getName());
+
     /**
      * REST: Get session notes
      */
     @GetMapping("/{sessionId}/notes")
-    public ResponseEntity<SessionNote> getNotes(@PathVariable String sessionId) {
-        // Get Session to find Post
-        Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
-        String noteTitle = "Discussion Notes";  // Default
+    public ResponseEntity<?> getNotes(@PathVariable String sessionId) {
+        try {
+            String noteTitle = "Discussion Notes";  // Default
 
-        if (sessionOpt.isPresent()) {
-            Session session = sessionOpt.get();
-            Optional<Post> postOpt = postRepository.findById(session.getPostId());
-            if (postOpt.isPresent()) {
-                Post post = postOpt.get();
-                String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
+            // Handle AI notes suffix - these are separate documents for AI-organized content
+            String baseSessionId = sessionId;
+            boolean isAiNotes = sessionId.endsWith("-ai");
+            if (isAiNotes) {
+                baseSessionId = sessionId.substring(0, sessionId.length() - 3);
+                noteTitle = "AI Organized Notes";
+            }
 
-                // Format: [yyyy-MM-dd] BookTitle
-                if (post.getDue() != null) {
-                    DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                    String dateStr = post.getDue().format(dateFormatter);
-                    noteTitle = "[" + dateStr + "] " + bookTitle;
-                } else {
-                    noteTitle = bookTitle;
+            // Get Session to find Post (only for non-AI notes or to get book title)
+            Optional<Session> sessionOpt = sessionRepository.findById(baseSessionId);
+
+            if (sessionOpt.isPresent()) {
+                Session session = sessionOpt.get();
+                Optional<Post> postOpt = postRepository.findById(session.getPostId());
+                if (postOpt.isPresent()) {
+                    Post post = postOpt.get();
+                    String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
+
+                    if (isAiNotes) {
+                        // AI notes title
+                        noteTitle = "[AI] " + bookTitle;
+                    } else {
+                        // Regular notes title: [yyyy-MM-dd] BookTitle
+                        if (post.getDue() != null) {
+                            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                            String dateStr = post.getDue().format(dateFormatter);
+                            noteTitle = "[" + dateStr + "] " + bookTitle;
+                        } else {
+                            noteTitle = bookTitle;
+                        }
+                    }
                 }
             }
-        }
 
-        SessionNote note = sessionNoteService.getOrCreateNote(sessionId, noteTitle);
-        return ResponseEntity.ok(note);
+            SessionNote note = sessionNoteService.getOrCreateNote(sessionId, noteTitle);
+            return ResponseEntity.ok(note);
+        } catch (Exception e) {
+            logger.severe("Error getting notes for sessionId=" + sessionId + ": " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                "error", e.getClass().getSimpleName(),
+                "message", e.getMessage() != null ? e.getMessage() : "Unknown error",
+                "sessionId", sessionId
+            ));
+        }
     }
 
     /**

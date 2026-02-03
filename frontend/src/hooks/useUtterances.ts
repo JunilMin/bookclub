@@ -285,7 +285,7 @@ export function useUtterances({
       if (!accessToken) return;
 
       try {
-        const updated = await markUtteranceInserted(
+        await markUtteranceInserted(
           sessionId,
           utteranceIndex,
           accessToken
