@@ -1,6 +1,6 @@
 // frontend/src/store/favoritesStore.ts
 import { create } from 'zustand';
-import { getMyFav, UserFavorite, AIRecommendation } from '../api/favorites';
+import { getMyFav, UserFavorite, AIRecommendation, regenerateAIRecommendations } from '../api/favorites';
 import { getBookByISBN, BookSearchResult } from '../api/bookSearch';
 
 // =============================================================================
@@ -23,6 +23,7 @@ export interface FavoritesState {
   // Loading states
   isLoading: boolean;
   isEnriching: boolean;
+  isRegenerating: boolean;
   error: string | null;
 
   // Cache management
@@ -32,6 +33,9 @@ export interface FavoritesState {
 export interface FavoritesActions {
   // Fetch
   fetchFavorites: (forceRefresh?: boolean) => Promise<void>;
+
+  // AI Recommendations
+  regenerateAIRecommendations: (lang?: string) => Promise<boolean>;
 
   // Mutations
   addFavorite: (favorite: EnrichedFavorite) => void;
@@ -60,6 +64,7 @@ const initialState: FavoritesState = {
   aiRecommendations: [],
   isLoading: false,
   isEnriching: false,
+  isRegenerating: false,
   error: null,
   lastFetchTime: null,
 };
@@ -145,6 +150,53 @@ export const useFavoritesStore = create<FavoritesStore>((set, get) => ({
         isEnriching: false,
         error: error instanceof Error ? error.message : 'Failed to fetch favorites',
       });
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // regenerateAIRecommendations: Request new AI recommendations
+  // ---------------------------------------------------------------------------
+  regenerateAIRecommendations: async (lang = 'ko') => {
+    const state = get();
+    if (state.isRegenerating) return false;
+
+    set({ isRegenerating: true, error: null });
+
+    try {
+      const response = await regenerateAIRecommendations(lang);
+
+      if (response.success && response.data) {
+        // Convert enhanced recommendations to EnrichedAIRecommendation format
+        const newRecommendations: EnrichedAIRecommendation[] = response.data.recommendations.map((rec) => ({
+          isbn: rec.isbn,
+          reason: rec.reason,
+          recommendedAt: rec.recommendedAt,
+          bookInfo: {
+            isbn: rec.isbn,
+            title: rec.title,
+            author: rec.author,
+            thumbnail: rec.coverUrl ? { small: rec.coverUrl, medium: rec.coverUrl } : undefined,
+            categories: rec.genre ? [rec.genre] : [],
+          },
+        }));
+
+        set({
+          aiRecommendations: newRecommendations,
+          isRegenerating: false,
+          lastFetchTime: Date.now(),
+        });
+
+        return true;
+      } else {
+        throw new Error(response.error || 'Failed to regenerate recommendations');
+      }
+    } catch (error) {
+      console.error('regenerateAIRecommendations failed:', error);
+      set({
+        isRegenerating: false,
+        error: error instanceof Error ? error.message : 'Failed to regenerate recommendations',
+      });
+      return false;
     }
   },
 

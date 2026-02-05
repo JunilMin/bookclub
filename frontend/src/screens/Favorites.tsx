@@ -41,7 +41,9 @@ const Favorites: React.FC = () => {
     aiRecommendations,
     isLoading,
     isEnriching,
+    isRegenerating,
     fetchFavorites,
+    regenerateAIRecommendations,
     addFavorite,
     removeFavorite,
   } = useFavoritesStore();
@@ -174,10 +176,34 @@ const Favorites: React.FC = () => {
     [removeFavorite]
   );
 
-  // Navigate to create discussion
+  // Navigate to create discussion with book data
   const handleCreateDiscussion = useCallback(
     (isbn: string) => {
-      navigate(`/create?isbn=${encodeURIComponent(isbn)}`);
+      // Find the book info from favorites or AI recommendations
+      const favorite = userFavorites.find(f => f.isbn === isbn);
+      const aiRec = aiRecommendations.find(r => r.isbn === isbn);
+      const bookInfo = favorite?.bookInfo || aiRec?.bookInfo;
+
+      // Pass book data via state for auto-population
+      navigate('/create', {
+        state: {
+          isbn,
+          bookInfo, // Pass full book info to skip API call
+        }
+      });
+    },
+    [navigate, userFavorites, aiRecommendations]
+  );
+
+  // Navigate to board with search query
+  const handleFindDiscussion = useCallback(
+    (bookTitle: string) => {
+      if (!bookTitle) return;
+      navigate('/', {
+        state: {
+          searchQuery: bookTitle,
+        }
+      });
     },
     [navigate]
   );
@@ -193,6 +219,13 @@ const Favorites: React.FC = () => {
   const handleTabChange = useCallback((tab: 'ai' | 'liked') => {
     setActiveTab(tab);
   }, []);
+
+  // Handle AI recommendations regenerate
+  const handleRegenerateAI = useCallback(async () => {
+    if (isRegenerating) return;
+    const lang = i18n.language === 'ko' ? 'ko' : 'en';
+    await regenerateAIRecommendations(lang);
+  }, [isRegenerating, i18n.language, regenerateAIRecommendations]);
 
   // Handle sort change
   const handleSortChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -296,6 +329,19 @@ const Favorites: React.FC = () => {
                 </div>
                 {t('favorites_tab_liked')} ({userFavorites.length})
               </button>
+
+              {/* AI Regenerate Button */}
+              {activeTab === 'ai' && (
+                <button
+                  className={`favorites-regenerate-btn ${isRegenerating ? 'loading' : ''}`}
+                  onClick={handleRegenerateAI}
+                  disabled={isRegenerating}
+                  title={t('favorites_regenerate_tooltip')}
+                >
+                  <i className={isRegenerating ? 'ri-loader-4-line' : 'ri-refresh-line'}></i>
+                  <span>{isRegenerating ? t('favorites_regenerating') : t('favorites_regenerate')}</span>
+                </button>
+              )}
             </div>
 
             {/* Search and Sort */}
@@ -432,6 +478,7 @@ const Favorites: React.FC = () => {
                       formatDate={formatDate}
                       onRemove={handleRemoveFavorite}
                       onCreateDiscussion={handleCreateDiscussion}
+                      onFindDiscussion={handleFindDiscussion}
                       t={t}
                     />
                   ))
@@ -441,6 +488,7 @@ const Favorites: React.FC = () => {
                       item={item}
                       isEnriching={isEnriching}
                       onCreateDiscussion={handleCreateDiscussion}
+                      onFindDiscussion={handleFindDiscussion}
                       t={t}
                     />
                   ))}
@@ -463,28 +511,56 @@ interface LikedBookCardProps {
   formatDate: (dateString: string) => string;
   onRemove: (isbn: string) => void;
   onCreateDiscussion: (isbn: string) => void;
+  onFindDiscussion: (bookTitle: string) => void;
   t: (key: string) => string;
 }
 
 const LikedBookCard: React.FC<LikedBookCardProps> = React.memo(
-  ({ item, isEnriching, removingIsbn, formatDate, onRemove, onCreateDiscussion, t }) => (
+  ({ item, isEnriching, removingIsbn, formatDate, onRemove, onCreateDiscussion, onFindDiscussion, t }) => (
     <div className="favorites-card group">
-      {/* Book Cover */}
+      {/* 3D Book Cover */}
       <div className="favorites-card-cover">
-        {item.bookInfo?.thumbnail?.medium || item.bookInfo?.thumbnail?.small ? (
-          <img
-            src={item.bookInfo.thumbnail.medium || item.bookInfo.thumbnail.small}
-            alt={item.bookInfo?.title || 'Book cover'}
-          />
-        ) : (
-          <div className="favorites-card-no-cover">
-            {isEnriching ? (
-              <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
-            ) : (
-              <i className="ri-book-2-line"></i>
-            )}
+        <div className="favorites-book-wrapper">
+          <div className="favorites-book-container">
+            <div className="favorites-book">
+              <div className="favorites-book-front">
+                <div className="favorites-book-cover-inner">
+                  {item.bookInfo?.thumbnail?.small || item.bookInfo?.thumbnail?.medium ? (
+                    <img
+                      src={item.bookInfo.thumbnail.small || item.bookInfo.thumbnail.medium}
+                      alt={item.bookInfo?.title || 'Book cover'}
+                    />
+                  ) : (
+                    <div className="favorites-book-no-cover">
+                      {isEnriching ? (
+                        <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
+                      ) : (
+                        <i className="ri-book-2-line"></i>
+                      )}
+                    </div>
+                  )}
+                  <p className="favorites-book-author">
+                    {item.bookInfo?.author || t('favorites_unknown_author')}
+                  </p>
+                </div>
+              </div>
+              <div className="favorites-book-spine">
+                <h2><span>{item.bookInfo?.title || ''}</span></h2>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Like Button on Cover */}
+          <button
+            className={`favorites-cover-like ${removingIsbn === item.isbn ? 'loading' : ''}`}
+            onClick={() => onRemove(item.isbn)}
+            disabled={removingIsbn === item.isbn}
+            title={t('favorites_remove')}
+          >
+            <i className={removingIsbn === item.isbn ? 'ri-loader-4-line' : 'ri-heart-fill'}></i>
+          </button>
+        </div>
+
         {/* Genre Badge */}
         {item.bookInfo?.categories?.[0] && (
           <div className="favorites-card-genre">
@@ -518,12 +594,11 @@ const LikedBookCard: React.FC<LikedBookCardProps> = React.memo(
         {/* Action Buttons */}
         <div className="favorites-card-actions">
           <button
-            className="favorites-card-btn favorites-card-btn-remove"
-            onClick={() => onRemove(item.isbn)}
-            disabled={removingIsbn === item.isbn}
+            className="favorites-card-btn favorites-card-btn-find"
+            onClick={() => onFindDiscussion(item.bookInfo?.title || '')}
           >
-            <i className={removingIsbn === item.isbn ? 'ri-loader-4-line' : 'ri-heart-fill'}></i>
-            <span>{t('favorites_remove')}</span>
+            <i className="ri-search-line"></i>
+            <span>{t('favorites_find_discussion')}</span>
           </button>
           <button
             className="favorites-card-btn favorites-card-btn-create"
@@ -544,33 +619,52 @@ interface AIBookCardProps {
   item: EnrichedAIRecommendation;
   isEnriching: boolean;
   onCreateDiscussion: (isbn: string) => void;
+  onFindDiscussion: (bookTitle: string) => void;
   t: (key: string) => string;
 }
 
 const AIBookCard: React.FC<AIBookCardProps> = React.memo(
-  ({ item, isEnriching, onCreateDiscussion, t }) => (
+  ({ item, isEnriching, onCreateDiscussion, onFindDiscussion, t }) => (
     <div className="favorites-card group">
-      {/* Book Cover */}
+      {/* 3D Book Cover */}
       <div className="favorites-card-cover">
-        {item.bookInfo?.thumbnail?.medium || item.bookInfo?.thumbnail?.small ? (
-          <img
-            src={item.bookInfo.thumbnail.medium || item.bookInfo.thumbnail.small}
-            alt={item.bookInfo?.title || 'Book cover'}
-          />
-        ) : (
-          <div className="favorites-card-no-cover">
-            {isEnriching ? (
-              <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
-            ) : (
-              <i className="ri-book-2-line"></i>
-            )}
+        <div className="favorites-book-wrapper">
+          <div className="favorites-book-container">
+            <div className="favorites-book">
+              <div className="favorites-book-front">
+                <div className="favorites-book-cover-inner">
+                  {item.bookInfo?.thumbnail?.small || item.bookInfo?.thumbnail?.medium ? (
+                    <img
+                      src={item.bookInfo.thumbnail.small || item.bookInfo.thumbnail.medium}
+                      alt={item.bookInfo?.title || 'Book cover'}
+                    />
+                  ) : (
+                    <div className="favorites-book-no-cover">
+                      {isEnriching ? (
+                        <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
+                      ) : (
+                        <i className="ri-book-2-line"></i>
+                      )}
+                    </div>
+                  )}
+                  <p className="favorites-book-author">
+                    {item.bookInfo?.author || t('favorites_unknown_author')}
+                  </p>
+                </div>
+              </div>
+              <div className="favorites-book-spine">
+                <h2><span>{item.bookInfo?.title || ''}</span></h2>
+              </div>
+            </div>
           </div>
-        )}
-        {/* AI Badge */}
-        <div className="favorites-card-ai-badge">
-          <i className="ri-ai-generate"></i>
-          <span>AI</span>
+
+          {/* AI Badge on Cover */}
+          <div className="favorites-cover-ai-badge">
+            <i className="ri-ai-generate"></i>
+            <span>AI</span>
+          </div>
         </div>
+
         {/* Genre Badge */}
         {item.bookInfo?.categories?.[0] && (
           <div className="favorites-card-genre">
@@ -601,6 +695,13 @@ const AIBookCard: React.FC<AIBookCardProps> = React.memo(
 
         {/* Action Buttons */}
         <div className="favorites-card-actions">
+          <button
+            className="favorites-card-btn favorites-card-btn-find"
+            onClick={() => onFindDiscussion(item.bookInfo?.title || '')}
+          >
+            <i className="ri-search-line"></i>
+            <span>{t('favorites_find_discussion')}</span>
+          </button>
           <button
             className="favorites-card-btn favorites-card-btn-create"
             onClick={() => onCreateDiscussion(item.isbn)}

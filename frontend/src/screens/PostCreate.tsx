@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { createPost, Post } from '../api/posts';
+import { createPost, Post, JoinType } from '../api/posts';
 import { searchGoogleBooks, searchNaverBooks, BookSearchResult, getBookByISBN } from '../api/bookSearch';
 import { useAuth } from '../AuthContext/AuthContext';
+import { getMyMeetings, MeetingSummary } from '../api/user';
+import { useBoardStore } from '../store/boardStore';
 import './styles/PostCreate.css';
+
+// 시간 충돌 정보 인터페이스
+interface TimeConflict {
+  meeting: MeetingSummary;
+  type: 'created' | 'participated';
+}
 
 type BookLanguage = 'en' | 'kr';
 type DiscussionType = 'voice' | 'text';
@@ -21,6 +29,7 @@ interface PostCreateForm {
   level: 'low' | 'moderate' | 'high';
   discussionLength: DiscussionLength;
   roomVisibility: RoomVisibility;
+  joinType: JoinType;
   aiSummary: boolean;
   aiModerator: boolean;
   description: string;
@@ -33,6 +42,7 @@ const PostCreate: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, accessToken } = useAuth();
+  const addPost = useBoardStore((state) => state.addPost);
 
   const defaultBookLanguage: BookLanguage = i18n.language === 'ko' ? 'kr' : 'en';
 
@@ -46,6 +56,7 @@ const PostCreate: React.FC = () => {
     level: 'moderate',
     discussionLength: '60',
     roomVisibility: 'public',
+    joinType: 'OPEN',
     aiSummary: true,
     aiModerator: false,
     description: '',
@@ -60,7 +71,28 @@ const PostCreate: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 시간 충돌 관련 상태
+  const [myMeetings, setMyMeetings] = useState<{ created: MeetingSummary[]; participated: MeetingSummary[] } | null>(null);
+  const [conflictModal, setConflictModal] = useState<{
+    show: boolean;
+    conflicts: TimeConflict[];
+  }>({ show: false, conflicts: [] });
+
   const today = new Date().toISOString().split('T')[0];
+
+  // 내 미팅 목록 로드
+  useEffect(() => {
+    const loadMyMeetings = async () => {
+      if (!accessToken) return;
+      try {
+        const meetings = await getMyMeetings(accessToken);
+        setMyMeetings(meetings);
+      } catch (error) {
+        console.error('Failed to load my meetings:', error);
+      }
+    };
+    loadMyMeetings();
+  }, [accessToken]);
 
   // Auto-resize textarea based on content
   const adjustTextareaHeight = () => {
@@ -77,7 +109,26 @@ const PostCreate: React.FC = () => {
 
   // Load book by ISBN from navigation state
   useEffect(() => {
-    const state = location.state as { isbn?: string } | null;
+    const state = location.state as { isbn?: string; bookInfo?: BookSearchResult } | null;
+
+    // bookInfo가 직접 전달된 경우 (Favorites 페이지에서 이동)
+    if (state?.bookInfo) {
+      const book = state.bookInfo;
+      // Auto-populate tags from book categories
+      const autoTags = book.categories && book.categories.length > 0
+        ? book.categories.slice(0, 5)
+        : [];
+      setForm(prev => ({
+        ...prev,
+        selectedBook: book,
+        description: book.description || '',
+        tags: autoTags,
+      }));
+      window.history.replaceState({}, document.title);
+      return;
+    }
+
+    // ISBN만 있는 경우 API 호출
     if (state?.isbn) {
       const loadBookByISBN = async () => {
         setIsSearching(true);
@@ -204,23 +255,66 @@ const PostCreate: React.FC = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 시간 충돌 검증 함수
+  const checkTimeConflicts = (): TimeConflict[] => {
+    if (!myMeetings || !form.date || !form.time) return [];
 
-    if (!accessToken || !user) {
-      alert(t('post_create_login_required'));
-      return;
-    }
+    const conflicts: TimeConflict[] = [];
+    const duration = parseInt(form.discussionLength);
 
-    if (!form.selectedBook) {
-      alert(t('post_create_select_book'));
-      return;
-    }
+    // 새 미팅 시작/종료 시간 계산
+    const newMeetingStart = new Date(`${form.date}T${form.time}`);
+    const newMeetingEnd = new Date(newMeetingStart.getTime() + duration * 60 * 1000);
 
-    if (!form.date || !form.time) {
-      alert(t('post_create_select_datetime'));
-      return;
-    }
+    // 미팅 충돌 체크 헬퍼 함수
+    const checkMeetingConflict = (meeting: MeetingSummary): boolean => {
+      // 이미 종료된 미팅은 제외
+      if (meeting.ended) return false;
+
+      const meetingStart = new Date(meeting.due);
+      // 미팅 기본 시간을 60분으로 가정 (duration이 없는 경우)
+      const meetingDuration = 60; // TODO: meeting.duration이 있으면 사용
+      const meetingEnd = new Date(meetingStart.getTime() + meetingDuration * 60 * 1000);
+
+      // 시간이 겹치는지 확인
+      // 새 미팅 시작이 기존 미팅 시간 내에 있거나
+      // 새 미팅 종료가 기존 미팅 시간 내에 있거나
+      // 새 미팅이 기존 미팅을 완전히 포함하는 경우
+      const overlaps = (
+        (newMeetingStart >= meetingStart && newMeetingStart < meetingEnd) ||
+        (newMeetingEnd > meetingStart && newMeetingEnd <= meetingEnd) ||
+        (newMeetingStart <= meetingStart && newMeetingEnd >= meetingEnd)
+      );
+
+      return overlaps;
+    };
+
+    // 생성한 미팅 체크
+    myMeetings.created.forEach(meeting => {
+      if (checkMeetingConflict(meeting)) {
+        conflicts.push({ meeting, type: 'created' });
+      }
+    });
+
+    // 참여 중인 미팅 체크
+    myMeetings.participated.forEach(meeting => {
+      if (checkMeetingConflict(meeting)) {
+        conflicts.push({ meeting, type: 'participated' });
+      }
+    });
+
+    return conflicts;
+  };
+
+  // 충돌 모달 닫기 및 강제 생성
+  const handleForceCreate = () => {
+    setConflictModal({ show: false, conflicts: [] });
+    submitPost();
+  };
+
+  // 실제 포스트 생성 로직
+  const submitPost = async () => {
+    if (!accessToken || !user || !form.selectedBook) return;
 
     setIsSubmitting(true);
 
@@ -232,21 +326,14 @@ const PostCreate: React.FC = () => {
     let dueDateStr: string;
 
     if (form.bookLanguage === 'kr') {
-      // 한국어 선택 시 KST(UTC+9) 기준으로 저장
-      // 입력된 시간을 그대로 KST로 해석하여 저장
-      const kstOffset = 9 * 60; // KST는 UTC+9
-      const localOffset = now.getTimezoneOffset(); // 로컬 시간대 오프셋 (분)
-      const offsetDiff = kstOffset + localOffset; // KST와 로컬 시간 차이
+      const kstOffset = 9 * 60;
+      const localOffset = now.getTimezoneOffset();
+      const offsetDiff = kstOffset + localOffset;
 
-      // 현재 시간을 KST로 변환
       const nowKST = new Date(now.getTime() + offsetDiff * 60 * 1000);
       currentDateStr = nowKST.toISOString().slice(0, -5);
-
-      // due 시간: 입력된 날짜/시간을 KST로 간주하고 저장
-      // 사용자가 입력한 시간이 KST라고 가정하므로, 그대로 문자열로 저장
       dueDateStr = `${form.date}T${form.time}:00`;
     } else {
-      // 영어 선택 시 로컬 시간대 → UTC로 변환
       const dueDateTime = new Date(`${form.date}T${form.time}`);
       currentDateStr = now.toISOString().slice(0, -5);
       dueDateStr = dueDateTime.toISOString().slice(0, -5);
@@ -270,10 +357,18 @@ const PostCreate: React.FC = () => {
       duration: duration,
       description: form.description.trim() || undefined,
       tags: form.tags.length > 0 ? form.tags : undefined,
+      joinType: form.joinType,
     };
 
     try {
       const createdPost = await createPost(newPost, accessToken);
+
+      // Store에 새 포스트 추가 (Board에서 바로 표시됨)
+      // hostUsername이 없으면 현재 사용자의 username으로 설정
+      addPost({
+        ...createdPost,
+        hostUsername: createdPost.hostUsername || user.username,
+      });
 
       if (createdPost.meetLink) {
         alert(t('post_create_success_with_meet'));
@@ -292,8 +387,111 @@ const PostCreate: React.FC = () => {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!accessToken || !user) {
+      alert(t('post_create_login_required'));
+      return;
+    }
+
+    if (!form.selectedBook) {
+      alert(t('post_create_select_book'));
+      return;
+    }
+
+    if (!form.date || !form.time) {
+      alert(t('post_create_select_datetime'));
+      return;
+    }
+
+    // 시간 충돌 검증
+    const conflicts = checkTimeConflicts();
+    if (conflicts.length > 0) {
+      setConflictModal({ show: true, conflicts });
+      return;
+    }
+
+    // 충돌 없으면 바로 생성
+    submitPost();
+  };
+
+  // 시간 포맷팅 헬퍼 함수
+  const formatDateTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="post-create-page">
+      {/* 시간 충돌 모달 */}
+      {conflictModal.show && (
+        <div className="conflict-modal-overlay" onClick={() => setConflictModal({ show: false, conflicts: [] })}>
+          <div className="conflict-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="conflict-modal-header">
+              <div className="conflict-modal-icon">
+                <i className="ri-error-warning-line"></i>
+              </div>
+              <h2>{t('post_create_conflict_title', '시간이 겹치는 모임이 있습니다')}</h2>
+            </div>
+            <div className="conflict-modal-body">
+              <p className="conflict-modal-desc">
+                {t('post_create_conflict_desc', '선택한 시간에 이미 참여하거나 생성한 모임이 있습니다. 그래도 생성하시겠습니까?')}
+              </p>
+              <div className="conflict-list">
+                {conflictModal.conflicts.map((conflict, index) => (
+                  <div key={index} className="conflict-item">
+                    <div className="conflict-item-cover">
+                      {conflict.meeting.bookData.coverSmall ? (
+                        <img src={conflict.meeting.bookData.coverSmall} alt={conflict.meeting.bookData.title} />
+                      ) : (
+                        <div className="conflict-item-cover-placeholder">
+                          <i className="ri-book-line"></i>
+                        </div>
+                      )}
+                    </div>
+                    <div className="conflict-item-info">
+                      <span className="conflict-item-badge">
+                        {conflict.type === 'created'
+                          ? t('post_create_conflict_created', '내가 만든 모임')
+                          : t('post_create_conflict_participating', '참여 중인 모임')}
+                      </span>
+                      <h4 className="conflict-item-title">{conflict.meeting.bookData.title}</h4>
+                      <p className="conflict-item-time">
+                        <i className="ri-calendar-line"></i>
+                        {formatDateTime(conflict.meeting.due)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="conflict-modal-actions">
+              <button
+                type="button"
+                className="conflict-btn conflict-btn-cancel"
+                onClick={() => setConflictModal({ show: false, conflicts: [] })}
+              >
+                {t('post_create_conflict_cancel', '취소')}
+              </button>
+              <button
+                type="button"
+                className="conflict-btn conflict-btn-confirm"
+                onClick={handleForceCreate}
+              >
+                {t('post_create_conflict_confirm', '그래도 생성하기')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="post-create-container">
         {/* Header */}
         <div className="post-create-header">
@@ -509,6 +707,35 @@ const PostCreate: React.FC = () => {
                   </div>
                   <div className="option-card-title">{t('post_create_invite_only')}</div>
                   <div className="option-card-desc">{t('post_create_coming_soon')}</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Join Type */}
+            <div className="form-section">
+              <label className="form-label">{t('post_create_join_type')}</label>
+              <div className="option-grid option-grid-2">
+                <button
+                  type="button"
+                  className={`option-card ${form.joinType === 'OPEN' ? 'active' : ''}`}
+                  onClick={() => setForm(prev => ({ ...prev, joinType: 'OPEN' }))}
+                >
+                  <div className="option-card-icon">
+                    <i className="ri-door-open-line"></i>
+                  </div>
+                  <div className="option-card-title">{t('post_create_join_open')}</div>
+                  <div className="option-card-desc">{t('post_create_join_open_desc')}</div>
+                </button>
+                <button
+                  type="button"
+                  className={`option-card ${form.joinType === 'APPROVAL' ? 'active' : ''}`}
+                  onClick={() => setForm(prev => ({ ...prev, joinType: 'APPROVAL' }))}
+                >
+                  <div className="option-card-icon">
+                    <i className="ri-shield-check-line"></i>
+                  </div>
+                  <div className="option-card-title">{t('post_create_join_approval')}</div>
+                  <div className="option-card-desc">{t('post_create_join_approval_desc')}</div>
                 </button>
               </div>
             </div>

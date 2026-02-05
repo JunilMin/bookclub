@@ -221,20 +221,21 @@ const NoteCard = React.memo<NoteCardProps>(
           </span>
         </div>
 
-        {/* Key Points Preview (from AI Summary if available) */}
-        {note.aiSummary?.keyPoints && note.aiSummary.keyPoints.length > 0 && (
-          <div className="notes-card-keypoints">
-            <span className="notes-card-keypoints-label">{t('notes_key_points')}</span>
-            <ul>
-              {note.aiSummary.keyPoints.slice(0, 2).map((point, idx) => (
-                <li key={idx}>
+        {/* Key Points Preview (always show space for 2 items) */}
+        <div className="notes-card-keypoints">
+          <span className="notes-card-keypoints-label">{t('notes_key_points')}</span>
+          <ul>
+            {[0, 1].map((idx) => {
+              const point = note.aiSummary?.keyPoints?.[idx];
+              return (
+                <li key={idx} className={point ? '' : 'empty'}>
                   <span className="notes-keypoint-dot" />
-                  <span>{point}</span>
+                  <span>{point || '\u00A0'}</span>
                 </li>
-              ))}
-            </ul>
-          </div>
-        )}
+              );
+            })}
+          </ul>
+        </div>
 
         {/* Action Button */}
         <button className="notes-card-btn">

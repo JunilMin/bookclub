@@ -1,6 +1,6 @@
 // frontend/src/screens/Board.tsx
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiSearch, FiCalendar, FiUsers, FiBookOpen, FiWifiOff, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { Post, BookData, joinBookMeeting, deletePost, updatePostBookData } from '../api/posts';
@@ -201,7 +201,10 @@ function postToRoom(
     meetLink: post.meetLink,
     calendarEventId: post.calendarEventId,
     recruit: post.recruit !== undefined ? post.recruit : true,
-    ln: post.bookData?.ln as 'en' | 'ko' | undefined
+    ln: post.bookData?.ln as 'en' | 'ko' | undefined,
+    hostId: post.createrId,
+    joinType: post.joinType,
+    memberIds: post.memberIds
   };
 }
 
@@ -221,6 +224,7 @@ type SortOrder = 'asc' | 'desc';
 const Board: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { accessToken, user } = useAuth();
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -284,6 +288,18 @@ const Board: React.FC = () => {
       setActiveTab('joined');
     }
   }, [searchParams]);
+
+  // ==========================================================================
+  // Handle search query from navigation state (e.g., from Favorites page)
+  // ==========================================================================
+  useEffect(() => {
+    const state = location.state as { searchQuery?: string } | null;
+    if (state?.searchQuery) {
+      setSearchQuery(state.searchQuery);
+      // Clear the state to prevent re-setting on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // ==========================================================================
   // Set Tabs Section Height as CSS Variable
