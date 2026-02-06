@@ -13,6 +13,9 @@ export interface EndStatus {
   endedBy: string | null;
 }
 
+// 가입 방식 타입
+export type JoinType = 'OPEN' | 'APPROVAL';
+
 // 책 표지 이미지 인터페이스
 export interface BookCover {
   small?: string;  // 작은 표지 이미지 URL (128x193)
@@ -48,6 +51,8 @@ export interface Post {
   description?: string; // 설명
   tags?: string[]; // 태그 리스트
   recruit?: boolean; // 모집 중 여부 (기본값: true)
+  joinType?: JoinType; // 가입 방식 (OPEN: 자유 가입, APPROVAL: 승인 가입)
+  pendingMemberIds?: string[]; // 승인 대기 중인 User ObjectId 리스트
   // 강퇴 관련 필드
   blockedIds?: string[]; // 강퇴된 User ObjectId 리스트
   // 종료 상태 필드
@@ -154,6 +159,47 @@ export const restoreMember = async (
   setAccessToken(token);
   const response = await axiosInstance.post(`/posts/${postId}/restore`, null, {
     params: { targetUserId, requesterId },
+  });
+  return response.data;
+};
+
+// 가입 신청 승인 (방장만 가능)
+export const approveJoinRequest = async (
+  postId: string,
+  targetUserId: string,
+  requesterId: string,
+  token: string
+): Promise<Post> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/posts/${postId}/approve-join`, null, {
+    params: { targetUserId, requesterId },
+  });
+  return response.data;
+};
+
+// 가입 신청 거절 (방장만 가능)
+export const rejectJoinRequest = async (
+  postId: string,
+  targetUserId: string,
+  requesterId: string,
+  token: string
+): Promise<Post> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/posts/${postId}/reject-join`, null, {
+    params: { targetUserId, requesterId },
+  });
+  return response.data;
+};
+
+// 가입 신청 취소 (본인)
+export const cancelJoinRequest = async (
+  postId: string,
+  userId: string,
+  token: string
+): Promise<Post> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/posts/${postId}/cancel-join-request`, null, {
+    params: { userId },
   });
   return response.data;
 };

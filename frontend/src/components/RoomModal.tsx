@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo, FiEdit2, FiSave, FiXCircle, FiLogOut, FiEdit3, FiArrowRight, FiArrowLeft, FiHeart, FiInfo, FiUserMinus, FiMail, FiStar } from 'react-icons/fi';
+import { FiX, FiUser, FiCalendar, FiClock, FiUsers, FiExternalLink, FiTrash2, FiVideo, FiEdit2, FiSave, FiXCircle, FiLogOut, FiEdit3, FiArrowRight, FiArrowLeft, FiHeart, FiInfo, FiUserMinus, FiCheck } from 'react-icons/fi';
 import { joinSession } from '../api/sessions';
-import { updatePost, leaveBookMeeting, kickMember } from '../api/posts';
+import { updatePost, leaveBookMeeting, kickMember, approveJoinRequest, rejectJoinRequest, cancelJoinRequest } from '../api/posts';
 import { toggleFavorite, checkFavorite } from '../api/favorites';
 import { getUserById, getDisplayPhotoUrl, getUserReputation, UserReputationResponse } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import { ProfileTabsContent, ProfileTabType } from './profile';
+import { useBoardStore } from '../store/boardStore';
 import './styles/RoomModal.css';
 
 // Participant interface for display
@@ -80,6 +81,8 @@ export interface Room {
   ln?: 'en' | 'ko'; // 언어 코드 (언어별 필터링용)
   joinType?: 'OPEN' | 'APPROVAL'; // 가입 방식
   memberIds?: string[]; // 참가자 User ID 리스트
+  pendingMemberIds?: string[]; // 승인 대기 중인 User ID 리스트
+  isPending?: boolean; // 현재 사용자가 승인 대기 중인지
 }
 
 interface RoomModalProps {
@@ -94,6 +97,7 @@ interface RoomModalProps {
 const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, onUpdate, isProcessing }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const updatePostInStore = useBoardStore((state) => state.updatePost);
   const { accessToken, user } = useAuth();
   const [isEntering, setIsEntering] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -107,6 +111,12 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  // Pending members state
+  const [pendingParticipants, setPendingParticipants] = useState<Participant[]>([]);
+  const [isLoadingPending, setIsLoadingPending] = useState(false);
+  const [isApprovingId, setIsApprovingId] = useState<string | null>(null);
+  const [isRejectingId, setIsRejectingId] = useState<string | null>(null);
 
   // Profile view state
   const [selectedProfile, setSelectedProfile] = useState<Participant | null>(null);
@@ -189,6 +199,50 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
 
     fetchParticipants();
   }, [activeTab, room.memberIds, room.hostId, accessToken]);
+
+  // Fetch pending members when tab is active and room is APPROVAL type
+  useEffect(() => {
+    const fetchPendingMembers = async () => {
+      if (activeTab !== 'participants' || !accessToken) return;
+      if (room.joinType !== 'APPROVAL') return;
+      if (!room.pendingMemberIds || room.pendingMemberIds.length === 0) {
+        setPendingParticipants([]);
+        return;
+      }
+
+      setIsLoadingPending(true);
+      try {
+        const pendingPromises = room.pendingMemberIds.map(async (memberId) => {
+          try {
+            const userData = await getUserById(memberId, accessToken);
+            return {
+              id: memberId,
+              username: userData.username || 'Unknown',
+              photoUrl: getDisplayPhotoUrl(userData),
+              isHost: false
+            };
+          } catch (error) {
+            console.error(`Failed to fetch pending user ${memberId}:`, error);
+            return {
+              id: memberId,
+              username: 'Unknown',
+              photoUrl: undefined,
+              isHost: false
+            };
+          }
+        });
+
+        const fetchedPending = await Promise.all(pendingPromises);
+        setPendingParticipants(fetchedPending);
+      } catch (error) {
+        console.error('Failed to fetch pending members:', error);
+      } finally {
+        setIsLoadingPending(false);
+      }
+    };
+
+    fetchPendingMembers();
+  }, [activeTab, room.pendingMemberIds, room.joinType, accessToken]);
 
   // Close on Escape key
   useEffect(() => {
@@ -282,6 +336,57 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
     } catch (error) {
       console.error('Failed to kick member:', error);
       alert(t('browse_modal_kick_failed') || '강퇴에 실패했습니다.');
+    }
+  };
+
+  const handleApproveJoin = async (targetUserId: string) => {
+    if (!accessToken || !user?.id) return;
+    setIsApprovingId(targetUserId);
+    try {
+      await approveJoinRequest(room.id, targetUserId, user.id, accessToken);
+      const approved = pendingParticipants.find(p => p.id === targetUserId);
+      if (approved) {
+        setPendingParticipants(prev => prev.filter(p => p.id !== targetUserId));
+        setParticipants(prev => [...prev, approved]);
+      }
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Failed to approve join request:', error);
+      alert(t('browse_modal_approve_failed') || '승인에 실패했습니다.');
+    } finally {
+      setIsApprovingId(null);
+    }
+  };
+
+  const handleRejectJoin = async (targetUserId: string, username: string) => {
+    if (!accessToken || !user?.id) return;
+    const confirmMessage = t('browse_modal_reject_confirm', { username })
+      || `${username}의 가입 신청을 거절하시겠습니까?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsRejectingId(targetUserId);
+    try {
+      await rejectJoinRequest(room.id, targetUserId, user.id, accessToken);
+      setPendingParticipants(prev => prev.filter(p => p.id !== targetUserId));
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Failed to reject join request:', error);
+      alert(t('browse_modal_reject_failed') || '거절에 실패했습니다.');
+    } finally {
+      setIsRejectingId(null);
+    }
+  };
+
+  const handleCancelJoinRequest = async () => {
+    if (!accessToken || !user?.id) return;
+    if (!window.confirm(t('browse_modal_cancel_request_confirm') || '가입 신청을 취소하시겠습니까?')) return;
+
+    try {
+      await cancelJoinRequest(room.id, user.id, accessToken);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Failed to cancel join request:', error);
+      alert(t('browse_modal_cancel_request_failed') || '취소에 실패했습니다.');
     }
   };
 
@@ -407,10 +512,10 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
 
     setIsLeaving(true);
     try {
-      await leaveBookMeeting(room.id, user.id, accessToken);
+      const updatedPost = await leaveBookMeeting(room.id, user.id, accessToken);
+      updatePostInStore(updatedPost);
       alert(t('browse_modal_leave_success') || 'Successfully left the room');
       onClose();
-      if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Failed to leave room:', error);
       alert(t('browse_modal_leave_failed') || 'Failed to leave the room');
@@ -975,22 +1080,50 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
                 <h3 className="participants-section-title">
                   <FiClock size={16} />
                   {t('browse_modal_pending_list') || '승인 대기 목록'}
-                  <span className="participants-count">0</span>
+                  <span className="participants-count">{pendingParticipants.length}</span>
                 </h3>
-                <div className="participants-empty">
-                  {t('browse_modal_no_pending') || '승인 대기 중인 요청이 없습니다.'}
-                </div>
-                {/* TODO: Implement pending requests when backend API is ready */}
-                {/* {room.isMyRoom && pendingRequests.map((request) => (
-                  <div key={request.id} className="participant-item pending-item">
-                    <div className="participant-avatar">...</div>
-                    <span className="participant-username">{request.username}</span>
-                    <div className="pending-actions">
-                      <button className="pending-approve-btn"><FiCheck size={16} /></button>
-                      <button className="pending-reject-btn"><FiXOctagon size={16} /></button>
-                    </div>
+                {isLoadingPending ? (
+                  <div className="participants-loading">{t('loading') || '로딩 중...'}</div>
+                ) : pendingParticipants.length === 0 ? (
+                  <div className="participants-empty">
+                    {t('browse_modal_no_pending') || '승인 대기 중인 요청이 없습니다.'}
                   </div>
-                ))} */}
+                ) : (
+                  <div className="participants-list">
+                    {pendingParticipants.map((pending) => (
+                      <div key={pending.id} className="participant-item pending-item">
+                        <div className="participant-avatar">
+                          {pending.photoUrl ? (
+                            <img src={pending.photoUrl} alt={pending.username} />
+                          ) : (
+                            <FiUser size={20} />
+                          )}
+                        </div>
+                        <span className="participant-username">{pending.username}</span>
+                        {room.isMyRoom && (
+                          <div className="pending-actions">
+                            <button
+                              className="pending-approve-btn"
+                              onClick={() => handleApproveJoin(pending.id)}
+                              disabled={isApprovingId === pending.id}
+                              title={t('browse_modal_approve') || '승인'}
+                            >
+                              <FiCheck size={16} />
+                            </button>
+                            <button
+                              className="pending-reject-btn"
+                              onClick={() => handleRejectJoin(pending.id, pending.username)}
+                              disabled={isRejectingId === pending.id}
+                              title={t('browse_modal_reject') || '거절'}
+                            >
+                              <FiX size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1113,8 +1246,19 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
               {t('browse_modal_open_meet')}
             </button>
           )}
-          {/* 참가하기/예약하기 버튼 - 비참가자만 표시 */}
-          {!isEditMode && !room.isJoined && !room.isMyRoom && (
+          {/* 승인 대기 중 버튼 - pending 상태인 사용자만 표시 */}
+          {!isEditMode && !room.isJoined && !room.isMyRoom && room.isPending && (
+            <button
+              className="room-modal-btn room-modal-btn-pending"
+              onClick={handleCancelJoinRequest}
+              disabled={isProcessing}
+            >
+              <FiClock size={18} />
+              {t('browse_modal_request_pending') || '승인 대기 중'}
+            </button>
+          )}
+          {/* 참가하기/예약하기/가입 신청 버튼 - 비참가자 & 비대기자만 표시 */}
+          {!isEditMode && !room.isJoined && !room.isMyRoom && !room.isPending && (
             <button
               className="room-modal-btn room-modal-btn-primary"
               onClick={handleJoinClick}
@@ -1126,9 +1270,11 @@ const RoomModal: React.FC<RoomModalProps> = ({ room, onClose, onJoin, onDelete, 
                   ? t('browse_card_ended')
                   : room.recruit === false
                     ? t('browse_modal_recruitment_closed')
-                    : (room.status === 'live' || room.status === 'waiting')
-                      ? t('browse_card_join_now')
-                      : t('browse_card_reserve')
+                    : room.joinType === 'APPROVAL'
+                      ? (t('browse_modal_request_join') || '가입 신청')
+                      : (room.status === 'live' || room.status === 'waiting')
+                        ? t('browse_card_join_now')
+                        : t('browse_card_reserve')
               )}
             </button>
           )}

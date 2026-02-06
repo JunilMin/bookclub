@@ -84,7 +84,47 @@ public class UserSessionNoteService {
             throw new ForbiddenException("You don't have permission to view this note");
         }
 
+        // Auto-repair: If content is null/empty, try to restore from original session note
+        if (note.getContent() == null || note.getContent().trim().isEmpty()) {
+            note = repairNoteContent(note);
+        }
+
         return enrichNoteWithContext(note, userId);
+    }
+
+    /**
+     * Repair note with null content by re-fetching from original session note
+     */
+    private UserSessionNote repairNoteContent(UserSessionNote note) {
+        logger.info("Attempting to repair null content for note: {}", note.getId());
+
+        // Try to get content from original session note
+        Optional<SessionNote> baseNoteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(note.getSessionId());
+        if (baseNoteOpt.isEmpty()) {
+            logger.warn("Cannot repair note {}: original session note not found", note.getId());
+            // Set default empty content
+            note.setContent("{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Notes content could not be recovered.\"}]}]}");
+            return userSessionNoteRepository.save(note);
+        }
+
+        SessionNote baseNote = baseNoteOpt.get();
+        String content;
+
+        // Use block-based content if available, otherwise fall back to legacy content
+        if (baseNote.isMigrated() && baseNote.getBlocks() != null && !baseNote.getBlocks().isEmpty()) {
+            content = baseNote.getContentFromBlocks();
+            logger.info("Repaired note {} with block-based content from session note", note.getId());
+        } else if (baseNote.getContent() != null && !baseNote.getContent().trim().isEmpty()) {
+            content = baseNote.getContent();
+            logger.info("Repaired note {} with legacy content from session note", note.getId());
+        } else {
+            content = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"No content available.\"}]}]}";
+            logger.warn("Repaired note {} with default content (original also empty)", note.getId());
+        }
+
+        note.setContent(content);
+        note.setBaseVersion(baseNote.getVersion());
+        return userSessionNoteRepository.save(note);
     }
 
     /**

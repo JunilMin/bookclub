@@ -95,6 +95,19 @@
   transform: scale(0.95);
 }
 
+.toolbar-btn.disabled,
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.toolbar-btn.disabled:hover,
+.toolbar-btn:disabled:hover {
+  background: transparent;
+  transform: none;
+}
+
 .block-notes-loading,
 .block-notes-error {
   display: flex;

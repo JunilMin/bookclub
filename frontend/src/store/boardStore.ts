@@ -51,6 +51,7 @@ export interface BoardActions {
   mergeRoomStatuses: (statuses: Record<string, RoomStatus>) => void;
   removePost: (postId: string) => void;
   updatePost: (post: Post) => void;
+  addPost: (post: Post) => void;
 
   // Reset
   reset: () => void;
@@ -330,6 +331,23 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     set((state) => ({
       byId: { ...state.byId, [post.id]: post },
     }));
+  },
+
+  addPost: (post: Post) => {
+    set((state) => {
+      // 이미 존재하면 업데이트만
+      if (state.byId[post.id]) {
+        return {
+          byId: { ...state.byId, [post.id]: post },
+        };
+      }
+      // 새 포스트는 맨 앞에 추가
+      return {
+        byId: { ...state.byId, [post.id]: post },
+        order: [post.id, ...state.order],
+        totalCount: state.totalCount + 1,
+      };
+    });
   },
 
   // ---------------------------------------------------------------------------

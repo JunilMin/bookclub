@@ -51,7 +51,8 @@ bookclub/
 │   │   │   │   ├── LeftPanel/
 │   │   │   │   │   └── ModeratorControls.tsx  # 모더레이터 제어 패널
 │   │   │   │   ├── CenterPanel/
-│   │   │   │   │   └── CollaborativeNotes.tsx # 협업 노트 에디터
+│   │   │   │   │   ├── BlockBasedNotes.tsx    # 블록 기반 협업 노트
+│   │   │   │   │   └── CollaborativeNotes.tsx # 협업 노트 에디터 (레거시)
 │   │   │   │   ├── RightPanel/
 │   │   │   │   │   └── RecordingPanel.tsx     # 녹음 & AI 요약
 │   │   │   │   └── styles/
@@ -61,6 +62,7 @@ bookclub/
 │   │   │       └── ...
 │   │   ├── hooks/               # Custom Hooks
 │   │   │   ├── useCollaborativeEditor.ts  # Op-based 협업 에디터
+│   │   │   ├── useBlockHistory.ts         # Undo/Redo 히스토리 관리
 │   │   │   └── useWebSocket.ts            # WebSocket 연결 관리
 │   │   ├── types/               # TypeScript 타입 정의
 │   │   │   ├── collaborative.ts # 협업 에디터 타입

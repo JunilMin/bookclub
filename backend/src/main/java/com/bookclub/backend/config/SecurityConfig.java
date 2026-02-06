@@ -4,6 +4,7 @@ import com.bookclub.backend.firebase.FirebaseAuthFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -28,12 +29,22 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/users/register").permitAll()
+                // CORS preflight 요청은 인증 없이 허용
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // 공개 API (인증 불필요)
+                .requestMatchers(HttpMethod.POST, "/api/users/register").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/validate-username/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/count").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                // 게시판: GET만 공개 (목록, 상세 조회)
+                .requestMatchers(HttpMethod.GET, "/api/posts").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                 .requestMatchers("/api/ISBN/**").permitAll()
+                .requestMatchers("/api/books/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/ws/**").permitAll()  // WebSocket endpoint
-                .requestMatchers("/**").permitAll()
+                .requestMatchers("/ws/**").permitAll()  // WebSocket은 별도 인터셉터에서 인증
+                // 나머지 모든 요청은 인증 필요
+                .anyRequest().authenticated()
             )
             .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

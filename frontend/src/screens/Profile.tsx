@@ -246,6 +246,12 @@ const Profile: React.FC = () => {
               {t('profile_tab_overview')}
             </button>
             <button
+              className={`profile-tab ${activeSection === 'interests' ? 'active' : ''}`}
+              onClick={() => setActiveSection('interests')}
+            >
+              {t('profile_tab_interests')}
+            </button>
+            <button
               className={`profile-tab ${activeSection === 'activity' ? 'active' : ''}`}
               onClick={() => setActiveSection('activity')}
             >
@@ -257,12 +263,7 @@ const Profile: React.FC = () => {
             >
               {t('profile_tab_badges')}
             </button>
-            <button
-              className={`profile-tab ${activeSection === 'interests' ? 'active' : ''}`}
-              onClick={() => setActiveSection('interests')}
-            >
-              {t('profile_tab_interests')}
-            </button>
+            
           </div>
         </div>
       </div>

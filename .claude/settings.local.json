@@ -24,7 +24,9 @@
       "Bash(timeout 15 npm run dev:*)",
       "Bash(timeout 8 npm run dev)",
       "Bash(./gradlew.bat compileJava:*)",
-      "Bash(npm run typecheck:*)"
+      "Bash(npm run typecheck:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

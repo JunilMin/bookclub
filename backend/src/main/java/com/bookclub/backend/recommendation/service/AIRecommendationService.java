@@ -88,9 +88,10 @@ public class AIRecommendationService {
             run.getStats().setCandidatesFound(candidates.size());
             logger.info("Found {} candidate books", candidates.size());
 
-            // Step 3: 이미 상호작용한 책 제외
+            // Step 3: 이미 상호작용한 책 제외 + 시리즈/중복/언어 필터
             Set<String> excludedIsbns = collectExcludedIsbns(userId, seedIsbns);
-            candidates = filterCandidates(candidates, excludedIsbns);
+            Map<String, BookSearchService.BookCandidate> seedBooks = bookSearchService.getBatchByIsbns(new ArrayList<>(seedIsbns));
+            candidates = filterCandidates(candidates, excludedIsbns, seedBooks.values(), preferredLang);
             run.getStats().setCandidatesAfterFilter(candidates.size());
             logger.info("After filtering: {} candidates", candidates.size());
 
@@ -207,6 +208,29 @@ public class AIRecommendationService {
     private Set<String> collectExcludedIsbns(String userId, Set<String> seedIsbns) {
         Set<String> excluded = new HashSet<>(seedIsbns);
 
+        // 기존 active 캐시의 모든 추천 ISBN 제외 (재생성 시 이전 추천 제외)
+        cacheRepository.findByUserIdAndStatus(userId, "active").ifPresent(cache -> {
+            cache.getItems().forEach(item -> {
+                if (item.getIsbn() != null) {
+                    excluded.add(item.getIsbn());
+                }
+            });
+            logger.info("Excluding {} previously recommended ISBNs", cache.getItems().size());
+        });
+
+        // expired 캐시에서도 최근 것들의 ISBN 제외 (같은 책이 다시 추천되는 것 방지)
+        List<AIRecommendationCache> expiredCaches = cacheRepository.findAllByUserIdAndStatus(userId, "expired");
+        if (expiredCaches != null) {
+            for (AIRecommendationCache expCache : expiredCaches) {
+                expCache.getItems().forEach(item -> {
+                    if (item.getIsbn() != null) {
+                        excluded.add(item.getIsbn());
+                    }
+                });
+            }
+            logger.info("Excluding ISBNs from {} expired caches", expiredCaches.size());
+        }
+
         // dislike 피드백 받은 ISBN 추가
         List<AIRecommendationFeedback> dislikes = feedbackRepository.findByUserIdAndFeedbackType(userId, "dislike");
         dislikes.forEach(f -> excluded.add(f.getIsbn()));
@@ -215,6 +239,7 @@ public class AIRecommendationService {
         List<AIRecommendationFeedback> dismisses = feedbackRepository.findByUserIdAndFeedbackType(userId, "dismiss");
         dismisses.forEach(f -> excluded.add(f.getIsbn()));
 
+        logger.info("Total excluded ISBNs: {}", excluded.size());
         return excluded;
     }
 
@@ -234,8 +259,8 @@ public class AIRecommendationService {
             }
         });
 
-        for (String author : authors.stream().limit(3).collect(Collectors.toList())) {
-            candidates.addAll(bookSearchService.searchByAuthor(author, preferredLang, 5));
+        for (String author : authors.stream().limit(5).collect(Collectors.toList())) {
+            candidates.addAll(bookSearchService.searchByAuthor(author, preferredLang, 10));
         }
 
         // 장르 기반 검색
@@ -257,28 +282,226 @@ public class AIRecommendationService {
             }
         }
 
-        for (String genre : genres.stream().limit(5).collect(Collectors.toList())) {
-            candidates.addAll(bookSearchService.searchByGenre(genre, preferredLang, 5));
+        for (String genre : genres.stream().limit(8).collect(Collectors.toList())) {
+            candidates.addAll(bookSearchService.searchByGenre(genre, preferredLang, 10));
         }
 
-        // 중복 제거
-        Map<String, BookSearchService.BookCandidate> uniqueCandidates = new HashMap<>();
-        for (BookSearchService.BookCandidate candidate : candidates) {
-            if (candidate.getIsbn() != null && !uniqueCandidates.containsKey(candidate.getIsbn())) {
-                uniqueCandidates.put(candidate.getIsbn(), candidate);
+        // 전략 2: Seed 책 제목의 키워드로 추가 검색
+        Set<String> titleKeywords = new HashSet<>();
+        seedBooks.values().forEach(book -> {
+            if (book.getTitle() != null) {
+                // 3글자 이상인 단어만 키워드로 사용
+                Arrays.stream(book.getTitle().split("\\s+"))
+                    .filter(w -> w.length() >= 3)
+                    .limit(2)
+                    .forEach(titleKeywords::add);
             }
+        });
+
+        for (String keyword : titleKeywords.stream().limit(5).collect(Collectors.toList())) {
+            candidates.addAll(bookSearchService.searchByKeyword(keyword, preferredLang, 10));
         }
 
-        return new ArrayList<>(uniqueCandidates.values());
+        // 중복 제거 (ISBN + 제목+저자 삼중 체크)
+        Map<String, BookSearchService.BookCandidate> uniqueByIsbn = new LinkedHashMap<>();
+        Set<String> seenTitleAuthor = new HashSet<>();
+        for (BookSearchService.BookCandidate candidate : candidates) {
+            if (candidate.getIsbn() == null) continue;
+            if (uniqueByIsbn.containsKey(candidate.getIsbn())) continue;
+
+            String titleAuthorKey = buildTitleAuthorKey(candidate.getTitle(), candidate.getAuthor());
+            if (seenTitleAuthor.contains(titleAuthorKey)) continue;
+
+            uniqueByIsbn.put(candidate.getIsbn(), candidate);
+            seenTitleAuthor.add(titleAuthorKey);
+        }
+
+        return new ArrayList<>(uniqueByIsbn.values());
     }
 
     private List<BookSearchService.BookCandidate> filterCandidates(
         List<BookSearchService.BookCandidate> candidates,
-        Set<String> excludedIsbns
+        Set<String> excludedIsbns,
+        Collection<BookSearchService.BookCandidate> seedBooks,
+        String preferredLang
     ) {
+        // Seed 책의 제목+저자 키, 정규화 제목, 시리즈 베이스 제목 수집
+        Set<String> seedTitleAuthorKeys = new HashSet<>();
+        Set<String> seedNormalizedTitles = new HashSet<>();
+        Set<String> seedSeriesBases = new HashSet<>();
+        for (BookSearchService.BookCandidate seed : seedBooks) {
+            seedTitleAuthorKeys.add(buildTitleAuthorKey(seed.getTitle(), seed.getAuthor()));
+            seedNormalizedTitles.add(normalizeTitle(seed.getTitle()));
+            for (String base : extractSeriesBases(seed.getTitle())) {
+                seedSeriesBases.add(base);
+            }
+        }
+
+        // 선택된 후보 내 제목+저자 중복 추적
+        Set<String> seenTitleAuthor = new HashSet<>();
+        // 선택된 후보 내 정규화 제목 중복 추적 (저자 무관)
+        Set<String> seenNormalizedTitles = new HashSet<>();
+
         return candidates.stream()
-            .filter(c -> c.getIsbn() != null && !excludedIsbns.contains(c.getIsbn()))
+            .filter(c -> {
+                if (c.getIsbn() == null) return false;
+
+                // 0. 언어 필터: 지정된 언어와 다르면 제외
+                if (preferredLang != null && c.getLanguage() != null
+                    && !c.getLanguage().equals(preferredLang)) return false;
+
+                // 1. ISBN 제외
+                if (excludedIsbns.contains(c.getIsbn())) return false;
+
+                // 2. seed 책과 제목+저자 동일하면 제외 (ISBN이 다른 같은 책)
+                String titleAuthorKey = buildTitleAuthorKey(c.getTitle(), c.getAuthor());
+                if (seedTitleAuthorKeys.contains(titleAuthorKey)) return false;
+
+                // 3. seed 책과 정규화 제목 동일하면 제외 (저자명이 다르게 표기된 경우)
+                String normTitle = normalizeTitle(c.getTitle());
+                if (seedNormalizedTitles.contains(normTitle)) return false;
+
+                // 4. 같은 시리즈 제외 (seed 책의 시리즈물)
+                if (isSameSeriesAsSeed(c.getTitle(), c.getAuthor(), seedBooks, seedSeriesBases)) return false;
+
+                // 5. 후보 간 제목+저자 중복 제외
+                if (seenTitleAuthor.contains(titleAuthorKey)) return false;
+
+                // 6. 후보 간 정규화 제목 중복 제외 (같은 책이 다른 ISBN/저자 표기로 존재)
+                if (seenNormalizedTitles.contains(normTitle)) return false;
+
+                seenTitleAuthor.add(titleAuthorKey);
+                seenNormalizedTitles.add(normTitle);
+
+                return true;
+            })
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 제목+저자 조합으로 고유 키 생성 (정규화)
+     */
+    private String buildTitleAuthorKey(String title, String author) {
+        String normalizedTitle = normalizeTitle(title);
+        String normalizedAuthor = normalizeAuthor(author);
+        return normalizedTitle + "|" + normalizedAuthor;
+    }
+
+    /**
+     * 제목 정규화: 소문자, 특수문자 제거, 공백 통일
+     * "주님 기도" / "주님  기도" / "주님 기도 " 모두 같은 값으로 처리
+     */
+    private String normalizeTitle(String title) {
+        if (title == null) return "";
+        return title.toLowerCase().trim()
+            .replaceAll("[\\s]+", " ")           // 다중 공백 → 단일 공백
+            .replaceAll("[^a-z0-9가-힣ぁ-ゔァ-ヴー\\s]", "") // 특수문자 제거
+            .trim();
+    }
+
+    /**
+     * 저자명 정규화
+     */
+    private String normalizeAuthor(String author) {
+        if (author == null) return "";
+        return author.toLowerCase().trim()
+            .replaceAll("[\\s]+", " ")
+            .split(",")[0].trim(); // 첫 번째 저자만 사용
+    }
+
+    /**
+     * 제목에서 시리즈 번호/부제를 제거해 베이스 제목 추출 (모든 매칭 반환)
+     * 예: "개미 2" → ["개미"], "제14권 5등분의 신부" → ["5등분의 신부"]
+     */
+    private Set<String> extractSeriesBases(String title) {
+        Set<String> bases = new HashSet<>();
+        if (title == null || title.isEmpty()) return bases;
+        String normalized = title.trim().toLowerCase();
+
+        // --- 앞에 번호가 오는 패턴 (일본/한국 만화 등) ---
+        // "제14권 아무각의 3등분" → "아무각의 3등분"
+        String base;
+
+        base = normalized.replaceAll("^제?\\s*[0-9]+\\s*[권편부장화집호]\\s*", "").trim();
+        if (!base.equals(normalized) && !base.isEmpty()) bases.add(base);
+
+        // "vol. 3 title" / "volume 3 title"
+        base = normalized.replaceAll("^(vol\\.?|volume|part|book)\\s*[0-9]+\\s*:?\\s*", "").trim();
+        if (!base.equals(normalized) && !base.isEmpty()) bases.add(base);
+
+        // --- 뒤에 번호가 오는 패턴 ---
+        // "개미 2", "개미2", "Ants 3"
+        base = normalized.replaceAll("[\\s]*[0-9]+[권편부장화집호]?\\s*$", "").trim();
+        if (!base.equals(normalized) && !base.isEmpty()) bases.add(base);
+
+        // "Ants Vol. 3", "Book 2", "시즌 2"
+        base = normalized.replaceAll("[\\s]*(vol\\.?|volume|part|book|season|시즌|편|권)[\\s]*[0-9]+\\s*$", "").trim();
+        if (!base.equals(normalized) && !base.isEmpty()) bases.add(base);
+
+        // 괄호 안 번호: "개미(2)", "Ants (Part 3)"
+        base = normalized.replaceAll("[\\s]*[\\(\\[（][^\\)\\]）]*[0-9]+[^\\)\\]）]*[\\)\\]）]\\s*$", "").trim();
+        if (!base.equals(normalized) && !base.isEmpty()) bases.add(base);
+
+        // 로마 숫자: "Ants II", "개미 III"
+        base = normalized.replaceAll("[\\s]+(i{1,3}|iv|vi{0,3}|ix|xi{0,3})\\s*$", "").trim();
+        if (!base.equals(normalized) && !base.isEmpty()) bases.add(base);
+
+        // 콜론 뒤 부제: "시리즈명: 부제목" → "시리즈명"
+        if (normalized.contains(":")) {
+            base = normalized.substring(0, normalized.indexOf(":")).trim();
+            if (!base.isEmpty() && base.length() >= 2) bases.add(base);
+        }
+
+        return bases;
+    }
+
+    /**
+     * 후보가 seed 책의 시리즈물인지 판단
+     */
+    private boolean isSameSeriesAsSeed(String candidateTitle, String candidateAuthor,
+                                        Collection<BookSearchService.BookCandidate> seedBooks,
+                                        Set<String> seedSeriesBases) {
+        if (candidateTitle == null) return false;
+
+        Set<String> candidateBases = extractSeriesBases(candidateTitle);
+        String candidateNormalized = normalizeTitle(candidateTitle);
+
+        // 1) 후보의 베이스 제목이 seedSeriesBases에 있으면 시리즈
+        for (String cBase : candidateBases) {
+            if (seedSeriesBases.contains(cBase)) return true;
+        }
+
+        for (BookSearchService.BookCandidate seed : seedBooks) {
+            // 같은 저자인지 확인
+            boolean sameAuthor = isSameAuthor(candidateAuthor, seed.getAuthor());
+            if (!sameAuthor) continue;
+
+            String seedNormalized = normalizeTitle(seed.getTitle());
+            Set<String> seedBases = extractSeriesBases(seed.getTitle());
+
+            // 2) seed의 베이스 제목이 후보 제목에 포함되면 시리즈
+            for (String sBase : seedBases) {
+                if (candidateNormalized.contains(sBase)) return true;
+            }
+
+            // 3) 후보의 베이스 제목이 seed 제목에 포함되면 시리즈
+            for (String cBase : candidateBases) {
+                if (seedNormalized.contains(cBase)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 같은 저자인지 비교 (부분 매칭)
+     */
+    private boolean isSameAuthor(String author1, String author2) {
+        if (author1 == null || author2 == null) return false;
+        String a1 = normalizeAuthor(author1);
+        String a2 = normalizeAuthor(author2);
+        if (a1.isEmpty() || a2.isEmpty()) return false;
+        return a1.contains(a2) || a2.contains(a1);
     }
 
     // ========== Private Methods - Scoring ==========
@@ -402,6 +625,8 @@ public class AIRecommendationService {
         List<BookSearchService.BookCandidate> selected = new ArrayList<>();
         Set<String> selectedAuthors = new HashSet<>();
         Set<String> selectedGenres = new HashSet<>();
+        Set<String> selectedTitleAuthorKeys = new HashSet<>();
+        Set<String> selectedNormalizedTitles = new HashSet<>();
 
         for (BookSearchService.BookCandidate candidate : scored) {
             if (selected.size() >= maxCount) break;
@@ -409,23 +634,33 @@ public class AIRecommendationService {
             String author = candidate.getAuthor() != null ? candidate.getAuthor().toLowerCase() : "";
             String genre = candidate.getGenre() != null ? candidate.getGenre().toLowerCase() : "";
 
+            // 제목+저자 중복 체크
+            String titleAuthorKey = buildTitleAuthorKey(candidate.getTitle(), candidate.getAuthor());
+            if (selectedTitleAuthorKeys.contains(titleAuthorKey)) continue;
+
+            // 정규화 제목 중복 체크 (저자 무관, "주님 기도" 같은 완전 동일 제목)
+            String normTitle = normalizeTitle(candidate.getTitle());
+            if (selectedNormalizedTitles.contains(normTitle)) continue;
+
             // 다양성 페널티 적용
             int authorCount = (int) selectedAuthors.stream().filter(a -> a.equals(author)).count();
             int genreCount = (int) selectedGenres.stream().filter(g -> g.equals(genre)).count();
 
-            if (authorCount >= 2) {
-                // 같은 저자 2권 이상이면 스킵 (다양성)
+            if (authorCount >= 3) {
+                // 같은 저자 3권 이상이면 스킵 (다양성)
                 continue;
             }
 
-            if (genreCount >= 3 && selected.size() >= minCount) {
-                // 같은 장르 3권 이상이면 스킵 (다양성, 최소 개수 충족 시)
+            if (genreCount >= 4 && selected.size() >= minCount) {
+                // 같은 장르 4권 이상이면 스킵 (다양성, 최소 개수 충족 시)
                 continue;
             }
 
             selected.add(candidate);
             selectedAuthors.add(author);
             selectedGenres.add(genre);
+            selectedTitleAuthorKeys.add(titleAuthorKey);
+            selectedNormalizedTitles.add(normTitle);
         }
 
         return selected;
@@ -626,20 +861,26 @@ public class AIRecommendationService {
 
         // 인기 검색어로 검색
         List<String> popularKeywords = preferredLang.equals("ko")
-            ? Arrays.asList("베스트셀러", "인기", "추천")
-            : Arrays.asList("bestseller", "popular", "recommended");
+            ? Arrays.asList("베스트셀러", "인기", "추천", "화제", "명작")
+            : Arrays.asList("bestseller", "popular", "recommended", "award winning", "classic");
 
         List<BookSearchService.BookCandidate> candidates = new ArrayList<>();
         for (String keyword : popularKeywords) {
-            candidates.addAll(bookSearchService.searchByKeyword(keyword, preferredLang, 5));
+            candidates.addAll(bookSearchService.searchByKeyword(keyword, preferredLang, 10));
         }
 
-        // 중복 제거 및 필터
-        Map<String, BookSearchService.BookCandidate> uniqueCandidates = new HashMap<>();
+        // 중복 제거 및 필터 (ISBN + 제목+저자 삼중 체크)
+        Map<String, BookSearchService.BookCandidate> uniqueCandidates = new LinkedHashMap<>();
+        Set<String> seenTitleAuthor = new HashSet<>();
         for (BookSearchService.BookCandidate candidate : candidates) {
-            if (candidate.getIsbn() != null && !uniqueCandidates.containsKey(candidate.getIsbn())) {
-                uniqueCandidates.put(candidate.getIsbn(), candidate);
-            }
+            if (candidate.getIsbn() == null) continue;
+            if (uniqueCandidates.containsKey(candidate.getIsbn())) continue;
+
+            String titleAuthorKey = buildTitleAuthorKey(candidate.getTitle(), candidate.getAuthor());
+            if (seenTitleAuthor.contains(titleAuthorKey)) continue;
+
+            uniqueCandidates.put(candidate.getIsbn(), candidate);
+            seenTitleAuthor.add(titleAuthorKey);
         }
 
         List<BookSearchService.BookCandidate> selected = new ArrayList<>(uniqueCandidates.values())

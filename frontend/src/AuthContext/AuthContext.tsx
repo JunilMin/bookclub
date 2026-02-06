@@ -13,8 +13,9 @@ import {
   linkWithCredential,
 } from "firebase/auth";
 import { initializeApp } from "firebase/app";
-import { registerUser, User, getByUID } from "../api/user";
+import { registerUser, User, getByUID, updateGooglePhoto } from "../api/user";
 import { setTokenCookie, refreshTokenCookie, logoutServer } from "../api/auth";
+import { setAccessToken as setAxiosToken, setTokenRefreshHandler } from "../api/axiosInstance";
 
 // 상수 정의
 const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000; // 50분마다 토큰 갱신 (Firebase 토큰은 1시간 만료)
@@ -155,6 +156,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (firebaseUser && accessToken) {
       try {
         const response = await getByUID(firebaseUser.uid, accessToken);
+        console.log('[AuthContext] refreshUserData - User fetched:', { id: response.id, uid: response.uid, username: response.username });
         setUser({ ...response });
         saveToStorage(response);
         setIsFirstLogin(false);
@@ -170,20 +172,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // 토큰 갱신 함수
-  const refreshAccessToken = useCallback(async () => {
+  const refreshAccessToken = useCallback(async (): Promise<string | null> => {
     const firebaseUser = auth.currentUser;
     if (firebaseUser) {
       try {
         const token = await firebaseUser.getIdToken(true); // force refresh
         setAccessToken(token);
+        setAxiosToken(token);  // axios 헤더도 업데이트
         // 쿠키에도 토큰 갱신
         await refreshTokenCookie(token);
         console.log("토큰이 갱신되었습니다.");
+        return token;
       } catch (error) {
         console.error("토큰 갱신 실패:", error);
+        return null;
       }
     }
+    return null;
   }, []);
+
+  // axios 401 재시도용 토큰 재발급 핸들러 등록
+  useEffect(() => {
+    setTokenRefreshHandler(refreshAccessToken);
+  }, [refreshAccessToken]);
 
   // 비활동 체크 및 자동 로그아웃
   const checkInactivity = useCallback(async () => {
@@ -324,9 +335,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           try {
             // 기존 사용자 조회
             const response = await getByUID(firebaseUser.uid, token);
-            setUser({ ...response });
-            // localStorage에 username만 저장
-            saveToStorage(response);
+            console.log('[AuthContext] User fetched from API:', { id: response.id, uid: response.uid, username: response.username });
+
+            // 기존 사용자의 Google 사진이 없으면 업데이트 (Google 로그인 사용자만)
+            const googlePhotoUrl = firebaseUser.photoURL || '';
+            const hasGooglePhoto = response.photo?.google && response.photo.google.trim() !== '';
+            if (!hasGooglePhoto && googlePhotoUrl && googlePhotoUrl.trim() !== '') {
+              try {
+                const updatedUser = await updateGooglePhoto(googlePhotoUrl, token);
+                setUser({ ...updatedUser });
+                saveToStorage(updatedUser);
+                console.log('[AuthContext] Google 프로필 사진 업데이트 완료');
+              } catch (photoError) {
+                console.error('[AuthContext] Google 프로필 사진 업데이트 실패:', photoError);
+                setUser({ ...response });
+                saveToStorage(response);
+              }
+            } else {
+              setUser({ ...response });
+              saveToStorage(response);
+            }
           } catch (fetchError) {
             // 신규 사용자 감지
             // Google 회원가입 진행 중이면 자동 등록 스킵 (handleGoogleLogin에서 처리)
@@ -420,10 +448,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         const response = await getByUID(firebaseUser.uid, token);
-        setUser({ ...response});
+
+        // 기존 사용자의 Google 사진이 없으면 업데이트
+        const googlePhotoUrl = firebaseUser.photoURL || '';
+        const hasGooglePhoto = response.photo?.google && response.photo.google.trim() !== '';
+        if (!hasGooglePhoto && googlePhotoUrl && googlePhotoUrl.trim() !== '') {
+          try {
+            const updatedUser = await updateGooglePhoto(googlePhotoUrl, token);
+            setUser({ ...updatedUser });
+            saveToStorage(updatedUser);
+            console.log("Google 프로필 사진 업데이트 완료");
+          } catch (photoError) {
+            console.error("Google 프로필 사진 업데이트 실패:", photoError);
+            setUser({ ...response });
+            saveToStorage(response);
+          }
+        } else {
+          setUser({ ...response });
+          saveToStorage(response);
+        }
+
         setAccessToken(token);
-        // localStorage에 username만 저장 (로그인 상태 확인용)
-        saveToStorage(response);
         setIsFirstLogin(false); // 기존 사용자
         isGoogleRegistrationPendingRef.current = false;
       } catch (fetchError) {
@@ -465,13 +510,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // DB에 사용자 등록 (새 photo 구조 사용)
       // 빈 문자열도 체크하여 유효한 URL만 전송
       const hasValidPhoto = googlePhotoUrl && googlePhotoUrl.trim() !== '';
-      await registerUser({
+      console.log('[AuthContext] Google 회원가입 - photo 정보:', { googlePhotoUrl, hasValidPhoto });
+
+      const registerPayload = {
         uid,
         email,
         username,
         password: '',
         photo: hasValidPhoto ? { google: googlePhotoUrl } : undefined,
-      }, firebaseToken);
+      };
+      console.log('[AuthContext] Google 회원가입 - registerPayload:', registerPayload);
+
+      await registerUser(registerPayload, firebaseToken);
 
       // 등록된 사용자 정보 조회
       const response = await getByUID(uid, firebaseToken);

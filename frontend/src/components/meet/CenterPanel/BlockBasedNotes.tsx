@@ -43,9 +43,12 @@ import {
   FiFileText,
   FiCpu,
   FiLoader,
+  FiRotateCcw,
+  FiRotateCw,
 } from 'react-icons/fi';
 import { useBlockDocument } from '../../../hooks/useBlockDocument';
-import { BlockType, RemoteBlockUser } from '../../../types/blockDocument';
+import { useBlockHistory } from '../../../hooks/useBlockHistory';
+import { Block, BlockType, RemoteBlockUser } from '../../../types/blockDocument';
 import BlockRenderer from './BlockRenderer';
 import SortableBlockRenderer from './SortableBlockRenderer';
 import { BlockEditorRef } from './BlockEditor';
@@ -265,6 +268,80 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
       username,
       photoUrl,
     });
+
+    // ============================================
+    // Undo/Redo History (Free Notes only)
+    // ============================================
+
+    // State to trigger re-render for undo/redo button states
+    const [_historyVersion, setHistoryVersion] = useState(0);
+
+    // Helper to get block by id
+    const getBlockById = useCallback((blockId: string): Block | undefined => {
+      return blocks[blockId];
+    }, [blocks]);
+
+    // Helper to get block order
+    const getBlockOrderFn = useCallback((): string[] => {
+      return blockOrder;
+    }, [blockOrder]);
+
+    // History hook for undo/redo
+    const {
+      pushAddBlock: historyPushAddBlock,
+      pushDeleteBlock: historyPushDeleteBlock,
+      pushUpdateBlock: _historyPushUpdateBlock,
+      pushReorderBlock: _historyPushReorderBlock,
+      trackTextChange,
+      flushTextChange,
+      undo: historyUndo,
+      redo: historyRedo,
+      canUndo,
+      canRedo,
+      clearHistory: _clearHistory,
+    } = useBlockHistory({
+      onAddBlock: async (type, afterBlockId, content) => {
+        const newBlockId = await addBlock(type, afterBlockId, content);
+        setHistoryVersion(v => v + 1);
+        return newBlockId;
+      },
+      onDeleteBlock: async (blockId) => {
+        await deleteBlock(blockId);
+        setHistoryVersion(v => v + 1);
+      },
+      onUpdateBlock: (blockId, content) => {
+        broadcastContent(blockId, content);
+        setHistoryVersion(v => v + 1);
+      },
+      onReorderBlock: async (blockId, afterBlockId) => {
+        // Find target index from afterBlockId
+        const targetIndex = afterBlockId === null ? 0 : blockOrder.indexOf(afterBlockId) + 1;
+        const currentIndex = blockOrder.indexOf(blockId);
+        if (currentIndex !== -1 && currentIndex !== targetIndex) {
+          reorderBlocks(currentIndex, targetIndex);
+        }
+        setHistoryVersion(v => v + 1);
+      },
+      getBlock: getBlockById,
+      getBlockOrder: getBlockOrderFn,
+    });
+
+    // Wrapper functions to push history and update UI
+    const handleUndo = useCallback(async () => {
+      const success = await historyUndo();
+      if (success) {
+        setHistoryVersion(v => v + 1);
+      }
+      return success;
+    }, [historyUndo]);
+
+    const handleRedo = useCallback(async () => {
+      const success = await historyRedo();
+      if (success) {
+        setHistoryVersion(v => v + 1);
+      }
+      return success;
+    }, [historyRedo]);
 
     // Convert TipTap JSON to blocks and sync to AI document
     useEffect(() => {
@@ -700,6 +777,23 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
 
         const isCtrlOrCmd = e.metaKey || e.ctrlKey;
 
+        // Ctrl/Cmd + Z - Undo (works even when editing)
+        if (isCtrlOrCmd && e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          flushTextChange(); // Flush any pending text changes before undo
+          handleUndo();
+          return;
+        }
+
+        // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y - Redo (works even when editing)
+        if ((isCtrlOrCmd && e.key === 'z' && e.shiftKey) || (isCtrlOrCmd && e.key === 'y')) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleRedo();
+          return;
+        }
+
         // Ctrl/Cmd + V - paste blocks (works even when editing)
         // Only intercept if we have block data to paste
         if (isCtrlOrCmd && e.key === 'v') {
@@ -807,7 +901,7 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
 
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [editingBlockId, activeTab, selectedBlockIds, clearSelection, selectAllBlocks, copySelectedBlocks, pasteBlocks, deleteBlock, t, blockOrder, blocks, saveBlock]);
+    }, [editingBlockId, activeTab, selectedBlockIds, clearSelection, selectAllBlocks, copySelectedBlocks, pasteBlocks, deleteBlock, t, blockOrder, blocks, saveBlock, flushTextChange, handleUndo, handleRedo]);
 
     // ============================================
     // Handlers
@@ -834,11 +928,14 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
     // Real-time sync handler - broadcasts immediately, DB save is debounced internally
     const handleAutoSave = useCallback(
       (blockId: string, content: string) => {
+        // Track text change for undo/redo history (debounced internally)
+        trackTextChange(blockId, content);
+
         // Broadcast for real-time sync (50ms debounce internally)
         // DB save happens automatically after 2 seconds
         broadcastContent(blockId, content);
       },
-      [broadcastContent]
+      [broadcastContent, trackTextChange]
     );
 
     const handleCancelEdit = useCallback(() => {
@@ -851,11 +948,20 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
         const currentIndex = blockOrder.indexOf(blockId);
         const prevBlockId = currentIndex > 0 ? blockOrder[currentIndex - 1] : null;
 
+        // Save block data for undo before deletion
+        const blockData = blocks[blockId];
+        const afterBlockId = currentIndex > 0 ? blockOrder[currentIndex - 1] : null;
+
         // Release current editing lock
         finishEditing();
 
         // Delete the block
         await deleteBlock(blockId);
+
+        // Track deletion for undo/redo
+        if (blockData) {
+          historyPushDeleteBlock(blockId, blockData, afterBlockId);
+        }
 
         // Move to previous block
         if (prevBlockId) {
@@ -865,7 +971,7 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
           setPendingEditBlockId(prevBlockId);
         }
       },
-      [blockOrder, finishEditing, deleteBlock]
+      [blockOrder, blocks, finishEditing, deleteBlock, historyPushDeleteBlock]
     );
 
     // Handler for ArrowUp at first line - move to previous block
@@ -907,9 +1013,21 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
         // Create new block AND start editing it
         // The startEditing option handles the lock transition properly
         const newBlockId = await addBlock(type, afterBlockId, undefined, { startEditing: true });
+
+        // Track addition for undo/redo (after block is created)
+        if (newBlockId) {
+          // Use a timeout to ensure the block is in the state
+          setTimeout(() => {
+            const newBlock = blocks[newBlockId];
+            if (newBlock) {
+              historyPushAddBlock(newBlockId, newBlock, afterBlockId ?? null);
+            }
+          }, 100);
+        }
+
         return newBlockId;
       },
-      [addBlock]
+      [addBlock, blocks, historyPushAddBlock]
     );
 
     const handleAddBlockAtEnd = useCallback(async () => {
@@ -1127,6 +1245,9 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
     // Handler for Enter key: save current block → create new block → start editing
     const handleSaveAndCreateNext = useCallback(
       async (blockId: string, content: string, nextBlockType?: BlockType, nextListStart?: number) => {
+        // Flush any pending text changes before creating new block
+        flushTextChange();
+
         // 1. Save the current block content
         saveBlock(blockId, content);
 
@@ -1156,12 +1277,22 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
 
         // 3. Create new block AND start editing it atomically
         // startEditing: true handles releasing old lock and acquiring new lock
-        await addBlock(blockType, blockId, initialContent, { startEditing: true });
+        const newBlockId = await addBlock(blockType, blockId, initialContent, { startEditing: true });
+
+        // Track addition for undo/redo (after block is created)
+        if (newBlockId) {
+          setTimeout(() => {
+            const newBlock = blocks[newBlockId];
+            if (newBlock) {
+              historyPushAddBlock(newBlockId, newBlock, blockId);
+            }
+          }, 100);
+        }
 
         // Note: No pending state setup needed - startEditing: true handles the transition atomically
         // Rapid Enter presses will be handled by the new BlockEditor's handleKeyDown
       },
-      [saveBlock, addBlock]
+      [saveBlock, addBlock, blocks, flushTextChange, historyPushAddBlock]
     );
 
     // ============================================
@@ -2209,6 +2340,30 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
             {/* Editor Toolbar Container - always present to reserve space */}
         <div className="notes-toolbar-container">
           <div className={`notes-toolbar ${editingBlockId ? 'visible' : ''}`}>
+            {/* Undo/Redo buttons */}
+            <div className="toolbar-group">
+              <button
+                type="button"
+                onClick={handleUndo}
+                className={`toolbar-btn ${!canUndo() ? 'disabled' : ''}`}
+                disabled={!canUndo()}
+                title={t('undo') || 'Undo (Ctrl+Z)'}
+              >
+                <FiRotateCcw size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                className={`toolbar-btn ${!canRedo() ? 'disabled' : ''}`}
+                disabled={!canRedo()}
+                title={t('redo') || 'Redo (Ctrl+Shift+Z)'}
+              >
+                <FiRotateCw size={16} />
+              </button>
+            </div>
+
+            <div className="toolbar-divider" />
+
             <div className="toolbar-group">
               <button
                 type="button"

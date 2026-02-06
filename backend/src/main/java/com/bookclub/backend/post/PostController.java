@@ -156,7 +156,7 @@ public class PostController {
     }
 
     /**
-     * 북미팅 참여
+     * 북미팅 참여 (OPEN: 바로 가입, APPROVAL: 대기열에 추가)
      */
     @PostMapping("/{id}/join")
     public ResponseEntity<?> joinBookMeeting(
@@ -168,6 +168,9 @@ public class PostController {
         } catch (PostService.MeetingEndedException e) {
             return ResponseEntity.status(HttpStatus.GONE)
                 .body(Map.of("code", "MEETING_ENDED", "message", e.getMessage()));
+        } catch (PostService.JoinRequestAlreadyPendingException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("code", "JOIN_REQUEST_PENDING", "message", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("code", "BAD_REQUEST", "message", e.getMessage()));
         }
@@ -247,6 +250,62 @@ public class PostController {
             return ResponseEntity.ok(post);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * 가입 신청 승인 (방장만 가능)
+     */
+    @PostMapping("/{id}/approve-join")
+    public ResponseEntity<?> approveJoinRequest(
+            @PathVariable String id,
+            @RequestParam String targetUserId,
+            @RequestParam String requesterId) {
+        try {
+            Post post = postService.approveJoinRequest(id, targetUserId, requesterId);
+            return ResponseEntity.ok(post);
+        } catch (PostService.PostNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("code", "POST_NOT_FOUND", "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("code", "BAD_REQUEST", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 가입 신청 거절 (방장만 가능)
+     */
+    @PostMapping("/{id}/reject-join")
+    public ResponseEntity<?> rejectJoinRequest(
+            @PathVariable String id,
+            @RequestParam String targetUserId,
+            @RequestParam String requesterId) {
+        try {
+            Post post = postService.rejectJoinRequest(id, targetUserId, requesterId);
+            return ResponseEntity.ok(post);
+        } catch (PostService.PostNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("code", "POST_NOT_FOUND", "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("code", "BAD_REQUEST", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 가입 신청 취소 (본인)
+     */
+    @PostMapping("/{id}/cancel-join-request")
+    public ResponseEntity<?> cancelJoinRequest(
+            @PathVariable String id,
+            @RequestParam String userId) {
+        try {
+            Post post = postService.cancelJoinRequest(id, userId);
+            return ResponseEntity.ok(post);
+        } catch (PostService.PostNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("code", "POST_NOT_FOUND", "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("code", "BAD_REQUEST", "message", e.getMessage()));
         }
     }
 

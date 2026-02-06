@@ -63,6 +63,15 @@ public class UserReputationService {
         List<Post> participatedPosts = getParticipatedPosts(user);
         List<Post> createdPosts = getCreatedPosts(user);
 
+        // ★ 성능 최적화: 모든 출석 기록을 한 번에 조회하여 메모리에서 필터링
+        List<AttendanceRecord> allAttendanceRecords = attendanceRecordRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+        Map<String, AttendanceRecord> attendanceByPostId = allAttendanceRecords.stream()
+            .collect(Collectors.toMap(
+                AttendanceRecord::getPostId,
+                record -> record,
+                (existing, replacement) -> existing // 중복 시 첫 번째 유지
+            ));
+
         // 배지 정보 조회 (활동 타임라인에서도 사용)
         UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
 
@@ -72,11 +81,11 @@ public class UserReputationService {
             .email(user.getEmail())
             .photoUrl(user.getDisplayPhotoUrl())
             .joinedAt(user.getCreatedAt())
-            .participationStats(calculateParticipationStats(user, participatedPosts, createdPosts))
+            .participationStats(calculateParticipationStats(user, participatedPosts, createdPosts, attendanceByPostId))
             .endorsementStats(calculateEndorsementStats(user))
             .badgeInfo(calculateBadgeInfo(user, participatedPosts, createdPosts, isKorean, userBadge))
-            .recentActivities(calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean))
-            .monthlyAttendance(calculateMonthlyAttendance(user, participatedPosts, createdPosts, isKorean))
+            .recentActivities(calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean, attendanceByPostId))
+            .monthlyAttendance(calculateMonthlyAttendance(user, participatedPosts, createdPosts, isKorean, attendanceByPostId))
             .build();
     }
 
@@ -94,6 +103,15 @@ public class UserReputationService {
         List<Post> participatedPosts = getParticipatedPosts(user);
         List<Post> createdPosts = getCreatedPosts(user);
 
+        // ★ 성능 최적화: 모든 출석 기록을 한 번에 조회
+        List<AttendanceRecord> allAttendanceRecords = attendanceRecordRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+        Map<String, AttendanceRecord> attendanceByPostId = allAttendanceRecords.stream()
+            .collect(Collectors.toMap(
+                AttendanceRecord::getPostId,
+                record -> record,
+                (existing, replacement) -> existing
+            ));
+
         // 배지 정보 조회
         UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
 
@@ -104,7 +122,7 @@ public class UserReputationService {
         ProfileSummaryResponse.BadgeSummary badgeSummary = calculateBadgeSummary(user, participatedPosts, createdPosts, isKorean, userBadge);
 
         // 최근 활동 (최대 5개)
-        List<ProfileSummaryResponse.ActivitySummary> activities = calculateActivitySummary(user, participatedPosts, createdPosts, userBadge, isKorean, 5);
+        List<ProfileSummaryResponse.ActivitySummary> activities = calculateActivitySummary(user, participatedPosts, createdPosts, userBadge, isKorean, 5, attendanceByPostId);
 
         return ProfileSummaryResponse.builder()
             .user(ProfileSummaryResponse.UserSummary.from(user))
@@ -128,11 +146,20 @@ public class UserReputationService {
         List<Post> participatedPosts = getParticipatedPosts(user);
         List<Post> createdPosts = getCreatedPosts(user);
 
+        // ★ 성능 최적화: 모든 출석 기록을 한 번에 조회
+        List<AttendanceRecord> allAttendanceRecords = attendanceRecordRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+        Map<String, AttendanceRecord> attendanceByPostId = allAttendanceRecords.stream()
+            .collect(Collectors.toMap(
+                AttendanceRecord::getPostId,
+                record -> record,
+                (existing, replacement) -> existing
+            ));
+
         // 배지 정보 조회
         UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
 
         // 참여 통계 계산
-        ParticipationStats participationStats = calculateParticipationStats(user, participatedPosts, createdPosts);
+        ParticipationStats participationStats = calculateParticipationStats(user, participatedPosts, createdPosts, attendanceByPostId);
 
         // Endorsement 요약 계산
         UserReputationSummaryResponse.EndorsementSummary endorsementSummary = calculateEndorsementSummary(user);
@@ -141,7 +168,7 @@ public class UserReputationService {
         UserReputationSummaryResponse.BadgeSummary badgeSummary = calculateSummaryBadges(user, userBadge, isKorean, 3);
 
         // 최근 활동 (최대 5개)
-        List<UserReputationSummaryResponse.ActivityItem> activities = calculateSummaryActivities(user, participatedPosts, createdPosts, userBadge, isKorean, 5);
+        List<UserReputationSummaryResponse.ActivityItem> activities = calculateSummaryActivities(user, participatedPosts, createdPosts, userBadge, isKorean, 5, attendanceByPostId);
 
         return UserReputationSummaryResponse.builder()
             .user(UserReputationSummaryResponse.UserSummary.builder()
@@ -178,12 +205,21 @@ public class UserReputationService {
         List<Post> participatedPosts = getParticipatedPosts(user);
         List<Post> createdPosts = getCreatedPosts(user);
 
+        // ★ 성능 최적화: 모든 출석 기록을 한 번에 조회
+        List<AttendanceRecord> allAttendanceRecords = attendanceRecordRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+        Map<String, AttendanceRecord> attendanceByPostId = allAttendanceRecords.stream()
+            .collect(Collectors.toMap(
+                AttendanceRecord::getPostId,
+                record -> record,
+                (existing, replacement) -> existing
+            ));
+
         // 배지 정보 조회
         UserBadge userBadge = userBadgeService.checkAndUpdateBadges(user.getId());
 
         // 월별 출석 기록 (months 파라미터 적용)
         List<UserReputationDetailsResponse.MonthlyAttendance> monthlyAttendance =
-            calculateDetailsMonthlyAttendance(user, participatedPosts, createdPosts, isKorean, months);
+            calculateDetailsMonthlyAttendance(user, participatedPosts, createdPosts, isKorean, months, attendanceByPostId);
 
         // 전체 배지 정보
         UserReputationDetailsResponse.BadgeInfo badgeInfo =
@@ -191,7 +227,7 @@ public class UserReputationService {
 
         // 활동 목록 (limit 적용)
         List<UserReputationDetailsResponse.ActivityItem> activities =
-            calculateDetailsActivities(user, participatedPosts, createdPosts, userBadge, isKorean, activitiesLimit);
+            calculateDetailsActivities(user, participatedPosts, createdPosts, userBadge, isKorean, activitiesLimit, attendanceByPostId);
 
         return UserReputationDetailsResponse.builder()
             .monthlyAttendance(monthlyAttendance)
@@ -286,14 +322,14 @@ public class UserReputationService {
     }
 
     /**
-     * 활동 요약 계산 (Summary용 - 최신 N개만)
+     * 활동 요약 계산 (Summary용 - 최신 N개만) - 최적화 버전
      */
     private List<UserReputationSummaryResponse.ActivityItem> calculateSummaryActivities(
             User user, List<Post> participatedPosts, List<Post> createdPosts,
-            UserBadge userBadge, boolean isKorean, int limit) {
+            UserBadge userBadge, boolean isKorean, int limit, Map<String, AttendanceRecord> attendanceByPostId) {
 
         // 기존 활동 계산 로직 재사용
-        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean);
+        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean, attendanceByPostId);
 
         // limit 적용하여 Summary 형식으로 변환
         List<UserReputationSummaryResponse.ActivityItem> result = new ArrayList<>();
@@ -316,13 +352,12 @@ public class UserReputationService {
     }
 
     /**
-     * 월별 출석 기록 계산 (Details용 - months 파라미터 적용)
+     * 월별 출석 기록 계산 (Details용 - months 파라미터 적용) - 최적화 버전
      */
     private List<UserReputationDetailsResponse.MonthlyAttendance> calculateDetailsMonthlyAttendance(
-            User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, int months) {
+            User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, int months, Map<String, AttendanceRecord> attendanceByPostId) {
 
         List<UserReputationDetailsResponse.MonthlyAttendance> monthlyData = new ArrayList<>();
-        String odUserId = user.getId();
 
         // 모든 포스트 합치기 (중복 제거)
         Map<String, Post> allPostsMap = new HashMap<>();
@@ -355,10 +390,9 @@ public class UserReputationService {
                 .collect(Collectors.toList());
 
             for (Post post : monthPosts) {
-                Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+                AttendanceRecord record = attendanceByPostId.get(post.getId());
 
-                if (recordOpt.isPresent()) {
-                    AttendanceRecord record = recordOpt.get();
+                if (record != null) {
                     if (record.getStatus() == AttendanceStatus.CONFIRMED) {
                         if (record.getAttendanceType() == AttendanceType.LATE) {
                             late++;
@@ -447,14 +481,14 @@ public class UserReputationService {
     }
 
     /**
-     * 활동 목록 계산 (Details용 - limit 적용)
+     * 활동 목록 계산 (Details용 - limit 적용) - 최적화 버전
      */
     private List<UserReputationDetailsResponse.ActivityItem> calculateDetailsActivities(
             User user, List<Post> participatedPosts, List<Post> createdPosts,
-            UserBadge userBadge, boolean isKorean, int limit) {
+            UserBadge userBadge, boolean isKorean, int limit, Map<String, AttendanceRecord> attendanceByPostId) {
 
         // 기존 활동 계산 로직 재사용
-        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean);
+        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean, attendanceByPostId);
 
         // limit 적용하여 Details 형식으로 변환
         List<UserReputationDetailsResponse.ActivityItem> result = new ArrayList<>();
@@ -563,10 +597,10 @@ public class UserReputationService {
     }
 
     /**
-     * 활동 요약 계산 (제한된 개수)
+     * 활동 요약 계산 (제한된 개수) - 최적화 버전
      */
-    private List<ProfileSummaryResponse.ActivitySummary> calculateActivitySummary(User user, List<Post> participatedPosts, List<Post> createdPosts, UserBadge userBadge, boolean isKorean, int limit) {
-        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean);
+    private List<ProfileSummaryResponse.ActivitySummary> calculateActivitySummary(User user, List<Post> participatedPosts, List<Post> createdPosts, UserBadge userBadge, boolean isKorean, int limit, Map<String, AttendanceRecord> attendanceByPostId) {
+        List<ActivityItem> fullActivities = calculateRecentActivities(user, participatedPosts, createdPosts, userBadge, isKorean, attendanceByPostId);
 
         // limit 적용하여 변환
         List<ProfileSummaryResponse.ActivitySummary> result = new ArrayList<>();
@@ -588,9 +622,9 @@ public class UserReputationService {
     }
 
     /**
-     * 참여 통계 계산 (attendance_records 기반)
+     * 참여 통계 계산 (attendance_records 기반) - 최적화 버전
      */
-    private ParticipationStats calculateParticipationStats(User user, List<Post> participatedPosts, List<Post> createdPosts) {
+    private ParticipationStats calculateParticipationStats(User user, List<Post> participatedPosts, List<Post> createdPosts, Map<String, AttendanceRecord> attendanceByPostId) {
         String odUserId = user.getId();
         int kicked = user.getKicked() != 0 ? user.getKicked() : 0;
 
@@ -618,12 +652,11 @@ public class UserReputationService {
         int late = 0;                // 지각: attendanceType == LATE
         int onTimeCount = 0;         // 정시/일찍: EARLY or ON_TIME
 
-        // 생성한 포스트에 대한 출석 기록 확인
+        // 생성한 포스트에 대한 출석 기록 확인 (Map에서 조회 - DB 쿼리 없음)
         for (String postId : createdPostIds) {
-            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(postId, odUserId);
+            AttendanceRecord record = attendanceByPostId.get(postId);
 
-            if (recordOpt.isPresent()) {
-                AttendanceRecord record = recordOpt.get();
+            if (record != null) {
                 if (record.getStatus() == AttendanceStatus.CONFIRMED) {
                     createdAndAttended++;
 
@@ -650,10 +683,9 @@ public class UserReputationService {
                 continue;
             }
 
-            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(postId, odUserId);
+            AttendanceRecord record = attendanceByPostId.get(postId);
 
-            if (recordOpt.isPresent()) {
-                AttendanceRecord record = recordOpt.get();
+            if (record != null) {
                 if (record.getStatus() == AttendanceStatus.CONFIRMED) {
                     participated++;
 
@@ -683,7 +715,7 @@ public class UserReputationService {
         double onTimeRate = totalConfirmed > 0 ? ((double) onTimeCount / totalConfirmed) * 100 : 100;
 
         // 연속 참여 기록 계산 (불참 없이 연속 참석한 횟수)
-        int currentStreak = calculateCurrentStreak(user, participatedPosts, createdPosts);
+        int currentStreak = calculateCurrentStreak(user, participatedPosts, createdPosts, attendanceByPostId);
 
         // 피드백 통계 계산
         int feedbackGivenCount = (int) endorsementRepository.countByEvaluatorUserId(odUserId);
@@ -693,7 +725,7 @@ public class UserReputationService {
         }
 
         // 피드백 가능 인원 계산 (참석한 모든 토론의 (참가자 수 - 1)의 합)
-        int feedbackPossibleCount = calculateFeedbackPossibleCount(user, participatedPosts, createdPosts);
+        int feedbackPossibleCount = calculateFeedbackPossibleCount(user, participatedPosts, createdPosts, attendanceByPostId);
 
         return ParticipationStats.builder()
             .createdAndAttended(createdAndAttended)
@@ -715,11 +747,9 @@ public class UserReputationService {
     }
 
     /**
-     * 연속 참여 기록 계산 (최근 기준으로 불참 없이 연속 참석한 횟수)
+     * 연속 참여 기록 계산 (최근 기준으로 불참 없이 연속 참석한 횟수) - 최적화 버전
      */
-    private int calculateCurrentStreak(User user, List<Post> participatedPosts, List<Post> createdPosts) {
-        String odUserId = user.getId();
-
+    private int calculateCurrentStreak(User user, List<Post> participatedPosts, List<Post> createdPosts, Map<String, AttendanceRecord> attendanceByPostId) {
         // 모든 포스트 합치기 (중복 제거)
         Map<String, Post> allPostsMap = new HashMap<>();
         for (Post post : createdPosts) {
@@ -737,9 +767,9 @@ public class UserReputationService {
 
         int streak = 0;
         for (Post post : sortedPosts) {
-            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+            AttendanceRecord record = attendanceByPostId.get(post.getId());
 
-            if (recordOpt.isPresent() && recordOpt.get().getStatus() == AttendanceStatus.CONFIRMED) {
+            if (record != null && record.getStatus() == AttendanceStatus.CONFIRMED) {
                 // 참석 확인됨 - streak 계속
                 streak++;
             } else {
@@ -752,11 +782,9 @@ public class UserReputationService {
     }
 
     /**
-     * 피드백 가능 인원 계산 (참석한 모든 토론의 (참가자 수 - 1)의 합)
+     * 피드백 가능 인원 계산 (참석한 모든 토론의 (참가자 수 - 1)의 합) - 최적화 버전
      */
-    private int calculateFeedbackPossibleCount(User user, List<Post> participatedPosts, List<Post> createdPosts) {
-        String odUserId = user.getId();
-
+    private int calculateFeedbackPossibleCount(User user, List<Post> participatedPosts, List<Post> createdPosts, Map<String, AttendanceRecord> attendanceByPostId) {
         // 모든 포스트 합치기 (중복 제거)
         Map<String, Post> allPostsMap = new HashMap<>();
         for (Post post : createdPosts) {
@@ -768,10 +796,10 @@ public class UserReputationService {
 
         int totalPossible = 0;
         for (Post post : allPostsMap.values()) {
-            // 내가 참석(CONFIRMED)한 포스트만 계산
-            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+            // 내가 참석(CONFIRMED)한 포스트만 계산 (Map에서 조회 - DB 쿼리 없음)
+            AttendanceRecord record = attendanceByPostId.get(post.getId());
 
-            if (recordOpt.isPresent() && recordOpt.get().getStatus() == AttendanceStatus.CONFIRMED) {
+            if (record != null && record.getStatus() == AttendanceStatus.CONFIRMED) {
                 // 참가자 수 - 1 (자기 자신 제외)
                 int memberCount = post.getMemberIds() != null ? post.getMemberIds().size() : 0;
                 totalPossible += Math.max(0, memberCount - 1);
@@ -938,12 +966,11 @@ public class UserReputationService {
     }
 
     /**
-     * 최근 활동 타임라인 계산
+     * 최근 활동 타임라인 계산 - 최적화 버전
      * - 회원가입, 포스트 참석, 배지 획득, 포스트 생성
      */
-    private List<ActivityItem> calculateRecentActivities(User user, List<Post> participatedPosts, List<Post> createdPosts, UserBadge userBadge, boolean isKorean) {
+    private List<ActivityItem> calculateRecentActivities(User user, List<Post> participatedPosts, List<Post> createdPosts, UserBadge userBadge, boolean isKorean, Map<String, AttendanceRecord> attendanceByPostId) {
         List<ActivityItem> activities = new ArrayList<>();
-        String odUserId = user.getId();
 
         // 1. 회원가입 활동
         if (user.getCreatedAt() != null) {
@@ -979,7 +1006,7 @@ public class UserReputationService {
             }
         }
 
-        // 3. 포스트 참석 활동 (attendance_records 기반)
+        // 3. 포스트 참석 활동 (attendance_records 기반 - Map에서 조회)
         // 모든 포스트 합치기 (중복 제거)
         Map<String, Post> allPostsMap = new HashMap<>();
         for (Post post : createdPosts) {
@@ -990,10 +1017,9 @@ public class UserReputationService {
         }
 
         for (Post post : allPostsMap.values()) {
-            Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+            AttendanceRecord record = attendanceByPostId.get(post.getId());
 
-            if (recordOpt.isPresent()) {
-                AttendanceRecord record = recordOpt.get();
+            if (record != null) {
                 if (record.getStatus() == AttendanceStatus.CONFIRMED && record.getCreatedAt() != null) {
                     String bookTitle = post.getBookData() != null ? post.getBookData().getTitle() : "Unknown Book";
                     boolean isLate = record.getAttendanceType() == AttendanceType.LATE;
@@ -1060,11 +1086,10 @@ public class UserReputationService {
     }
 
     /**
-     * 월별 출석 기록 계산 (최근 12개월, attendance_records 기반)
+     * 월별 출석 기록 계산 (최근 12개월, attendance_records 기반) - 최적화 버전
      */
-    private List<MonthlyAttendance> calculateMonthlyAttendance(User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean) {
+    private List<MonthlyAttendance> calculateMonthlyAttendance(User user, List<Post> participatedPosts, List<Post> createdPosts, boolean isKorean, Map<String, AttendanceRecord> attendanceByPostId) {
         List<MonthlyAttendance> monthlyData = new ArrayList<>();
-        String odUserId = user.getId();
 
         // 모든 포스트 합치기 (중복 제거)
         Map<String, Post> allPostsMap = new HashMap<>();
@@ -1097,10 +1122,9 @@ public class UserReputationService {
                 .collect(Collectors.toList());
 
             for (Post post : monthPosts) {
-                Optional<AttendanceRecord> recordOpt = attendanceRecordRepository.findByPostIdAndUserId(post.getId(), odUserId);
+                AttendanceRecord record = attendanceByPostId.get(post.getId());
 
-                if (recordOpt.isPresent()) {
-                    AttendanceRecord record = recordOpt.get();
+                if (record != null) {
                     if (record.getStatus() == AttendanceStatus.CONFIRMED) {
                         if (record.getAttendanceType() == AttendanceType.LATE) {
                             late++;

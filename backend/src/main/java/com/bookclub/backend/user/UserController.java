@@ -455,6 +455,33 @@ public class UserController {
     }
 
     /**
+     * 현재 로그인한 사용자의 Google 프로필 사진 업데이트 (누락된 경우만)
+     */
+    @PostMapping("/me/photo/google")
+    public ResponseEntity<?> updateMyGooglePhoto(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, String> body) {
+        try {
+            String cleanToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            Optional<User> userOpt = userService.getUserByUID(cleanToken);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String googlePhotoUrl = body.get("googlePhotoUrl");
+            User updatedUser = userService.updateGooglePhotoIfMissing(userOpt.get().getId(), googlePhotoUrl);
+
+            if (updatedUser != null) {
+                return ResponseEntity.ok(updatedUser);
+            } else {
+                return ResponseEntity.ok(userOpt.get());
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("오류 발생: " + e.getMessage());
+        }
+    }
+
+    /**
      * 현재 사용자의 모든 관심 도서 조회 (좋아요 + AI 추천)
      */
     @GetMapping("/me/fav")

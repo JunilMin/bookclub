@@ -93,10 +93,16 @@ public class BookSearchService {
         List<Map<String, Object>> rawResults = googleBooksService.searchBooks(query, lang);
 
         return rawResults.stream()
-            .limit(limit)
             .map(this::mapToCandidate)
             .filter(Objects::nonNull)
             .filter(c -> c.getIsbn() != null && !c.getIsbn().isEmpty())
+            // 언어 필터링: lang이 지정된 경우 해당 언어의 책만 반환
+            .filter(c -> {
+                if (lang == null || lang.isEmpty()) return true;
+                if (c.getLanguage() == null) return true; // 언어 정보 없으면 통과
+                return c.getLanguage().equals(lang);
+            })
+            .limit(limit)
             .collect(Collectors.toList());
     }
 
@@ -128,6 +134,9 @@ public class BookSearchService {
                     candidate.setGenre(categories.get(0));
                 }
             }
+
+            // Language 추출
+            candidate.setLanguage((String) book.get("language"));
 
             return candidate;
         } catch (Exception e) {

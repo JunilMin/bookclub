@@ -46,6 +46,18 @@ public class Post {
   private String description;        // 설명
   private List<String> tags;         // 태그 리스트
   private Boolean recruit = true;    // 모집 중 여부 (기본값: true)
+  private JoinType joinType = JoinType.OPEN;  // 가입 방식 (기본값: OPEN)
+
+  /**
+   * 가입 방식 Enum
+   */
+  public enum JoinType {
+    OPEN,      // 자유 가입
+    APPROVAL   // 승인 가입
+  }
+
+  // 승인 대기 관련 필드
+  private List<String> pendingMemberIds;  // 승인 대기 중인 User ObjectId 리스트
 
   // 강퇴 관련 필드
   private List<String> blockedIds;   // 강퇴된 User ObjectId 리스트

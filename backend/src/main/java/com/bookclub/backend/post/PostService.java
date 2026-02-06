@@ -300,7 +300,7 @@ public class PostService {
     }
 
     /**
-     * 북미팅 참여
+     * 북미팅 참여 (OPEN: 바로 가입, APPROVAL: 대기열에 추가)
      */
     public Post joinBookMeeting(String postId, String userId) {
         Post post = postRepository.findById(postId)
@@ -316,19 +316,98 @@ public class PostService {
             throw new RuntimeException("이미 참여 중인 북미팅입니다.");
         }
 
+        // 이미 승인 대기 중인지 확인
+        if (post.getPendingMemberIds() != null && post.getPendingMemberIds().contains(userId)) {
+            throw new JoinRequestAlreadyPendingException("이미 가입 신청이 대기 중입니다.");
+        }
+
         // 정원 확인
         if (post.getMemberIds() != null && post.getMemberIds().size() >= post.getCapacity()) {
             throw new RuntimeException("정원이 가득 찼습니다.");
         }
 
-        // 멤버 리스트에 추가
+        // joinType에 따라 분기
+        if (post.getJoinType() == Post.JoinType.APPROVAL) {
+            // APPROVAL: pendingMemberIds에 추가
+            if (post.getPendingMemberIds() == null) {
+                post.setPendingMemberIds(new java.util.ArrayList<>());
+            }
+            post.getPendingMemberIds().add(userId);
+        } else {
+            // OPEN: 기존 로직 - memberIds에 바로 추가
+            if (post.getMemberIds() == null) {
+                post.setMemberIds(new java.util.ArrayList<>());
+            }
+            post.getMemberIds().add(userId);
+            userService.addParticipatedBookMeetingById(userId, postId);
+        }
+
+        return postRepository.save(post);
+    }
+
+    /**
+     * 가입 신청 승인 (방장만 가능)
+     */
+    public Post approveJoinRequest(String postId, String targetUserId, String requesterId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new PostNotFoundException("게시물을 찾을 수 없습니다."));
+
+        if (!post.getCreaterId().equals(requesterId)) {
+            throw new RuntimeException("승인 권한이 없습니다.");
+        }
+
+        if (post.getPendingMemberIds() == null || !post.getPendingMemberIds().contains(targetUserId)) {
+            throw new RuntimeException("해당 유저는 승인 대기 목록에 없습니다.");
+        }
+
+        if (post.getMemberIds() != null && post.getMemberIds().size() >= post.getCapacity()) {
+            throw new RuntimeException("정원이 가득 찼습니다.");
+        }
+
+        post.getPendingMemberIds().remove(targetUserId);
+
         if (post.getMemberIds() == null) {
             post.setMemberIds(new java.util.ArrayList<>());
         }
-        post.getMemberIds().add(userId);
+        post.getMemberIds().add(targetUserId);
 
-        // 사용자의 participatedBookMeetings에 추가
-        userService.addParticipatedBookMeetingById(userId, postId);
+        userService.addParticipatedBookMeetingById(targetUserId, postId);
+
+        return postRepository.save(post);
+    }
+
+    /**
+     * 가입 신청 거절 (방장만 가능)
+     */
+    public Post rejectJoinRequest(String postId, String targetUserId, String requesterId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new PostNotFoundException("게시물을 찾을 수 없습니다."));
+
+        if (!post.getCreaterId().equals(requesterId)) {
+            throw new RuntimeException("거절 권한이 없습니다.");
+        }
+
+        if (post.getPendingMemberIds() == null || !post.getPendingMemberIds().contains(targetUserId)) {
+            throw new RuntimeException("해당 유저는 승인 대기 목록에 없습니다.");
+        }
+
+        post.getPendingMemberIds().remove(targetUserId);
+
+        return postRepository.save(post);
+    }
+
+    /**
+     * 가입 신청 취소 (본인)
+     */
+    public Post cancelJoinRequest(String postId, String userId) {
+        Post post = postRepository.findById(postId)
+            .orElseThrow(() -> new PostNotFoundException("게시물을 찾을 수 없습니다."));
+
+        if (post.getPendingMemberIds() == null || !post.getPendingMemberIds().contains(userId)) {
+            throw new RuntimeException("가입 신청이 대기 중이 아닙니다.");
+        }
+
+        post.getPendingMemberIds().remove(userId);
 
         return postRepository.save(post);
     }
@@ -348,6 +427,12 @@ public class PostService {
 
     public static class MeetingEndedException extends RuntimeException {
         public MeetingEndedException(String message) {
+            super(message);
+        }
+    }
+
+    public static class JoinRequestAlreadyPendingException extends RuntimeException {
+        public JoinRequestAlreadyPendingException(String message) {
             super(message);
         }
     }

@@ -1,6 +1,5 @@
 package com.bookclub.backend.user;
 
-import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,7 +30,7 @@ class UserRepositoryTest {
     void cleanup() {
         // 테스트 후 생성된 사용자 삭제
         if (savedUser != null && savedUser.getId() != null) {
-            userRepository.deleteById(new ObjectId(savedUser.getId()));
+            userRepository.deleteById(savedUser.getId());
         }
     }
 

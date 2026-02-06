@@ -150,6 +150,9 @@ public class UserService {
             throw new RuntimeException("이미 존재하는 이메일입니다.");
         }
 
+        // 전달받은 photo 값 보존 (Google 프로필 사진)
+        User.Photo incomingPhoto = user.getPhoto();
+
         user.setUid(user.getUid());
         user.setFriends(new ArrayList<>());
         user.setPassword(""); // Firebase 인증 사용으로 비밀번호 저장 불필요
@@ -160,7 +163,39 @@ public class UserService {
         user.setPosts(new User.UserPosts(new ArrayList<>(), new ArrayList<>()));
         user.setCreatedAt(LocalDateTime.now());
 
+        // photo 필드 명시적으로 설정 (null이 아닌 경우)
+        if (incomingPhoto != null) {
+            user.setPhoto(incomingPhoto);
+        }
+
         return userRepository.save(user);
+    }
+
+    /**
+     * 기존 사용자의 Google 프로필 사진 업데이트 (누락된 경우)
+     *
+     * @param userId 사용자 ID
+     * @param googlePhotoUrl Google 프로필 사진 URL
+     * @return 업데이트된 User 객체
+     */
+    public User updateGooglePhotoIfMissing(String userId, String googlePhotoUrl) {
+        if (googlePhotoUrl == null || googlePhotoUrl.trim().isEmpty()) {
+            return null;
+        }
+
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        User.Photo photo = user.getPhoto();
+
+        // Google 사진이 없는 경우에만 업데이트
+        if (photo.getGoogle() == null || photo.getGoogle().trim().isEmpty()) {
+            photo.setGoogle(googlePhotoUrl);
+            user.setPhoto(photo);
+            return userRepository.save(user);
+        }
+
+        return user;
     }
 
     /**

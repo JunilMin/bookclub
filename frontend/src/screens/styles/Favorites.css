@@ -661,11 +661,10 @@
 .favorites-book-wrapper {
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding-bottom: 20px;
 }
 
 /* 3D Book Container */
@@ -719,7 +718,9 @@
 
 .favorites-book-cover-inner {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 0 3px 3px 0;
   background: linear-gradient(45deg, #DAD5DC 0%, #f2ebf4 100%);
   box-shadow: inset 4px 0 10px rgba(0, 0, 0, 0.1);
@@ -751,14 +752,52 @@
   width: 140px;
   height: 200px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #e0e7ff 0%, #c7d2fe 40%, #a5b4fc 100%);
 }
 
-.favorites-book-no-cover i {
-  font-size: 48px;
-  color: #94a3b8;
+.favorites-book-no-cover .no-cover-decoration {
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+}
+
+.favorites-book-no-cover .no-cover-icon {
+  font-size: 36px;
+  color: #4f46e5;
+  opacity: 0.6;
+}
+
+.favorites-book-no-cover .no-cover-spinner {
+  font-size: 36px;
+  color: #4f46e5;
+  opacity: 0.6;
+  animation: spin 1s linear infinite;
+}
+
+.favorites-book-no-cover .no-cover-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 600;
+  color: #312e81;
+  text-align: center;
+  line-height: 1.4;
+  padding: 0 12px;
+  max-height: 46px;
 }
 
 .favorites-book-author {

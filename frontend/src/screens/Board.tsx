@@ -204,7 +204,9 @@ function postToRoom(
     ln: post.bookData?.ln as 'en' | 'ko' | undefined,
     hostId: post.createrId,
     joinType: post.joinType,
-    memberIds: post.memberIds
+    memberIds: post.memberIds,
+    pendingMemberIds: post.pendingMemberIds,
+    isPending: currentUserId ? (post.pendingMemberIds?.includes(currentUserId) || false) : false
   };
 }
 
@@ -699,12 +701,22 @@ const Board: React.FC = () => {
     try {
       const updatedPost = await joinBookMeeting(roomId, user.id, accessToken);
       updatePostInStore(updatedPost);
+
+      // APPROVAL 타입: pendingMemberIds에 추가된 경우 알림
+      if (updatedPost.pendingMemberIds?.includes(user.id)) {
+        alert(t('board_join_request_sent') || '가입 신청이 전송되었습니다. 호스트가 검토할 예정입니다.');
+      }
+
       setSelectedRoom(null);
       refreshNow('user-action', accessToken, user.id);
       scheduleNextPoll(accessToken, user.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error joining meeting:', err);
-      alert(t('board_join_error'));
+      if (err.response?.data?.code === 'JOIN_REQUEST_PENDING') {
+        alert(t('board_join_already_pending') || '이미 가입 신청이 대기 중입니다.');
+      } else {
+        alert(t('board_join_error'));
+      }
     } finally {
       setIsProcessing(false);
     }

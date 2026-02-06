@@ -1,10 +1,13 @@
 package com.bookclub.backend.auth;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -14,6 +17,27 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    // application.properties에서 설정 (기본값: false)
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
+
+    // SameSite 정책 (Lax가 기본, 운영환경에서는 Strict 권장)
+    @Value("${app.cookie.same-site:Lax}")
+    private String cookieSameSite;
+
+    /**
+     * 보안 쿠키 생성 헬퍼 메서드
+     */
+    private ResponseCookie createSecureCookie(String name, String value, Duration maxAge) {
+        return ResponseCookie.from(name, value != null ? value : "")
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .sameSite(cookieSameSite)
+            .path("/")
+            .maxAge(maxAge)
+            .build();
+    }
 
     /**
      * 로그인 시 Firebase 토큰을 httpOnly 쿠키에 저장
@@ -27,22 +51,14 @@ public class AuthController {
             return ResponseEntity.badRequest().body("토큰이 필요합니다.");
         }
 
-        // Firebase 토큰 httpOnly 쿠키 생성
-        Cookie firebaseCookie = new Cookie("firebase_token", token);
-        firebaseCookie.setHttpOnly(true);
-        firebaseCookie.setSecure(false); // 개발환경에서는 false, 프로덕션에서는 true (HTTPS)
-        firebaseCookie.setPath("/");
-        firebaseCookie.setMaxAge(60 * 60); // 1시간
-        response.addCookie(firebaseCookie);
+        // Firebase 토큰 보안 쿠키 생성
+        ResponseCookie firebaseCookie = createSecureCookie("firebase_token", token, Duration.ofHours(1));
+        response.addHeader(HttpHeaders.SET_COOKIE, firebaseCookie.toString());
 
-        // Google Access Token httpOnly 쿠키 생성 (있는 경우에만)
+        // Google Access Token 보안 쿠키 생성 (있는 경우에만)
         if (googleAccessToken != null && !googleAccessToken.isEmpty()) {
-            Cookie googleCookie = new Cookie("google_access_token", googleAccessToken);
-            googleCookie.setHttpOnly(true);
-            googleCookie.setSecure(false);
-            googleCookie.setPath("/");
-            googleCookie.setMaxAge(60 * 60); // 1시간 (Google token 만료 시간)
-            response.addCookie(googleCookie);
+            ResponseCookie googleCookie = createSecureCookie("google_access_token", googleAccessToken, Duration.ofHours(1));
+            response.addHeader(HttpHeaders.SET_COOKIE, googleCookie.toString());
         }
 
         return ResponseEntity.ok("토큰이 쿠키에 저장되었습니다.");
@@ -60,22 +76,14 @@ public class AuthController {
             return ResponseEntity.badRequest().body("토큰이 필요합니다.");
         }
 
-        // Firebase 토큰 httpOnly 쿠키 갱신
-        Cookie firebaseCookie = new Cookie("firebase_token", token);
-        firebaseCookie.setHttpOnly(true);
-        firebaseCookie.setSecure(false);
-        firebaseCookie.setPath("/");
-        firebaseCookie.setMaxAge(60 * 60); // 1시간
-        response.addCookie(firebaseCookie);
+        // Firebase 토큰 보안 쿠키 갱신
+        ResponseCookie firebaseCookie = createSecureCookie("firebase_token", token, Duration.ofHours(1));
+        response.addHeader(HttpHeaders.SET_COOKIE, firebaseCookie.toString());
 
-        // Google Access Token httpOnly 쿠키 갱신 (있는 경우에만)
+        // Google Access Token 보안 쿠키 갱신 (있는 경우에만)
         if (googleAccessToken != null && !googleAccessToken.isEmpty()) {
-            Cookie googleCookie = new Cookie("google_access_token", googleAccessToken);
-            googleCookie.setHttpOnly(true);
-            googleCookie.setSecure(false);
-            googleCookie.setPath("/");
-            googleCookie.setMaxAge(60 * 60); // 1시간
-            response.addCookie(googleCookie);
+            ResponseCookie googleCookie = createSecureCookie("google_access_token", googleAccessToken, Duration.ofHours(1));
+            response.addHeader(HttpHeaders.SET_COOKIE, googleCookie.toString());
         }
 
         return ResponseEntity.ok("토큰이 갱신되었습니다.");
@@ -87,21 +95,13 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletResponse response) {
-        // Firebase 토큰 쿠키 삭제
-        Cookie firebaseCookie = new Cookie("firebase_token", null);
-        firebaseCookie.setHttpOnly(true);
-        firebaseCookie.setSecure(false);
-        firebaseCookie.setPath("/");
-        firebaseCookie.setMaxAge(0); // 즉시 만료
-        response.addCookie(firebaseCookie);
+        // Firebase 토큰 쿠키 삭제 (maxAge=0)
+        ResponseCookie firebaseCookie = createSecureCookie("firebase_token", "", Duration.ZERO);
+        response.addHeader(HttpHeaders.SET_COOKIE, firebaseCookie.toString());
 
         // Google Access Token 쿠키 삭제
-        Cookie googleCookie = new Cookie("google_access_token", null);
-        googleCookie.setHttpOnly(true);
-        googleCookie.setSecure(false);
-        googleCookie.setPath("/");
-        googleCookie.setMaxAge(0); // 즉시 만료
-        response.addCookie(googleCookie);
+        ResponseCookie googleCookie = createSecureCookie("google_access_token", "", Duration.ZERO);
+        response.addHeader(HttpHeaders.SET_COOKIE, googleCookie.toString());
 
         return ResponseEntity.ok("로그아웃이 완료되었습니다.");
     }

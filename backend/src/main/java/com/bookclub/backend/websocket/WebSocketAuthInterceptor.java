@@ -33,42 +33,54 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             // Extract token from headers
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                String token = authHeader.substring(7);
+            // 토큰이 없으면 연결 거부
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new IllegalArgumentException("WebSocket connection requires authentication token");
+            }
 
-                try {
-                    // Verify Firebase token
-                    FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(token);
-                    String uid = decodedToken.getUid();
-                    String email = decodedToken.getEmail();
+            String token = authHeader.substring(7);
 
-                    // Get User from database by Firebase UID
-                    Optional<User> userOpt = userService.getUserByUID(uid, token);
-                    if (userOpt.isEmpty()) {
-                        throw new RuntimeException("User not found for UID: " + uid);
-                    }
+            // 빈 토큰 체크
+            if (token.isEmpty()) {
+                throw new IllegalArgumentException("Empty authentication token");
+            }
 
-                    User user = userOpt.get();
-                    String userId = user.getId();  // MongoDB ObjectId
+            try {
+                // Verify Firebase token
+                FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(token);
+                String uid = decodedToken.getUid();
+                String email = decodedToken.getEmail();
 
-                    // Create authentication principal with userId
-                    WebSocketPrincipal principal = new WebSocketPrincipal(userId, uid, email);
-
-                    // Set user authentication
-                    UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                            principal,
-                            null,
-                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
-                        );
-
-                    accessor.setUser(authentication);
-
-                } catch (FirebaseAuthException e) {
-                    throw new RuntimeException("Invalid Firebase token: " + e.getMessage());
-                } catch (Exception e) {
-                    throw new RuntimeException("Authentication failed: " + e.getMessage());
+                // Get User from database by Firebase UID
+                Optional<User> userOpt = userService.getUserByUID(uid, token);
+                if (userOpt.isEmpty()) {
+                    throw new IllegalArgumentException("User not found for UID: " + uid);
                 }
+
+                User user = userOpt.get();
+                String userId = user.getId();  // MongoDB ObjectId
+
+                // Create authentication principal with userId
+                WebSocketPrincipal principal = new WebSocketPrincipal(userId, uid, email);
+
+                // Set user authentication
+                UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(
+                        principal,
+                        null,
+                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                    );
+
+                accessor.setUser(authentication);
+
+            } catch (FirebaseAuthException e) {
+                // 토큰 만료 또는 유효하지 않은 토큰
+                throw new IllegalArgumentException("Invalid or expired Firebase token: " + e.getMessage());
+            } catch (IllegalArgumentException e) {
+                // 이미 처리된 예외는 그대로 던지기
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalArgumentException("WebSocket authentication failed: " + e.getMessage());
             }
         }
 

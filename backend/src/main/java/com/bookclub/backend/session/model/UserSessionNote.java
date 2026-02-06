@@ -46,6 +46,7 @@ public class UserSessionNote {
 
     /**
      * 공용 노트에서 fork하여 개인 노트 생성
+     * Block-based notes의 경우 getContentFromBlocks()로 TipTap JSON 재구성
      */
     public static UserSessionNote forkFrom(SessionNote baseNote, String userId, String title) {
         UserSessionNote userNote = new UserSessionNote();
@@ -54,7 +55,15 @@ public class UserSessionNote {
         userNote.setBaseNoteId(baseNote.getId());
         userNote.setBaseVersion(baseNote.getVersion());
         userNote.setTitle(title);
-        userNote.setContent(baseNote.getContent());
+
+        // Block-based notes: reconstruct TipTap JSON from blocks
+        // Legacy notes: use content field directly
+        if (baseNote.isMigrated() && baseNote.getBlocks() != null && !baseNote.getBlocks().isEmpty()) {
+            userNote.setContent(baseNote.getContentFromBlocks());
+        } else {
+            userNote.setContent(baseNote.getContent());
+        }
+
         userNote.setVersion(1);
         userNote.setCreatedAt(LocalDateTime.now());
         userNote.setUpdatedAt(LocalDateTime.now());

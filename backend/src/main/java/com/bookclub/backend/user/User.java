@@ -3,6 +3,7 @@ package com.bookclub.backend.user;
 
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -67,6 +68,14 @@ public class User {
     return this.posts;
   }
 
+  /**
+   * posts setter - 역직렬화용
+   */
+  @JsonSetter("posts")
+  public void setPostsJson(UserPosts posts) {
+    this.posts = posts;
+  }
+
   // 북미팅 관련 내부 클래스
   @Getter
   @Setter
@@ -93,6 +102,14 @@ public class User {
   }
 
   /**
+   * fav setter - 역직렬화용
+   */
+  @JsonSetter("fav")
+  public void setFavJson(Fav fav) {
+    this.fav = fav;
+  }
+
+  /**
    * profile getter - null 방지
    */
   @JsonGetter("profile")
@@ -101,6 +118,14 @@ public class User {
       this.profile = new UserProfile();
     }
     return this.profile;
+  }
+
+  /**
+   * profile setter - 역직렬화용
+   */
+  @JsonSetter("profile")
+  public void setProfileJson(UserProfile profile) {
+    this.profile = profile;
   }
 
   /**
@@ -115,6 +140,14 @@ public class User {
   }
 
   /**
+   * setting setter - 역직렬화용
+   */
+  @JsonSetter("setting")
+  public void setSettingJson(UserSetting setting) {
+    this.setting = setting;
+  }
+
+  /**
    * photo getter - null 방지
    */
   @JsonGetter("photo")
@@ -123,6 +156,14 @@ public class User {
       this.photo = new Photo();
     }
     return this.photo;
+  }
+
+  /**
+   * photo setter - 역직렬화용
+   */
+  @JsonSetter("photo")
+  public void setPhotoJson(Photo photo) {
+    this.photo = photo;
   }
 
   /**

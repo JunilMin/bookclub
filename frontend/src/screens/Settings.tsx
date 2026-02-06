@@ -322,7 +322,18 @@ const Settings: React.FC = () => {
 
   // Handle profile save
   const handleSaveProfile = async () => {
+    console.log('[Settings] handleSaveProfile called', {
+      hasUser: !!user,
+      hasAccessToken: !!accessToken,
+      userId: user?.id,
+    });
+
     if (!user || !accessToken || !user.id) {
+      console.error('[Settings] Validation failed:', {
+        user: !!user,
+        accessToken: !!accessToken,
+        userId: user?.id,
+      });
       setSaveMessage({ type: 'error', text: t('settings_save_error') });
       return;
     }
@@ -331,6 +342,10 @@ const Settings: React.FC = () => {
     setSaveMessage(null);
 
     try {
+      // profile과 introduce가 없으면 생성
+      const existingProfile = user.profile || {};
+      const existingIntroduce = existingProfile.introduce || {};
+
       const updatedUser: User = {
         ...user,
         username: profile.username,
@@ -340,9 +355,9 @@ const Settings: React.FC = () => {
           custom: photo.custom || undefined,
         },
         profile: {
-          ...user.profile,
+          ...existingProfile,
           introduce: {
-            ...user.profile?.introduce,
+            ...existingIntroduce,
             introduction: profile.bio,
             preferredGenre: profile.selectedGenres,
             styles: {
@@ -362,24 +377,30 @@ const Settings: React.FC = () => {
         },
       };
 
+      console.log('[Settings] Calling updateUser API...');
       await updateUser(user.id, updatedUser, accessToken);
+      console.log('[Settings] updateUser API call successful');
 
       // Refresh user data in context
       if (refreshUserData) {
+        console.log('[Settings] Refreshing user data...');
         await refreshUserData();
       }
 
       // Store에 저장 완료 표시
       markProfileSaved();
       markPhotoSaved();
+      console.log('[Settings] Profile saved successfully');
       setSaveMessage({ type: 'success', text: t('settings_save_success') });
 
       // Clear message after 3 seconds
       setTimeout(() => setSaveMessage(null), 3000);
-    } catch (error) {
-      console.error('Error saving profile:', error);
+    } catch (error: any) {
+      console.error('[Settings] Error saving profile:', error);
+      console.error('[Settings] Error details:', error?.response?.data || error?.message);
       setSaveMessage({ type: 'error', text: t('settings_save_error') });
     } finally {
+      console.log('[Settings] Save completed, setting isSaving to false');
       setSaving(false);
     }
   };
@@ -476,12 +497,16 @@ const Settings: React.FC = () => {
     setPrivacySaveMessage(null);
 
     try {
+      // profile과 introduce가 없으면 생성
+      const existingProfile = user.profile || {};
+      const existingIntroduce = existingProfile.introduce || {};
+
       const updatedUser: User = {
         ...user,
         profile: {
-          ...user.profile,
+          ...existingProfile,
           introduce: {
-            ...user.profile?.introduce,
+            ...existingIntroduce,
             location: privacy.userLocation || undefined,
           },
         },

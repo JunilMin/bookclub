@@ -165,15 +165,22 @@ export const getUserByUsername = async (username: string, token: string): Promis
     throw new Error("사용자 이름으로 조회하는데 실패했습니다.");
   }
 };
-export const getByUID  = async (uid: string,token: string): Promise<User> => {
+export const getByUID  = async (uid: string, token: string): Promise<User> => {
   try {
     setAccessToken(token);
-    const response = await axiosInstance.get(`/users/uid/${uid}`);
+    // 로그인 과정에서는 토큰을 직접 config에 설정하여 확실히 전달
+    const response = await axiosInstance.get(`/users/uid/${uid}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      // 로그인 과정에서는 401 재시도 스킵
+      skipAuthRetry: true
+    } as any);
     console.log("이 메시지가 보인다면 로그인에 성공을 했다는 것이오.");
     return response.data;
   } catch (error) {
-    console.error("Error fetching user by username:", error);
-    throw new Error("사용자 이름으로 조회하는데 실패했습니다.");
+    console.error("Error fetching user by UID:", error);
+    throw new Error("사용자 조회에 실패했습니다.");
   }
 }
 
@@ -198,6 +205,18 @@ export const updateUser = async (id: string, updatedUser: User, token:string): P
   } catch (error) {
     console.error("Error updating user:", error);
     throw new Error("사용자 정보를 업데이트하는데 실패했습니다.");
+  }
+};
+
+// Google 프로필 사진 업데이트 (누락된 경우만)
+export const updateGooglePhoto = async (googlePhotoUrl: string, token: string): Promise<User> => {
+  try {
+    setAccessToken(token);
+    const response = await axiosInstance.post('/users/me/photo/google', { googlePhotoUrl });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating Google photo:", error);
+    throw new Error("Google 프로필 사진 업데이트에 실패했습니다.");
   }
 };
 

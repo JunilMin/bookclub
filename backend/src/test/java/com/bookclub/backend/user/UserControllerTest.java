@@ -1,7 +1,6 @@
 package com.bookclub.backend.user;
 
 import com.bookclub.backend.moderation.PerspectiveService;
-import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,8 +12,10 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -31,16 +32,14 @@ class UserControllerTest {
     private UserController userController;
 
     private User user;
-    private ObjectId userId;
-    private String userIdString;
+    private String userId;
 
     @BeforeEach
     void setup() {
         user = new User();
         user.setUsername("testuser");
         user.setPassword("password");
-        userId = new ObjectId();
-        userIdString = userId.toString();
+        userId = UUID.randomUUID().toString();
     }
 
     @Test
@@ -56,9 +55,9 @@ class UserControllerTest {
 
     @Test
     void getUserById_ShouldReturnUser_WhenIdExists() {
-        when(userService.getUserById(any(ObjectId.class))).thenReturn(Optional.of(user));
+        when(userService.getUserById(anyString())).thenReturn(Optional.of(user));
 
-        ResponseEntity<User> response = userController.getUserById(userIdString);
+        ResponseEntity<User> response = userController.getUserById(userId);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -77,11 +76,11 @@ class UserControllerTest {
 
     @Test
     void deleteUser_ShouldReturnNoContent_WhenUserIsDeleted() {
-        doNothing().when(userService).deleteUser(any(ObjectId.class));
+        doNothing().when(userService).deleteUser(anyString());
 
-        ResponseEntity<Void> response = userController.deleteUser(userIdString);
+        ResponseEntity<Void> response = userController.deleteUser(userId);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(userService, times(1)).deleteUser(any(ObjectId.class));
+        verify(userService, times(1)).deleteUser(anyString());
     }
 }

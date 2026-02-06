@@ -55,6 +55,151 @@
 
 ## 최근 세션 완료 작업 (현재)
 
+### 0. 인증 보안 강화 (Security Hardening)
+
+#### 1) SecurityConfig 수정 (`backend/src/main/java/com/bookclub/backend/config/SecurityConfig.java`)
+- `/**` permitAll 제거
+- 공개 API만 permitAll: `/api/auth/**`, `/api/ISBN/**`, `/api/books/**`, `/api/users/register`, `/api/users/validate-username/**`
+- 나머지 모든 요청: `.anyRequest().authenticated()`
+
+#### 2) FirebaseAuthFilter 개선 (`backend/src/main/java/com/bookclub/backend/firebase/FirebaseAuthFilter.java`)
+- **토큰 없으면 401 반환** (이전: 그냥 통과)
+- **토큰 검증 실패 시 401 반환** (이전: 로그만 찍고 통과)
+- **토큰 만료 감지**: "Token expired" 메시지로 구분
+- 공개 경로는 `isPublicPath()` 헬퍼로 인증 없이 통과
+
+#### 3) WebSocketAuthInterceptor 강화 (`backend/src/main/java/com/bookclub/backend/websocket/WebSocketAuthInterceptor.java`)
+- **토큰 없으면 연결 거부**: `IllegalArgumentException` throw
+- **빈 토큰 체크** 추가
+- **만료/유효하지 않은 토큰**: 명확한 에러 메시지
+
+#### 4) 쿠키 보안 옵션 강화 (`backend/src/main/java/com/bookclub/backend/auth/AuthController.java`)
+- `ResponseCookie` 사용으로 `SameSite` 옵션 추가
+- 환경 변수로 설정 가능:
+  - `app.cookie.secure`: 개발(false), 운영(true)
+  - `app.cookie.same-site`: Lax (기본), Strict (권장)
+- `createSecureCookie()` 헬퍼 메서드로 일관된 쿠키 생성
+
+#### 5) 프론트엔드 401 자동 재발급 (`frontend/src/api/axiosInstance.tsx`)
+- **Response Interceptor** 추가
+- 401 에러 시:
+  1. Firebase `getIdToken(true)`로 강제 재발급
+  2. `/api/auth/refresh-token`으로 쿠키 갱신
+  3. 원래 요청 재시도
+  4. 재발급 실패 시 `/login`으로 리다이렉트
+- **대기열 처리**: 동시 요청 시 토큰 재발급 한 번만 수행
+
+#### 환경 설정 (`application.properties`)
+```properties
+# 쿠키 보안 설정
+app.cookie.secure=false  # 운영: true
+app.cookie.same-site=Lax  # 운영: Strict 권장
+```
+
+---
+
+### 1. 블록 기반 노트 Undo/Redo 기능 구현
+
+#### useBlockHistory 훅 생성 (`frontend/src/hooks/useBlockHistory.ts`)
+블록 추가/삭제/수정/이동에 대한 Undo/Redo 히스토리 관리
+
+**핵심 기능:**
+- `pushAddBlock`: 블록 추가 기록
+- `pushDeleteBlock`: 블록 삭제 기록
+- `pushUpdateBlock`: 블록 수정 기록
+- `pushReorderBlock`: 블록 이동 기록
+- `trackTextChange`: 텍스트 변경 디바운스 추적 (800ms)
+- `undo/redo`: 실행 함수
+- `canUndo/canRedo`: 상태 조회
+
+**특징:**
+- 최대 100개 히스토리 저장
+- 텍스트 변경은 800ms 디바운스로 하나의 액션으로 묶음
+- Undo/Redo 중에는 히스토리 기록 안 함 (무한 루프 방지)
+- `isUndoRedoInProgressRef`로 작업 중 상태 추적
+
+#### BlockBasedNotes.tsx 연동
+- `useBlockHistory` 훅 연동
+- 툴바에 Undo/Redo 버튼 추가 (FiRotateCcw, FiRotateCw 아이콘)
+- Ctrl/Cmd+Z: Undo, Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y: Redo
+- 블록 삭제 시 이전 블록 정보 저장하여 복원 가능
+
+#### 변경된 파일
+- `frontend/src/hooks/useBlockHistory.ts` - 새로 생성
+- `frontend/src/components/meet/CenterPanel/BlockBasedNotes.tsx` - 훅 연동
+
+---
+
+### 2. UserReputationService 성능 최적화
+
+#### 문제
+각 포스트마다 `attendanceRecordRepository.findByUserIdAndPostId()`를 호출하여 N+1 쿼리 문제 발생
+
+#### 해결
+모든 출석 기록을 한 번에 조회 후 `Map<String, AttendanceRecord>`에 저장하여 메모리에서 필터링
+
+```java
+// 최적화: 모든 출석 기록을 한 번에 조회
+List<AttendanceRecord> allAttendanceRecords =
+    attendanceRecordRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+
+Map<String, AttendanceRecord> attendanceByPostId = allAttendanceRecords.stream()
+    .collect(Collectors.toMap(
+        AttendanceRecord::getPostId,
+        record -> record,
+        (existing, replacement) -> existing // 중복 시 첫 번째 유지
+    ));
+
+// 이후 반복문에서 DB 조회 대신 Map에서 조회
+AttendanceRecord record = attendanceByPostId.get(post.getId());
+```
+
+#### 적용된 메서드
+- `getUserReputation()`
+- `getProfileSummary()`
+- `getReputationSummary()`
+- `getReputationDetails()`
+- `calculateParticipationStats()`
+- `calculateCurrentStreak()`
+- `calculateFeedbackPossibleCount()`
+- `calculateRecentActivities()`
+- `calculateMonthlyAttendance()`
+- `calculateDetailsMonthlyAttendance()`
+- `calculateSummaryActivities()`
+- `calculateActivitySummary()`
+- `calculateDetailsActivities()`
+
+#### 변경된 파일
+- `backend/src/main/java/com/bookclub/backend/user/UserReputationService.java`
+
+---
+
+### 3. BlockBasedNotes CSS 개선
+
+#### AI 버전 선택기 스타일 추가
+`.ai-version-selector` - AI 정리된 노트 버전 선택 UI
+
+```css
+.ai-version-selector .version-chip {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.ai-version-selector .version-chip.active {
+  background: var(--primary, #4f46e5);
+  color: #fff;
+}
+```
+
+#### 변경된 파일
+- `frontend/src/components/meet/styles/BlockBasedNotes.css`
+
+---
+
+## 이전 세션 완료 작업
+
 ### 1. 라우트 구조 변경
 Board 페이지를 홈페이지로 설정
 

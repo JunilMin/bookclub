@@ -139,6 +139,12 @@ public class GoogleBooksService {
                 book.put("categories", categoryList);
             }
 
+            // Language
+            String language = volumeInfo.path("language").asText(null);
+            if (language != null) {
+                book.put("language", language);
+            }
+
             books.add(book);
         }
 

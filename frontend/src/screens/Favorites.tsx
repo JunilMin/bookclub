@@ -532,11 +532,13 @@ const LikedBookCard: React.FC<LikedBookCardProps> = React.memo(
                     />
                   ) : (
                     <div className="favorites-book-no-cover">
+                      <div className="no-cover-decoration"></div>
                       {isEnriching ? (
-                        <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
+                        <i className="ri-loader-4-line no-cover-spinner"></i>
                       ) : (
-                        <i className="ri-book-2-line"></i>
+                        <i className="ri-book-open-line no-cover-icon"></i>
                       )}
+                      <span className="no-cover-title">{item.bookInfo?.title || ''}</span>
                     </div>
                   )}
                   <p className="favorites-book-author">
@@ -640,11 +642,13 @@ const AIBookCard: React.FC<AIBookCardProps> = React.memo(
                     />
                   ) : (
                     <div className="favorites-book-no-cover">
+                      <div className="no-cover-decoration"></div>
                       {isEnriching ? (
-                        <i className="ri-loader-4-line" style={{ animation: 'spin 1s linear infinite' }}></i>
+                        <i className="ri-loader-4-line no-cover-spinner"></i>
                       ) : (
-                        <i className="ri-book-2-line"></i>
+                        <i className="ri-book-open-line no-cover-icon"></i>
                       )}
+                      <span className="no-cover-title">{item.bookInfo?.title || ''}</span>
                     </div>
                   )}
                   <p className="favorites-book-author">
