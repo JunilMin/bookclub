@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo:*)",
+      "Bash(xargs cat:*)",
+      "Bash(cat:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill //F //PID 44472)",
+      "Bash(nslookup:*)",
+      "Bash(docker:*)",
+      "Bash(./gradlew bootRun:*)",
+      "Bash(curl:*)",
+      "Bash(./gradlew:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm install:*)",
+      "WebSearch",
+      "Bash(timeout 10 npm run dev)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(timeout 8 npm run dev)",
+      "Bash(./gradlew.bat compileJava:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

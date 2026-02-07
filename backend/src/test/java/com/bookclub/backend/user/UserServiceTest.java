@@ -1,7 +1,6 @@
 // ./test/user/UserServiceTest.java
 package com.bookclub.backend.user;
 
-import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -10,6 +9,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Optional;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -43,7 +43,7 @@ class UserServiceTest {
     @Test
     void getUserById_ShouldReturnUser_WhenIdExists() {
         // given: 특정 ID의 사용자 설정
-        ObjectId id = new ObjectId();
+        String id = UUID.randomUUID().toString();
         User user = new User();
         when(userRepository.findById(id)).thenReturn(Optional.of(user));
 
@@ -88,7 +88,7 @@ class UserServiceTest {
     @Test
     void deleteUser_ShouldDeleteUser_WhenIdExists() {
         // given: 특정 ID의 사용자 설정
-        ObjectId id = new ObjectId();
+        String id = UUID.randomUUID().toString();
 
         // when: 사용자 삭제
         userService.deleteUser(id);

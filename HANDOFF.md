@@ -1,0 +1,855 @@
+# HANDOFF - BookClub 프로젝트 인수인계
+
+## 프로젝트 전체 작업 히스토리
+
+### Phase 1: 기본 인프라 구축
+- Firebase Authentication 구현 (Google OAuth 포함)
+- MongoDB 연동
+- Spring Boot 백엔드 설정
+- React + TypeScript 프론트엔드 설정
+
+### Phase 2: 핵심 기능 구현
+- **Google Meet 연동**: 모임 생성 시 자동으로 Meet 링크 생성
+- **도서 검색 API**: Google Books API / Naver Books API 연동
+- **메시징 시스템**: 1:1 메시지 기능
+- **다국어 지원**: i18next를 통한 한국어/영어 지원
+
+### Phase 3: 실시간 미팅룸 시스템
+- **WebSocket (STOMP)** 기반 실시간 통신
+- **발언 대기열**: 손 들기, 다음 발언자, 사회자 위임
+- **협업 노트**: TipTap + Op-based CRDT 실시간 동시 편집
+- **AI 요약**: OpenAI GPT-4o-mini로 토론 노트 요약
+
+### Phase 4: 미팅룸 고도화
+- **발언 대기열 Drag & Drop**: 사회자가 순서 변경 가능
+- **참가자 → 발언대기열 추가**: 사회자가 직접 추가 가능
+- **강퇴 기능**: 문제 참가자 강퇴
+- **신고 기능**: 부적절한 행동 신고
+- **평가 시스템**: 토론 후 상호 평가
+
+### Phase 5: 세션 및 포스트 관리
+- **종료하기 버튼**: 미팅 명시적 종료
+- **상태 표시 개선**: 시작시간 + duration 기반 대기중/진행중/종료 표시
+- **Google Calendar 동기화**: 포스트 수정/삭제 시 캘린더 이벤트도 동기화
+- **Zustand 상태관리**: 전역 상태 관리 재구현
+- **bookData 필드 생성**: Post에 책 정보 통합 저장
+
+### Phase 6: 토론 노트 시스템
+- **Notes 페이지**: 사용자별 토론 노트 목록
+- **NoteDetail 페이지**: 개별 노트 상세 보기/편집
+- **세션 종료 시 Fork**: 공유 노트를 각 멤버에게 개인 복사본으로 분배
+- **포스트 애니메이션**: 카드 hover 효과
+
+### Phase 7: Board 페이지 UX 개선
+- **Room Status Badge 수정**: WebSocket + REST API 백업으로 "진행중" 상태 정확히 표시
+- **종료된 미팅 필터링**: 탭별 표시 규칙 구현
+- **종료된 북미팅 버튼**: 슬라이드 애니메이션 + 자동 스크롤
+
+### Phase 8: MeetRoom 참가자 관리 개선
+- **오프라인 참가자 섹션**: 참가자 목록 하단에 펼침 버튼 추가
+- **반원형 토글 버튼**: 아래 화살표로 오프라인 참가자 목록 펼치기/접기
+- **투명한 UI**: 오프라인 참가자는 60% 투명도로 표시
+- **강퇴/신고 기능**: 오프라인 참가자에 대해서도 강퇴, 신고 가능
+
+---
+
+## 최근 세션 완료 작업 (현재)
+
+### 0. 인증 보안 강화 (Security Hardening)
+
+#### 1) SecurityConfig 수정 (`backend/src/main/java/com/bookclub/backend/config/SecurityConfig.java`)
+- `/**` permitAll 제거
+- 공개 API만 permitAll: `/api/auth/**`, `/api/ISBN/**`, `/api/books/**`, `/api/users/register`, `/api/users/validate-username/**`
+- 나머지 모든 요청: `.anyRequest().authenticated()`
+
+#### 2) FirebaseAuthFilter 개선 (`backend/src/main/java/com/bookclub/backend/firebase/FirebaseAuthFilter.java`)
+- **토큰 없으면 401 반환** (이전: 그냥 통과)
+- **토큰 검증 실패 시 401 반환** (이전: 로그만 찍고 통과)
+- **토큰 만료 감지**: "Token expired" 메시지로 구분
+- 공개 경로는 `isPublicPath()` 헬퍼로 인증 없이 통과
+
+#### 3) WebSocketAuthInterceptor 강화 (`backend/src/main/java/com/bookclub/backend/websocket/WebSocketAuthInterceptor.java`)
+- **토큰 없으면 연결 거부**: `IllegalArgumentException` throw
+- **빈 토큰 체크** 추가
+- **만료/유효하지 않은 토큰**: 명확한 에러 메시지
+
+#### 4) 쿠키 보안 옵션 강화 (`backend/src/main/java/com/bookclub/backend/auth/AuthController.java`)
+- `ResponseCookie` 사용으로 `SameSite` 옵션 추가
+- 환경 변수로 설정 가능:
+  - `app.cookie.secure`: 개발(false), 운영(true)
+  - `app.cookie.same-site`: Lax (기본), Strict (권장)
+- `createSecureCookie()` 헬퍼 메서드로 일관된 쿠키 생성
+
+#### 5) 프론트엔드 401 자동 재발급 (`frontend/src/api/axiosInstance.tsx`)
+- **Response Interceptor** 추가
+- 401 에러 시:
+  1. Firebase `getIdToken(true)`로 강제 재발급
+  2. `/api/auth/refresh-token`으로 쿠키 갱신
+  3. 원래 요청 재시도
+  4. 재발급 실패 시 `/login`으로 리다이렉트
+- **대기열 처리**: 동시 요청 시 토큰 재발급 한 번만 수행
+
+#### 환경 설정 (`application.properties`)
+```properties
+# 쿠키 보안 설정
+app.cookie.secure=false  # 운영: true
+app.cookie.same-site=Lax  # 운영: Strict 권장
+```
+
+---
+
+### 1. 블록 기반 노트 Undo/Redo 기능 구현
+
+#### useBlockHistory 훅 생성 (`frontend/src/hooks/useBlockHistory.ts`)
+블록 추가/삭제/수정/이동에 대한 Undo/Redo 히스토리 관리
+
+**핵심 기능:**
+- `pushAddBlock`: 블록 추가 기록
+- `pushDeleteBlock`: 블록 삭제 기록
+- `pushUpdateBlock`: 블록 수정 기록
+- `pushReorderBlock`: 블록 이동 기록
+- `trackTextChange`: 텍스트 변경 디바운스 추적 (800ms)
+- `undo/redo`: 실행 함수
+- `canUndo/canRedo`: 상태 조회
+
+**특징:**
+- 최대 100개 히스토리 저장
+- 텍스트 변경은 800ms 디바운스로 하나의 액션으로 묶음
+- Undo/Redo 중에는 히스토리 기록 안 함 (무한 루프 방지)
+- `isUndoRedoInProgressRef`로 작업 중 상태 추적
+
+#### BlockBasedNotes.tsx 연동
+- `useBlockHistory` 훅 연동
+- 툴바에 Undo/Redo 버튼 추가 (FiRotateCcw, FiRotateCw 아이콘)
+- Ctrl/Cmd+Z: Undo, Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y: Redo
+- 블록 삭제 시 이전 블록 정보 저장하여 복원 가능
+
+#### 변경된 파일
+- `frontend/src/hooks/useBlockHistory.ts` - 새로 생성
+- `frontend/src/components/meet/CenterPanel/BlockBasedNotes.tsx` - 훅 연동
+
+---
+
+### 2. UserReputationService 성능 최적화
+
+#### 문제
+각 포스트마다 `attendanceRecordRepository.findByUserIdAndPostId()`를 호출하여 N+1 쿼리 문제 발생
+
+#### 해결
+모든 출석 기록을 한 번에 조회 후 `Map<String, AttendanceRecord>`에 저장하여 메모리에서 필터링
+
+```java
+// 최적화: 모든 출석 기록을 한 번에 조회
+List<AttendanceRecord> allAttendanceRecords =
+    attendanceRecordRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+
+Map<String, AttendanceRecord> attendanceByPostId = allAttendanceRecords.stream()
+    .collect(Collectors.toMap(
+        AttendanceRecord::getPostId,
+        record -> record,
+        (existing, replacement) -> existing // 중복 시 첫 번째 유지
+    ));
+
+// 이후 반복문에서 DB 조회 대신 Map에서 조회
+AttendanceRecord record = attendanceByPostId.get(post.getId());
+```
+
+#### 적용된 메서드
+- `getUserReputation()`
+- `getProfileSummary()`
+- `getReputationSummary()`
+- `getReputationDetails()`
+- `calculateParticipationStats()`
+- `calculateCurrentStreak()`
+- `calculateFeedbackPossibleCount()`
+- `calculateRecentActivities()`
+- `calculateMonthlyAttendance()`
+- `calculateDetailsMonthlyAttendance()`
+- `calculateSummaryActivities()`
+- `calculateActivitySummary()`
+- `calculateDetailsActivities()`
+
+#### 변경된 파일
+- `backend/src/main/java/com/bookclub/backend/user/UserReputationService.java`
+
+---
+
+### 3. BlockBasedNotes CSS 개선
+
+#### AI 버전 선택기 스타일 추가
+`.ai-version-selector` - AI 정리된 노트 버전 선택 UI
+
+```css
+.ai-version-selector .version-chip {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.ai-version-selector .version-chip.active {
+  background: var(--primary, #4f46e5);
+  color: #fff;
+}
+```
+
+#### 변경된 파일
+- `frontend/src/components/meet/styles/BlockBasedNotes.css`
+
+---
+
+## 이전 세션 완료 작업
+
+### 1. 라우트 구조 변경
+Board 페이지를 홈페이지로 설정
+
+#### 변경 내용
+| 이전 | 이후 | 설명 |
+|------|------|------|
+| `/` | `/` | Board (홈페이지) |
+| `/board` | `/` (redirect) | Board로 리다이렉트 |
+| `/board/create` | `/create` | 토론방 만들기 |
+
+#### 변경된 파일
+**Frontend:**
+- `frontend/src/App.tsx`
+  - `Home` import 제거
+  - `/` → `<Board />`, `/board` → `<Navigate to="/" replace />`
+  - `/board/create` → `/create`
+- `frontend/src/components/NavBar.tsx`
+  - Home 링크 제거, 게시판과 소개만 남김
+  - `/board` → `/`
+- `frontend/src/components/AccountDropdown.tsx`
+  - `/board?filter=...` → `/?filter=...`
+  - `/board/create` → `/create`
+- `frontend/src/components/Footer.tsx`
+  - `/board` → `/`, `/board/create` → `/create`
+- `frontend/src/components/RoomModal.tsx`
+  - `/board/create` → `/create`
+- `frontend/src/screens/Board.tsx`
+  - `navigate('/board/create')` → `navigate('/create')`
+- `frontend/src/screens/Meet.tsx`, `Meeting.tsx`, `MeetRoom.tsx`
+  - `/board` → `/`
+- `frontend/src/screens/Notes.tsx`, `PostCreate.tsx`, `Reputation.tsx`
+  - `/board` → `/`
+- `frontend/src/screens/Profile.tsx`
+  - `/?filter=created`, `/?filter=participating`
+- `frontend/src/AuthContext/GoogleLoginHandler.tsx`
+  - `/board` → `/`
+
+---
+
+### 2. Board 페이지 UI 개선
+
+#### 2.1 CSS 특이성(Specificity) 문제 해결
+`.board-stat-card` 내부 요소 스타일이 적용되지 않는 문제 해결
+
+**원인**: `.board-hero` 부모 요소의 스타일이 오버라이드
+**해결**: 모든 stat 관련 셀렉터에 `.board-stat-card` prefix 추가
+
+```css
+/* 이전 */
+.stat-value { font-size: 48px; }
+
+/* 이후 */
+.board-stat-card .stat-value { font-size: 48px; }
+```
+
+#### 2.2 Feature Badges 섹션 추가
+`board-hero-cta` 하단에 특징 배지 3개 추가
+
+```html
+<div class="board-hero-features">
+  <div class="feature-badge">
+    <div class="feature-icon"><i class="ri-shield-check-line"></i></div>
+    <span>구독 불필요</span>
+  </div>
+  <div class="feature-badge">
+    <div class="feature-icon feature-icon-secondary"><i class="ri-robot-2-line"></i></div>
+    <span>AI 기반 인사이트</span>
+  </div>
+  <div class="feature-badge">
+    <div class="feature-icon feature-icon-primary"><i class="ri-calendar-check-line"></i></div>
+    <span>일회성 모임</span>
+  </div>
+</div>
+```
+
+**i18n 키 추가:**
+- `browse_feature_no_subscription`: '구독 불필요' / 'No Subscription'
+- `browse_feature_ai_insights`: 'AI 기반 인사이트' / 'AI-Powered Insights'
+- `browse_feature_one_time`: '일회성 모임' / 'One-Time Meetings'
+
+#### 2.3 board-grid 가운데 정렬
+```css
+.board-grid {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  justify-content: center;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+```
+
+#### 2.4 room-card-btn 개선
+- **Shine 효과**: `.room-card-btn.joined`에 `.board-cta-primary`와 동일한 hover shine 효과 추가
+- **하단 고정**: `margin-top: auto`로 버튼을 카드 하단에 고정
+- **레이아웃**: `.room-card-book`에 `margin-top: auto` 적용하여 제목만 상단, 나머지 하단
+
+```css
+.room-card-btn.joined::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.7s ease;
+}
+.room-card-btn.joined:hover:not(:disabled)::before {
+  transform: translateX(100%);
+}
+```
+
+#### 2.5 board-ended-meetings-btn 반응형 수정
+작은 화면에서 버튼이 너무 커지는 문제 해결
+
+```css
+@media (max-width: 768px) {
+  .board-ended-meetings-btn {
+    max-width: 150px;
+    text-align: center;
+    padding: 8px 14px;
+    font-size: 13px;
+    height: auto;
+  }
+}
+```
+
+#### 2.6 board-stats 반응형 가운데 정렬
+```css
+@media (max-width: 768px) {
+  .board-stats {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .board-stat-card {
+    width: 100%;
+    max-width: 280px;
+  }
+}
+```
+
+#### 변경된 파일
+- `frontend/src/screens/Board.tsx` - Feature badges JSX, route 변경
+- `frontend/src/screens/styles/Board.css` - 위 모든 CSS 변경
+- `frontend/src/language/ko.tsx` - Feature badge 번역
+- `frontend/src/language/en.tsx` - Feature badge 번역
+
+---
+
+### 3. 오프라인 참가자 섹션 구현
+MeetRoom의 참가자 목록에서 오프라인 참가자를 별도로 표시하는 기능
+
+#### 기능
+- **토글 버튼**: participants-section 하단 중앙에 반원형 버튼 (↓/↑ 아이콘)
+- **표시 조건**: 오프라인 참가자가 1명 이상일 때만 버튼 표시
+- **펼치기/접기**: 슬라이드 애니메이션 (`grid-template-rows` 트랜지션)
+- **투명한 UI**: 오프라인 참가자 아이템에 `opacity: 0.6` 적용
+- **강퇴/신고**: 오프라인 참가자에 대해서도 동일하게 동작
+
+#### 변경된 파일
+**Frontend:**
+- `frontend/src/components/meet/LeftPanel/ModeratorControls.tsx`
+  - `showOfflineParticipants` 상태 추가
+  - `FiChevronDown`, `FiChevronUp` 아이콘 import
+  - 오프라인 토글 버튼 및 섹션 JSX 추가
+- `frontend/src/components/meet/styles/LeftPanel.css`
+  - `.offline-toggle-btn`: 반원형 버튼 스타일
+  - `.offline-participants-section`: 펼침 애니메이션
+  - `.offline-participants-content`: overflow hidden 래퍼
+  - `.participant-item.offline`: 투명도 스타일
+
+**i18n:**
+- `frontend/src/language/ko.tsx` - `meet_offline_participants: '오프라인'`
+- `frontend/src/language/en.tsx` - `meet_offline_participants: 'Offline'`
+
+---
+
+### 2. Room Status Badge "진행중" 표시 수정
+WebSocket JOIN 메시지가 연결 전에 전송되어 실패하는 문제 해결
+
+#### 해결 방법
+- REST API 백업 엔드포인트 추가
+- MeetRoom 진입 시 WebSocket + REST 이중 호출로 안정성 확보
+
+#### 변경된 파일
+**Backend:**
+- `backend/src/main/java/com/bookclub/backend/session/controller/SpeakingQueueController.java`
+  - `POST /api/sessions/{sessionId}/queue/join` 엔드포인트 추가
+  - WebSocket broadcast도 함께 수행
+
+**Frontend:**
+- `frontend/src/api/speakingQueue.ts`
+  - `joinQueueRest()` 함수 추가
+- `frontend/src/screens/MeetRoom.tsx`
+  - 세션 로드 후 REST API로 queue join 호출 (WebSocket 백업)
+
+---
+
+### 2. 종료된 미팅 필터링 로직 변경
+#### 탭별 표시 규칙
+| 탭 | 종료된 미팅 표시 |
+|---|---|
+| 전체 (all) | 숨김 |
+| 내 토론방 (my) | 별도 섹션에 표시 |
+| 참여 중 (joined) | 별도 섹션에 표시 |
+
+#### 변경된 파일
+- `frontend/src/screens/Board.tsx`
+  - `filteredRooms`: 모든 탭에서 `status !== 'past'` 필터링
+  - `endedMeetings`: 종료된 미팅만 별도 useMemo로 필터링
+
+---
+
+### 3. "종료된 북미팅" 버튼 및 섹션 구현
+내 토론방/참여 중 탭에서 종료된 미팅을 별도 섹션으로 표시
+
+#### 기능
+- **버튼 위치**: `board-tabs` 우측 끝
+- **표시 조건**: `activeTab === 'my' || activeTab === 'joined'` && `endedMeetings.length > 0`
+- **클릭 동작**: 하단에 종료된 북미팅 섹션 토글
+
+#### 슬라이드 애니메이션
+- **열기**: `grid-template-rows: 0fr → 1fr` + opacity 페이드 인
+- **닫기**: `grid-template-rows: 1fr → 0fr` + opacity 페이드 아웃
+- **구조**: section > content (overflow:hidden, min-height:0) > content-inner (실제 콘텐츠)
+
+```css
+/* 핵심 CSS */
+.board-ended-section {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.5s ease;
+}
+.board-ended-section.closed,
+.board-ended-section.closing {
+  grid-template-rows: 0fr;
+}
+.board-ended-content {
+  overflow: hidden;
+  min-height: 0;
+}
+```
+
+#### 닫을 때 자동 스크롤
+- `board-hero` 하단으로 부드럽게 스크롤 (hero가 화면 밖으로 사라짐)
+- `board-filters`가 화면 상단에 위치
+
+```tsx
+const heroBottom = heroRef.current.getBoundingClientRect().bottom + window.scrollY;
+window.scrollTo({ top: heroBottom, behavior: 'smooth' });
+```
+
+#### 변경된 파일
+**Frontend:**
+- `frontend/src/screens/Board.tsx`
+  - `showEndedMeetings`, `isEndedSectionClosing` 상태 추가
+  - `handleToggleEndedMeetings` 핸들러 (애니메이션 + 스크롤)
+  - `heroRef` 추가
+  - `endedMeetings` useMemo
+  - 종료된 북미팅 섹션 JSX
+- `frontend/src/screens/styles/Board.css`
+  - `.board-tabs` flex layout (좌: 탭, 우: 버튼)
+  - `.board-tabs-left` 탭 래퍼
+  - `.board-ended-meetings-btn` 버튼 스타일
+  - `.board-ended-section` 슬라이드 애니메이션
+  - `.board-ended-content`, `.board-ended-content-inner` 구조
+  - `.board-ended-header`, `.board-ended-count` 헤더 스타일
+
+**i18n:**
+- `frontend/src/language/ko.tsx` - `browse_ended_meetings: '종료된 북미팅'`
+- `frontend/src/language/en.tsx` - `browse_ended_meetings: 'Ended Meetings'`
+
+---
+
+## 이전 세션 완료 작업
+
+### 1. Room Card 배경 이미지 시스템
+- 5개의 랜덤 배경 이미지 사용
+- **인접 카드 중복 방지**: 3x3 그리드에서 좌우상하 같은 배경 안 되도록 인덱스 기반 선택
+- 배경 어둡게 처리 (`rgba(0, 0, 0, 0.15)` 오버레이)
+
+### 2. BookData Cover 구조 변경
+- **이전**: `cover: string` (단일 URL)
+- **이후**: `cover: { small?: string, medium?: string }` (객체)
+
+#### 변경된 파일
+**Backend:**
+- `backend/src/main/java/com/bookclub/backend/post/Post.java`
+  - `BookCover` 내부 클래스 추가 (`small`, `medium` 필드)
+  - `BookData.cover`를 `Object` 타입으로 변경 (하위 호환성)
+  - `getCover()` getter에서 String/Map/BookCover 모두 처리
+
+- `backend/src/main/java/com/bookclub/backend/session/dto/UserNoteResponse.java`
+  - `bookCover` 타입을 `Post.BookCover`로 변경
+
+- `backend/src/main/java/com/bookclub/backend/session/dto/NoteSummaryResponse.java`
+  - `bookCover` 타입을 `Post.BookCover`로 변경
+
+**Frontend:**
+- `frontend/src/api/bookSearch.tsx`
+  - Google Books API에서 `small` (zoom=1), `medium` (zoom=3) 가져오기
+  - `BookThumbnail` 인터페이스 추가
+
+- `frontend/src/api/posts.tsx`
+  - `BookCover` 인터페이스 추가
+  - `BookData.cover` 타입 변경
+
+- `frontend/src/api/notes.ts`
+  - `bookCover` 타입을 `{ small?: string; medium?: string }`로 변경
+
+- `frontend/src/components/RoomModal.tsx`
+  - `Room.book.cover` 타입을 `BookCover`로 변경
+
+- `frontend/src/screens/Board.tsx`
+  - `postToRoom` 함수에서 cover 객체 처리 (레거시 string 지원)
+
+---
+
+### 3. 3D Book UI 구현
+Board 페이지와 Notes 페이지에 3D 책 효과 구현
+
+#### 특징
+- 정적 상태: 선명한 이미지 (3D transform 없음)
+- Hover 시: 책이 25도 회전 + 앞으로 튀어나오는 효과
+- 이미지 원본 비율 유지 (`object-fit: contain` 대신 `width/height: auto`)
+- 책 크기가 썸네일 원본 크기에 맞춰 자동 조절
+
+#### 변경된 파일
+**Board 페이지:**
+- `frontend/src/screens/Board.tsx` - 3D book 구조 사용
+- `frontend/src/screens/styles/Board.css` - 3D book 스타일
+
+**Notes 페이지:**
+- `frontend/src/screens/Notes.tsx` - 3D book 구조 추가
+- `frontend/src/screens/styles/Notes.css` - 3D book 스타일 추가
+
+#### 3D Book HTML 구조
+```html
+<div class="book-container">      <!-- perspective: 1500px -->
+  <div class="book">              <!-- transform-style: preserve-3d -->
+    <div class="book-front">      <!-- hover 시 translateZ(9px) -->
+      <div class="book-cover">    <!-- 이미지 컨테이너 -->
+        <img />
+        <p class="book-author">저자</p>
+      </div>
+    </div>
+    <div class="book-left-side">  <!-- 책 옆면 (spine) -->
+      <h2>제목</h2>
+    </div>
+  </div>
+</div>
+```
+
+#### 이미지 깨짐 해결 과정
+1. **문제 발견**: 정면에서 이미지가 픽셀화됨, hover 시에는 정상
+2. **원인 분석**: `.book-front`의 `translate3d(0, 0, 9px)`가 브라우저 렌더링에 영향
+3. **해결**: 정적 상태에서는 transform 없음, hover 시에만 `translate3d` 적용
+
+---
+
+### 4. 썸네일 사용 규칙
+- 데이터: `small`, `medium` 둘 다 저장
+- 썸네일 표시: 항상 `small` 우선 사용 (`small || medium || placeholder`)
+- 적용 파일: `Board.tsx`, `Notes.tsx`, `Meeting.tsx`
+
+---
+
+### 5. 종료된 미팅 로직 구현
+종료된 북미팅의 표시 및 접근 제어 구현
+
+#### RoomModal.tsx 변경
+- **종료된 미팅**: "Enter Meeting", "Open Meet" 버튼 숨김
+- **대신 표시**: "View Notes" 버튼 (참가자/주최자만)
+  - 아이콘: `FiEdit3`, `FiArrowRight`
+  - 클릭 시 `/notes` 페이지로 이동
+  - 스타일: `room-modal-btn-notes` (어두운 배경)
+
+#### Board.tsx 필터링 로직
+- **'all' 탭**: 종료된 미팅(`status === 'past'`)은 참가자/주최자가 아니면 숨김
+  ```tsx
+  result = result.filter(room =>
+    room.status !== 'past' || room.isJoined || room.isMyRoom
+  );
+  ```
+- **'my' 탭**: 내가 만든 모임만 표시 (종료된 미팅 포함)
+- **'joined' 탭**: 참여 중인 모임만 표시 (종료된 미팅 포함)
+
+#### 변경된 파일
+- `frontend/src/components/RoomModal.tsx` - View Notes 버튼 추가
+- `frontend/src/components/styles/RoomModal.css` - 버튼 스타일
+- `frontend/src/screens/Board.tsx` - 필터링 로직 추가
+
+---
+
+### 6. User 모델 posts 리팩토링
+User 모델의 `createdBookMeetings`와 `participatedBookMeetings` 필드를 `posts` 객체로 통합
+
+#### 이전 구조
+```java
+private List<String> createdBookMeetings;
+private List<String> participatedBookMeetings;
+```
+
+#### 새로운 구조
+```java
+private UserPosts posts;
+
+public static class UserPosts {
+    private List<String> created;      // 내가 생성한 북미팅 ID 리스트
+    private List<String> participated; // 참여한 북미팅 ID 리스트
+}
+```
+
+#### 변경된 파일
+**Backend:**
+- `backend/src/main/java/com/bookclub/backend/user/User.java` - UserPosts 내부 클래스 추가
+- `backend/src/main/java/com/bookclub/backend/user/UserService.java` - ensurePostsInitialized() 헬퍼 추가, 모든 메서드 수정
+- `backend/src/main/java/com/bookclub/backend/session/SessionService.java` - posts 접근 방식 변경
+
+**Frontend:**
+- `frontend/src/api/user.tsx` - UserPosts 인터페이스 추가, User 인터페이스 수정
+
+**Documentation:**
+- `CLAUDE.md` - User 모델 문서 업데이트
+
+#### 하위 호환성
+- `ensurePostsInitialized()` 헬퍼로 기존 데이터(null인 경우) 자동 초기화
+- 기존 MongoDB 데이터는 마이그레이션 필요
+
+---
+
+## 다음에 해야 할 작업
+
+### 1. NoteDetail 페이지 3D Book UI
+- `/notes/:noteId` 페이지에도 동일한 3D 북 UI 적용 필요
+
+### 2. Medium 이미지 활용
+- 현재 `medium` (zoom=3)은 저장만 하고 사용하지 않음
+- 모달이나 상세 페이지에서 고해상도 이미지가 필요할 때 `medium` 사용 고려
+
+### 3. Google Books API 이미지 가용성
+- `zoom=3`이 모든 책에서 제공되지 않을 수 있음
+- 이미지 로드 실패 시 `small`로 폴백하는 로직 필요 (현재 placeholder로만 폴백)
+
+### 4. 기존 데이터 마이그레이션
+**BookData.cover:**
+- MongoDB에 기존 `cover: string` 형식 데이터가 있음
+- Backend에서 하위 호환성 처리 중 (`getCover()` getter)
+- 필요 시 데이터 마이그레이션 스크립트 작성
+
+**User.posts:**
+- 기존 `createdBookMeetings`, `participatedBookMeetings` 필드 → `posts.created`, `posts.participated`로 변경
+- Backend에서 `ensurePostsInitialized()` 헬퍼로 자동 초기화 처리
+- 마이그레이션 스크립트 (MongoDB):
+```javascript
+db.user.updateMany(
+  { createdBookMeetings: { $exists: true } },
+  [{
+    $set: {
+      posts: {
+        created: "$createdBookMeetings",
+        participated: "$participatedBookMeetings"
+      }
+    },
+    $unset: ["createdBookMeetings", "participatedBookMeetings"]
+  }]
+)
+```
+
+### 5. TypeScript 에러 수정
+빌드 시 발생하는 기존 에러들:
+- `creater` → `createrId` 이름 변경 관련
+- `member` → `memberIds` 이름 변경 관련
+- `book` → `bookData` 이름 변경 관련
+- 일부 타입 불일치 문제
+
+---
+
+## 주의사항
+
+### 1. 3D Transform과 이미지 품질
+```css
+/* 이렇게 하면 이미지가 깨짐 */
+.book-front {
+  transform: translate3d(0, 0, 9px);  /* 정적 상태에서 사용 금지 */
+}
+
+/* 이렇게 해야 함 */
+.book-front {
+  /* 정적: transform 없음 */
+}
+.card:hover .book-front {
+  transform: translate3d(0, 0, 9px);  /* hover 시에만 */
+}
+```
+
+### 2. Backend Cover 필드 타입
+```java
+// Post.BookData.cover는 Object 타입
+// getCover()가 자동으로 변환 처리:
+// - String → BookCover(url, url)
+// - Map (MongoDB) → BookCover(small, medium)
+// - BookCover → 그대로 반환
+```
+
+### 3. 이미지 크기 CSS
+```css
+.book-cover img {
+  width: auto;
+  height: auto;
+  max-width: 150px;   /* 최대 크기 제한 */
+  max-height: 220px;
+}
+```
+- `object-fit: cover/contain` 사용 안 함
+- 이미지 원본 비율 그대로 유지
+
+### 4. CSS 클래스 네이밍
+- Board: `.book-container`, `.book`, `.book-front`, `.book-cover`, `.book-left-side`
+- Notes: `.notes-book-container`, `.notes-book`, `.notes-book-front`, `.notes-book-cover`, `.notes-book-left-side`
+
+### 5. Google Books API 썸네일
+```javascript
+// zoom 레벨
+// zoom=1: thumbnail (기본)
+// zoom=2: small
+// zoom=3: medium
+// zoom=4: large
+// zoom=5: smallThumbnail
+// zoom=6: extraLarge
+
+// 현재 사용
+small: zoom=1 (thumbnail)
+medium: zoom=3 (medium) - URL 파라미터 치환으로 생성
+```
+
+### 6. User.posts 구조
+```java
+// User.java 내부 클래스
+// ArrayList import 필수: import java.util.ArrayList;
+public static class UserPosts {
+    private List<String> created;      // 생성한 북미팅 ID
+    private List<String> participated; // 참여한 북미팅 ID
+
+    public UserPosts(List<String> created, List<String> participated) {
+        this.created = created != null ? created : new ArrayList<>();
+        this.participated = participated != null ? participated : new ArrayList<>();
+    }
+}
+
+// 접근 방법
+user.getPosts().getCreated()      // 이전: user.getCreatedBookMeetings()
+user.getPosts().getParticipated() // 이전: user.getParticipatedBookMeetings()
+
+// null 체크 필요
+if (user.getPosts() != null) {
+    List<String> created = user.getPosts().getCreated();
+}
+```
+
+---
+
+## 기술 스택 요약
+
+| 구분 | 기술 |
+|------|------|
+| **Frontend** | React 18 + TypeScript + Vite |
+| **Backend** | Spring Boot 3.3 + MongoDB |
+| **상태관리** | Zustand |
+| **인증** | Firebase Authentication |
+| **도서 데이터** | Google Books API, Naver Books API |
+| **다국어** | i18next |
+| **화상회의** | Google Meet (via Google Calendar API) |
+| **실시간 통신** | WebSocket (STOMP) |
+| **협업 에디터** | TipTap + Op-based CRDT |
+| **AI 요약** | OpenAI GPT-4o-mini |
+
+---
+
+## 테스트 체크리스트
+
+### 3D Book UI
+- [ ] Board 페이지 3D 북 hover 효과
+- [ ] Board 페이지 이미지 선명도 (정적 상태)
+- [ ] Notes 페이지 3D 북 hover 효과
+- [ ] Notes 페이지 이미지 선명도 (정적 상태)
+- [ ] 모바일 반응형 레이아웃
+
+### Cover 데이터 호환성
+- [ ] 기존 데이터 (cover가 string인 경우) 정상 표시
+- [ ] 새로운 데이터 (cover가 객체인 경우) 정상 표시
+- [ ] 새 포스트 생성 시 small/medium 모두 저장됨
+
+### 배경 이미지
+- [ ] 인접 카드 배경 중복 없음
+- [ ] 배경 어둡게 처리됨
+- [ ] 책 이미지가 배경 위에 잘 보임
+
+### 종료된 미팅 로직
+- [ ] RoomModal: 종료된 미팅에서 "View Notes" 버튼 표시
+- [ ] RoomModal: 종료된 미팅에서 "Enter Meeting" 버튼 숨김
+- [ ] RoomModal: 종료된 미팅에서 "Open Meet" 버튼 숨김
+- [ ] Board 'all' 탭: 종료된 미팅 중 비참가자/비주최자 미팅 숨김
+- [ ] Board 'my' 탭: 내가 만든 종료된 미팅 표시
+- [ ] Board 'joined' 탭: 참여한 종료된 미팅 표시
+
+### User.posts 리팩토링
+- [ ] 새 사용자 가입 시 posts.created, posts.participated 빈 배열로 초기화
+- [ ] 북미팅 생성 시 posts.created에 추가
+- [ ] 북미팅 참여 시 posts.participated에 추가
+- [ ] 북미팅 탈퇴 시 posts.participated에서 제거
+- [ ] 북미팅 삭제 시 posts.created에서 제거
+- [ ] Notes 페이지에서 사용자의 모든 노트 정상 조회
+
+### Room Status Badge
+- [ ] MeetRoom 진입 시 "진행중" 상태 즉시 표시
+- [ ] Board 페이지에서 누군가 미팅룸에 있으면 "진행중" 뱃지 표시
+- [ ] WebSocket 연결 전에도 REST API로 참가 처리됨
+
+### 종료된 북미팅 기능
+- [ ] 전체 탭: 종료된 미팅 숨김
+- [ ] 내 토론방 탭: "종료된 북미팅" 버튼 표시 (종료된 미팅 있을 때)
+- [ ] 참여 중 탭: "종료된 북미팅" 버튼 표시 (종료된 미팅 있을 때)
+- [ ] 버튼 클릭: 슬라이드 다운 애니메이션으로 섹션 열림
+- [ ] 버튼 재클릭: 슬라이드 업 애니메이션 + 상단 스크롤
+- [ ] 스크롤: board-hero 하단으로 부드럽게 이동
+- [ ] 탭 전환 시: 종료된 북미팅 섹션 자동 닫힘
+- [ ] 모바일 반응형: 버튼 전체 너비, 패딩 조정
+
+### 오프라인 참가자 섹션
+- [ ] 오프라인 참가자가 있을 때 반원형 토글 버튼 표시
+- [ ] 버튼 클릭 시 슬라이드 다운 애니메이션으로 오프라인 목록 표시
+- [ ] 오프라인 참가자 항목에 투명도 적용 (60%)
+- [ ] 오프라인 참가자에 대해 강퇴 기능 동작
+- [ ] 오프라인 참가자에 대해 신고 기능 동작
+- [ ] 버튼 재클릭 시 슬라이드 업 애니메이션으로 목록 숨김
+- [ ] 아이콘: 펼침 시 ↑, 접힘 시 ↓
+
+### 라우트 변경
+- [ ] `/` 접속 시 Board 페이지 표시
+- [ ] `/board` 접속 시 `/`로 리다이렉트
+- [ ] `/create` 접속 시 PostCreate 페이지 표시
+- [ ] NavBar에서 Home 링크 제거됨
+- [ ] AccountDropdown에서 `/?filter=created`, `/?filter=participating` 동작
+- [ ] AccountDropdown에서 `/create` 동작
+
+### Board UI 개선
+- [ ] board-stat-card 내부 스타일 정상 적용 (font-size, font-weight 등)
+- [ ] Feature badges 3개 표시 (구독 불필요, AI 인사이트, 일회성 모임)
+- [ ] Feature badges hover 효과 (아이콘 확대, 텍스트 색상 변경)
+- [ ] board-grid 가운데 정렬
+- [ ] room-card-btn.joined shine hover 효과
+- [ ] room-card-btn 카드 하단 고정
+- [ ] room-card-title 상단, room-card-book 이하 하단 배치
+- [ ] board-ended-meetings-btn 반응형 (max-width: 150px)
+- [ ] board-stats 반응형 가운데 정렬

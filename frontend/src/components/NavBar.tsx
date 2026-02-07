@@ -1,44 +1,46 @@
-import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import './styles/NavBar.css';
 import Button from './Button';
+import LanguageToggle from './LanguageToggle';
+import AccountDropdown from './AccountDropdown';
 import {useAuth} from '../AuthContext/AuthContext';
+
 function NavBar() {
-    const {user, handleLogout} = useAuth();
+    const { t } = useTranslation();
+    const {user, isLoading} = useAuth();
     const navigate = useNavigate();
 
     const handleLoginClick = () => {
-        navigate('/login'); // 로그인 페이지로 이동
+        navigate('/login');
     };
 
-    const handleLogoutButton = async () => {
-        try {
-            await handleLogout();
-            console.log('로그아웃 성공');
-        } catch (error) {
-            console.error('로그아웃 실패:', error);
-        }
-    };
     return (
         <div className='nav-container'>
-            <div className='left-nav-wrap'>
-                <Link to="/">Home</Link>
-                <Link to="/board">Dashboard</Link>
-                <Link to="/about">About</Link>
+            <div className='nav-wrapper'>
+                <div className='nav-inner-container'>
+                    <div className='left-nav-wrap'>
+                        <p>Mamalias</p>
+                    </div>
+                    <div className='mid-nav-wrap'>
+                        <Link to="/">{t('nav_dashboard')}</Link>
+                        <Link to="/about">{t('nav_about')}</Link>
+                        <Link to="/revolution">{t('nav_revolution')}</Link>
+                    </div>
+                    <div className='right-nav-wrap'>
+                        <LanguageToggle />
+                        {isLoading ? (
+                            <span>{t('loading')}</span>
+                        ) : user ? (
+                            <AccountDropdown />
+                        ) : (
+                            <Button style="filled" title={t('nav_login')} size="normal" onClick={handleLoginClick}/>
+                        )}
+                    </div>
+                </div>
             </div>
-            {user ? (
-                <button onClick= {handleLogoutButton}>
-                Logout
-                </button>
-            ): (
-                <div className='right-nav-wrap'>
-                <Button style="filled" title="Login" size="normal" onClick={handleLoginClick}/>
-            </div>
-            )}
-            
-        
         </div>
-  );
-};
+    );
+}
 
 export default NavBar;

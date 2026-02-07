@@ -1,0 +1,197 @@
+/* EndMeetingModal.css */
+
+/* Modal Overlay */
+.end-meeting-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+/* Modal Container */
+.end-meeting-modal {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  animation: modalSlideIn 0.2s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Header */
+.end-meeting-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 24px 0;
+}
+
+.end-meeting-modal-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef2f2;
+  border-radius: 50%;
+  color: #dc2626;
+}
+
+.end-meeting-modal-close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.end-meeting-modal-close:hover:not(:disabled) {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.end-meeting-modal-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Content */
+.end-meeting-modal-content {
+  padding: 20px 24px;
+}
+
+.end-meeting-modal-content h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.end-meeting-modal-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+/* Error Message */
+.end-meeting-modal-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 24px;
+  padding: 12px;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+/* Actions */
+.end-meeting-modal-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.end-meeting-cancel-btn {
+  flex: 1;
+  padding: 12px 20px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.end-meeting-cancel-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.end-meeting-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.end-meeting-confirm-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #dc2626;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.end-meeting-confirm-btn:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.end-meeting-confirm-btn:disabled {
+  background: #fca5a5;
+  cursor: not-allowed;
+}
+
+/* Spin animation for loader */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .end-meeting-modal {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .end-meeting-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+}

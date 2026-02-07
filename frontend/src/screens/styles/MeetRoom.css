@@ -1,0 +1,463 @@
+/* MeetRoom Page */
+.meetroom-page {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Loading State */
+.meetroom-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px 20px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.meetroom-loading-spinner {
+  animation: spin 1s linear infinite;
+  color: #10b981;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.meetroom-loading p {
+  margin-top: 16px;
+  font-size: 16px;
+}
+
+/* Not Found State */
+.meetroom-not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px 20px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.meetroom-not-found h2 {
+  margin: 24px 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.meetroom-not-found p {
+  margin: 0 0 24px;
+  font-size: 16px;
+}
+
+.meetroom-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #10b981;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.meetroom-back-link:hover {
+  color: #059669;
+}
+
+/* Header */
+.meetroom-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.meetroom-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.meetroom-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.meetroom-back-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.meetroom-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meetroom-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.meetroom-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.meetroom-attendance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #ecfdf5;
+  color: #059669;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.meetroom-attendance-badge svg {
+  flex-shrink: 0;
+}
+
+.meetroom-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.meetroom-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.meetroom-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.meetroom-live-badge .live-dot {
+  width: 8px;
+  height: 8px;
+  background: #1e293b;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.meetroom-recording-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.meetroom-recording-badge .recording-dot {
+  width: 8px;
+  height: 8px;
+  background: #dc2626;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.meetroom-participants-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.meetroom-connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.meetroom-connection-status[data-connected="true"] {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.meetroom-connection-status[data-connected="false"] {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+/* Main Content - 3 Panel Layout */
+.meetroom-content {
+  display: grid;
+  grid-template-columns: 25% 50% 25%;
+  flex: 1;
+  min-height: calc(100vh - 70px);
+}
+
+/* Left Wrapper - contains both non-sticky and sticky parts */
+.meetroom-left-wrapper {
+  background: rgba(248, 250, 252, 0.5);
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.meetroom-left-panel {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Left Panel Content - remove individual margins since we use gap */
+.meetroom-left-panel > * {
+  margin-bottom: 0;
+}
+
+/* Sticky Moderator Controls Container */
+.meetroom-left-sticky {
+  position: sticky;
+  top: 95px;
+  padding: 0 24px 24px;
+  background: rgba(248, 250, 252, 0.98);
+  z-index: 10;
+}
+
+.meetroom-center-panel {
+  background: white;
+  padding: 24px;
+}
+
+.meetroom-right-panel {
+  background: #f8fafc;
+  border-left: 1px solid #e5e7eb;
+  padding: 20px;
+  position: sticky;
+  top: 70px;
+  align-self: start;
+  max-height: calc(100vh - 70px);
+  overflow-y: auto;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .meetroom-content {
+    grid-template-columns: 22% 56% 22%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .meetroom-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .meetroom-left-wrapper {
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .meetroom-left-sticky {
+    position: static;
+    background: transparent;
+  }
+
+  .meetroom-right-panel {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .meetroom-center-panel {
+    height: auto;
+    min-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .meetroom-header {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .meetroom-title {
+    font-size: 16px;
+  }
+
+  .meetroom-header-right {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .meetroom-left-panel,
+  .meetroom-center-panel,
+  .meetroom-right-panel {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .meetroom-title-section {
+    display: none;
+  }
+}
+
+/* End Meeting Button */
+.meetroom-end-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.meetroom-end-btn:hover {
+  background: #b91c1c;
+}
+
+.meetroom-end-btn:active {
+  transform: scale(0.98);
+}
+
+/* Meeting Ended Overlay */
+.meetroom-ended-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.meetroom-ended-content {
+  background: white;
+  border-radius: 16px;
+  padding: 48px;
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  animation: meetingEndedFadeIn 0.3s ease-out;
+}
+
+@keyframes meetingEndedFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.meetroom-ended-icon {
+  color: #dc2626;
+  margin-bottom: 24px;
+}
+
+.meetroom-ended-content h2 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.meetroom-ended-content p {
+  margin: 0 0 32px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.meetroom-ended-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.meetroom-ended-btn:hover {
+  background: #059669;
+}
+
+.meetroom-ended-btn:active {
+  transform: scale(0.98);
+}

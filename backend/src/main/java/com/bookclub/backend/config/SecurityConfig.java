@@ -1,64 +1,67 @@
-// ./config/SecurityConfig.java
-
 package com.bookclub.backend.config;
 
+import com.bookclub.backend.firebase.FirebaseAuthFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-// import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-/**
- * Security configuration class that enables Spring Security settings
- * and configures Cross-Origin Resource Sharing (CORS) policies.
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-  /**
-   * Configures the security filter chain, allowing all requests without authentication,
-   * and disabling CSRF protection.
-   *
-   * @param http the HttpSecurity configuration
-   * @return the configured SecurityFilterChain
-   * @throws Exception if an error occurs during configuration
-   */
-  @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-    http
-        .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Enable CORS with custom configuration
-        .csrf(csrf -> csrf.disable()) // Disable CSRF protection
-        .authorizeHttpRequests(authorize -> authorize
-            .requestMatchers("/**").permitAll() // Allow all requests without authentication
-            .anyRequest().authenticated() // Require authentication for all other requests
-        );
+    @Autowired
+    private FirebaseAuthFilter firebaseAuthFilter;
 
-    return http.build();
-  }
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(authorize -> authorize
+                // CORS preflight 요청은 인증 없이 허용
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // 공개 API (인증 불필요)
+                .requestMatchers(HttpMethod.POST, "/api/users/register").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/validate-username/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/count").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                // 게시판: GET만 공개 (목록, 상세 조회)
+                .requestMatchers(HttpMethod.GET, "/api/posts").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+                .requestMatchers("/api/ISBN/**").permitAll()
+                .requestMatchers("/api/books/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/ws/**").permitAll()  // WebSocket은 별도 인터셉터에서 인증
+                // 나머지 모든 요청은 인증 필요
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
-  /**
-   * Defines CORS configuration settings, including allowed origins, methods,
-   * headers, and credentials for cross-origin requests.
-   *
-   * @return the configured UrlBasedCorsConfigurationSource for handling CORS requests
-   */
-  @Bean
-  public UrlBasedCorsConfigurationSource corsConfigurationSource() {
-    CorsConfiguration configuration = new CorsConfiguration();
-    configuration.setAllowedOrigins(List.of("http://localhost:5173")); // Set allowed origin for CORS
-    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE")); // Allow specific HTTP methods
-    configuration.setAllowedHeaders(List.of("*")); // Allow all headers
-    configuration.setAllowCredentials(true); // Allow credentials in CORS requests
+        return http.build();
+    }
 
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", configuration); // Apply CORS configuration to all paths
+    @Bean
+    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
 
-    return source;
-  }
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
 }

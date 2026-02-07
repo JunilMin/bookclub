@@ -1,0 +1,743 @@
+/* Profile Tabs Content - Reusable Component */
+
+/* Container */
+.ptc-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* Loading State */
+.ptc-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 300px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.ptc-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: ptc-spin 1s linear infinite;
+}
+
+@keyframes ptc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.ptc-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* Tab Navigation */
+.ptc-tabs-wrapper {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ptc-tabs {
+  display: flex;
+  gap: 24px;
+}
+
+.ptc-tab {
+  padding: 12px 4px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.ptc-tab:hover {
+  color: #0f172a;
+  border-bottom-color: #cbd5e1;
+}
+
+.ptc-tab.active {
+  color: #0f172a;
+  border-bottom-color: #0f172a;
+}
+
+/* Tab Content */
+.ptc-content {
+  padding-top: 16px;
+}
+
+.ptc-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: ptc-fadeIn 0.2s ease;
+}
+
+@keyframes ptc-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Card */
+.ptc-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.ptc-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 16px 0;
+}
+
+/* Progress List */
+.ptc-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ptc-progress-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ptc-progress-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ptc-progress-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ptc-progress-bar {
+  width: 120px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.ptc-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.ptc-progress-fill.slate {
+  background: #0f172a;
+}
+
+.ptc-progress-fill.amber {
+  background: #f59e0b;
+}
+
+.ptc-progress-fill.cyan {
+  background: #06b6d4;
+}
+
+.ptc-progress-fill.emerald {
+  background: #10b981;
+}
+
+.ptc-progress-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f172a;
+  width: 36px;
+  text-align: right;
+}
+
+/* Activity Grid */
+.ptc-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.ptc-activity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.ptc-activity-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ptc-activity-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ptc-activity-value.positive {
+  color: #10b981;
+}
+
+.ptc-activity-value.negative {
+  color: #ef4444;
+}
+
+.ptc-activity-value.warning {
+  color: #f59e0b;
+}
+
+/* Overview Grid Layout */
+.ptc-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .ptc-overview-grid {
+    grid-template-columns: 1fr 280px;
+  }
+}
+
+.ptc-overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ptc-overview-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Highlights Grid */
+.ptc-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .ptc-highlights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Highlight Card */
+.ptc-highlight-card {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.ptc-highlight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
+}
+
+.ptc-highlight-card.slate {
+  border-color: #cbd5e1;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.ptc-highlight-card.slate .ptc-highlight-icon {
+  background: #0f172a;
+  color: white;
+}
+
+.ptc-highlight-card.amber {
+  border-color: #fcd34d;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.ptc-highlight-card.amber .ptc-highlight-icon {
+  background: #f59e0b;
+  color: white;
+}
+
+.ptc-highlight-card.cyan {
+  border-color: #67e8f9;
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%);
+}
+
+.ptc-highlight-card.cyan .ptc-highlight-icon {
+  background: #06b6d4;
+  color: white;
+}
+
+.ptc-highlight-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ptc-highlight-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.ptc-highlight-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.ptc-highlight-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.ptc-highlight-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Reputation List */
+.ptc-reputation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ptc-reputation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ptc-reputation-item:last-child {
+  border-bottom: none;
+}
+
+.ptc-reputation-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ptc-reputation-stars {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ptc-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.ptc-stars i {
+  font-size: 12px;
+  color: #fbbf24;
+}
+
+.ptc-stars i.ri-star-line {
+  color: #e2e8f0;
+}
+
+.ptc-reputation-score {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Contact List */
+.ptc-contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ptc-contact-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ptc-contact-icon {
+  width: 36px;
+  height: 36px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ptc-contact-icon i {
+  font-size: 16px;
+  color: #64748b;
+}
+
+.ptc-contact-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ptc-contact-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.ptc-contact-label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Interests Card */
+.ptc-interests-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ptc-interests-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.ptc-interests-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 12px 0;
+}
+
+/* Introduction Box */
+.ptc-introduction-box {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.ptc-introduction-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ptc-empty-text {
+  color: #9ca3af;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Genre Tags */
+.ptc-genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ptc-genre-tag {
+  padding: 6px 14px;
+  background: #0f172a;
+  color: white;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Keyword Tags */
+.ptc-keyword-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ptc-keyword-tag {
+  padding: 5px 12px;
+  background: #ecfeff;
+  color: #0891b2;
+  border-radius: 9999px;
+  font-size: 12px;
+}
+
+/* Badges Header */
+.ptc-badges-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ptc-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.ptc-badges-count {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.ptc-badges-earned {
+  font-size: 20px;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.ptc-badges-total {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Badges Grid */
+.ptc-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+.ptc-badge-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  text-align: center;
+  cursor: pointer;
+}
+
+.ptc-badge-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 12px -3px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e1;
+}
+
+.ptc-badge-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 20px;
+  color: white;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.ptc-badge-card:hover .ptc-badge-icon {
+  transform: scale(1.1) rotate(3deg);
+}
+
+.ptc-badge-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.ptc-badge-desc {
+  font-size: 10px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Empty Badges */
+.ptc-empty-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.ptc-empty-badges-icon {
+  width: 56px;
+  height: 56px;
+  background: #f1f5f9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.ptc-empty-badges-icon i {
+  font-size: 24px;
+  color: #94a3b8;
+}
+
+.ptc-empty-badges h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+}
+
+.ptc-empty-badges p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Compact Variant - for modals */
+.ptc-compact .ptc-overview-grid {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .ptc-compact .ptc-overview-grid {
+    grid-template-columns: 1fr 240px;
+  }
+}
+
+.ptc-compact .ptc-card {
+  padding: 14px;
+}
+
+.ptc-compact .ptc-card-title {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.ptc-compact .ptc-highlight-value {
+  font-size: 18px;
+}
+
+.ptc-compact .ptc-reputation-label {
+  font-size: 11px;
+}
+
+.ptc-compact .ptc-stars i {
+  font-size: 11px;
+}
+
+.ptc-compact .ptc-reputation-score {
+  font-size: 11px;
+}
+
+.ptc-compact .ptc-contact-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.ptc-compact .ptc-contact-icon i {
+  font-size: 14px;
+}
+
+.ptc-compact .ptc-contact-value {
+  font-size: 12px;
+}
+
+.ptc-compact .ptc-contact-label {
+  font-size: 10px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .ptc-tabs {
+    gap: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ptc-overview-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ptc-highlights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ptc-activity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ptc-badges-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .ptc-badge-card {
+    padding: 12px 10px;
+  }
+
+  .ptc-badge-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    border-radius: 10px;
+  }
+
+  .ptc-badge-name {
+    font-size: 11px;
+  }
+
+  .ptc-badge-desc {
+    font-size: 9px;
+  }
+}

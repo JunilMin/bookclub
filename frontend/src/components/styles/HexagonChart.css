@@ -1,0 +1,103 @@
+.hexagon-chart-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px auto;
+}
+
+.hexagon-chart {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+}
+
+.chart-background {
+  fill: #f8fafc;
+}
+
+.chart-grid {
+  fill: none;
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.chart-axis {
+  stroke: #cbd5e1;
+  stroke-width: 1;
+}
+
+.chart-data {
+  fill: rgba(16, 185, 129, 0.25);
+  stroke: #10b981;
+  stroke-width: 2;
+  transition: all 0.3s ease;
+}
+
+.chart-point {
+  fill: #10b981;
+  stroke: white;
+  stroke-width: 2;
+  transition: all 0.2s ease;
+}
+
+.chart-point:hover {
+  r: 6;
+  filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.5));
+}
+
+.hexagon-labels {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.hexagon-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.label-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.label-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* 반응형 */
+@media (max-width: 480px) {
+  .hexagon-chart-container {
+    margin: 16px auto;
+  }
+
+  .hexagon-chart {
+    max-width: 240px;
+  }
+
+  .label-text {
+    font-size: 10px;
+  }
+
+  .label-value {
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+}

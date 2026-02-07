@@ -1,0 +1,26 @@
+.language-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #475569;
+    transition: all 0.2s ease;
+}
+
+.language-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.language-toggle svg {
+    flex-shrink: 0;
+}
+
+.language-toggle span {
+    line-height: 1;
+}

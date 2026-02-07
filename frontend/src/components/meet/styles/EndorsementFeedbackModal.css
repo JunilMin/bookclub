@@ -1,0 +1,354 @@
+/* Endorsement Feedback Modal Styles */
+
+/* Overlay */
+.endorsement-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Container */
+.endorsement-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+.endorsement-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.endorsement-header-text h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.endorsement-subtitle {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.endorsement-close-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.endorsement-close-btn:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+/* Content */
+.endorsement-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* Loading & Empty States */
+.endorsement-loading-state,
+.endorsement-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: #6b7280;
+  gap: 12px;
+  text-align: center;
+}
+
+.endorsement-spinner {
+  animation: spin 1s linear infinite;
+}
+
+.endorsement-spinner-small {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Participant List */
+.endorsement-participant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Participant Card */
+.endorsement-participant-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.endorsement-participant-card.submitted {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.endorsement-participant-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.endorsement-participant-card.submitted .endorsement-participant-header {
+  margin-bottom: 0;
+}
+
+.endorsement-participant-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.endorsement-participant-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.endorsement-default-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.endorsement-participant-name {
+  font-weight: 500;
+  color: #111827;
+  flex: 1;
+  font-size: 1rem;
+}
+
+.endorsement-submitted-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Category Grid */
+.endorsement-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.endorsement-category-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.endorsement-category-checkbox:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.endorsement-category-checkbox.selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.endorsement-category-checkbox input {
+  accent-color: #3b82f6;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.endorsement-category-label {
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.2;
+}
+
+/* Submit Button */
+.endorsement-submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.endorsement-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.endorsement-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Error Message */
+.endorsement-error-message {
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Footer */
+.endorsement-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.endorsement-done-btn {
+  padding: 10px 24px;
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.endorsement-done-btn:hover {
+  background: #e5e7eb;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .endorsement-modal {
+    max-height: 100vh;
+    border-radius: 0;
+    height: 100vh;
+  }
+
+  .endorsement-modal-header,
+  .endorsement-modal-content,
+  .endorsement-modal-footer {
+    padding: 16px;
+  }
+
+  .endorsement-header-text h2 {
+    font-size: 1.2rem;
+  }
+
+  .endorsement-category-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .endorsement-participant-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .endorsement-category-checkbox {
+    padding: 12px;
+  }
+
+  .endorsement-category-label {
+    font-size: 0.9rem;
+  }
+}
+
+/* Tablet */
+@media (min-width: 481px) and (max-width: 768px) {
+  .endorsement-modal {
+    max-width: 90%;
+  }
+}
