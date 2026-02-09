@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ public class Session {
     @Id
     private String id;  // MongoDB ObjectId (= sessionId = sessionNumber)
 
+    @Indexed
     private String postId;  // 연결된 Post의 ID
 
     private LocalDateTime createdAt;

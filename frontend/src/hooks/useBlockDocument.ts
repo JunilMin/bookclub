@@ -122,6 +122,12 @@ export function useBlockDocument({
   const dbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingContentRef = useRef<{ blockId: string; content: string } | null>(null);
 
+  // Refs to avoid stale closures in subscription handlers
+  const editingBlockIdRef = useRef<string | null>(editingBlockId);
+  editingBlockIdRef.current = editingBlockId;
+  const blocksRef = useRef<Record<string, Block>>(blocks);
+  blocksRef.current = blocks;
+
   // === Auth ===
   const { accessToken } = useAuth();
 
@@ -384,7 +390,8 @@ export function useBlockDocument({
     if (operation.clientId === clientIdRef.current) return;
 
     // Ignore if we're editing this block (we have the lock)
-    if (editingBlockId === operation.blockId) return;
+    // Use ref to avoid stale closure (subscription doesn't re-run on editingBlockId change)
+    if (editingBlockIdRef.current === operation.blockId) return;
 
     // Update content immediately for real-time feedback
     setBlocks((prev) => {
@@ -404,7 +411,7 @@ export function useBlockDocument({
         },
       };
     });
-  }, [editingBlockId]);
+  }, []);
 
   const handleRemoteBlockAdd = useCallback((operation: BlockAddOperation) => {
     if (!operation.block) return;
@@ -440,11 +447,17 @@ export function useBlockDocument({
       });
 
       // Also update editingState if it was for the temp block
+      // Include server lock token if provided (from auto-lock in handleBlockAdd)
+      const serverLockToken = (operation as any).lockToken as string | undefined;
+      const serverLockUntil = (operation as any).lockUntil as number | undefined;
+
       setEditingState((prev) => {
         if (prev && prev.blockId === tempBlockId) {
           return {
             ...prev,
             blockId: newBlock.id,
+            lockToken: serverLockToken || prev.lockToken,
+            lockUntil: serverLockUntil || prev.lockUntil,
           };
         }
         return prev;
@@ -459,11 +472,22 @@ export function useBlockDocument({
           newLocks.set(newBlock.id, {
             ...lockInfo,
             blockId: newBlock.id,
+            lockToken: serverLockToken || lockInfo.lockToken,
+            lockUntil: serverLockUntil || lockInfo.lockUntil,
           });
           return newLocks;
         }
         return prev;
       });
+
+      // Restart lock renewal with server token and correct blockId
+      if (serverLockToken) {
+        if (lockRenewalTimerRef.current) {
+          clearTimeout(lockRenewalTimerRef.current);
+          lockRenewalTimerRef.current = null;
+        }
+        startLockRenewalRef.current(newBlock.id, serverLockToken);
+      }
 
       return;
     }
@@ -711,6 +735,10 @@ export function useBlockDocument({
     }, LOCK_RENEWAL_INTERVAL);
   }, [docId, userId, username, isConnected, send]);
 
+  // Ref for startLockRenewal (needed in subscription handlers to avoid stale closures)
+  const startLockRenewalRef = useRef(startLockRenewal);
+  startLockRenewalRef.current = startLockRenewal;
+
   // ============================================
   // Block Operations
   // ============================================
@@ -730,17 +758,18 @@ export function useBlockDocument({
       broadcastTimerRef.current = null;
     }
 
+    // Clear DB save timer (prevent double-save after flush)
+    if (dbSaveTimerRef.current) {
+      clearTimeout(dbSaveTimerRef.current);
+      dbSaveTimerRef.current = null;
+    }
+
     // Flush pending content to DB before releasing lock
     if (pendingContentRef.current && pendingContentRef.current.blockId === editingBlockId) {
       const { content } = pendingContentRef.current;
       const block = blocks[editingBlockId];
 
       if (block && isConnected) {
-        // Clear DB save timer
-        if (dbSaveTimerRef.current) {
-          clearTimeout(dbSaveTimerRef.current);
-          dbSaveTimerRef.current = null;
-        }
 
         // Save to DB immediately
         send(BLOCK_TOPICS.SEND_BLOCK_UPDATE(docId), {
@@ -821,34 +850,24 @@ export function useBlockDocument({
     // Check if block exists
     if (!blocks[blockId]) return false;
 
-    // Set editing state directly (we own this block, no need to request lock)
+    // Set editing state directly (we own this block)
+    // Server auto-registers lock in handleBlockAdd, so we use a local token
+    // until the server response updates it via handleRemoteBlockAdd
     const block = blocks[blockId];
+    const localToken = `local-${Date.now()}`;
     setEditingState({
       blockId,
       originalContent: block.content,
-      lockToken: `local-${Date.now()}`, // Local token for newly created block
-      lockUntil: Date.now() + 60000, // 1 minute local lock
+      lockToken: localToken,
+      lockUntil: Date.now() + 60000, // 1 minute local lock (server will override)
     });
     setEditingBlockId(blockId);
 
-    // Broadcast lock to other clients so they know we're editing
-    send(TOPICS.SEND_LOCK(docId), {
-      type: 'lock_acquired',
-      docId,
-      blockId,
-      userId,
-      username,
-      clientId: clientIdRef.current,
-      lockToken: `local-${Date.now()}`,
-      lockUntil: Date.now() + 60000,
-      timestamp: Date.now(),
-    });
-
-    // Start lock renewal (will request proper lock from server on next renewal)
-    startLockRenewal(blockId, `local-${Date.now()}`);
+    // Don't send lock_acquired to server - server auto-registers lock in handleBlockAdd
+    // Don't start lock renewal - will be started with proper server token in handleRemoteBlockAdd
 
     return true;
-  }, [editingBlockId, blocks, docId, userId, username, finishEditing, send, startLockRenewal]);
+  }, [editingBlockId, blocks, finishEditing]);
 
   const saveBlock = useCallback(async (blockId: string, content: string): Promise<boolean> => {
     if (!editingState || editingState.blockId !== blockId) return false;
@@ -946,8 +965,9 @@ export function useBlockDocument({
         clearTimeout(dbSaveTimerRef.current);
       }
       dbSaveTimerRef.current = setTimeout(() => {
-        if (pendingContentRef.current && editingState) {
-          const block = blocks[pendingContentRef.current.blockId];
+        if (pendingContentRef.current) {
+          // Use ref for blocks to get current version (avoid stale closure)
+          const block = blocksRef.current[pendingContentRef.current.blockId];
           if (block) {
             // Save to DB
             send(BLOCK_TOPICS.SEND_BLOCK_UPDATE(docId), {
@@ -961,13 +981,16 @@ export function useBlockDocument({
               clientId: clientIdRef.current,
               timestamp: Date.now(),
             });
+            pendingContentRef.current = null;
           }
         }
       }, DB_SAVE_DEBOUNCE);
 
-      pendingContentRef.current = null;
+      // Don't clear pendingContentRef here - it's needed by:
+      // 1. The DB save timer above (fires 2s later)
+      // 2. finishEditing() to flush pending content on navigation
     }, BROADCAST_DEBOUNCE);
-  }, [docId, userId, username, editingState, isConnected, send, blocks]);
+  }, [docId, userId, username, editingState, isConnected, send]);
 
   /**
    * Update local content state only (no network request)
@@ -1100,6 +1123,8 @@ export function useBlockDocument({
       }
 
       // Set up editing state for new block
+      // Server auto-registers lock in handleBlockAdd, so use local token
+      // until server response updates it via handleRemoteBlockAdd
       const lockToken = `local-${Date.now()}`;
       const lockUntil = Date.now() + 60000;
 
@@ -1111,25 +1136,13 @@ export function useBlockDocument({
       });
       setEditingBlockId(tempId);
 
-      // Broadcast lock to other clients
-      send(TOPICS.SEND_LOCK(docId), {
-        type: 'lock_acquired',
-        docId,
-        blockId: tempId,
-        userId,
-        username,
-        clientId: clientIdRef.current,
-        lockToken,
-        lockUntil,
-        timestamp: Date.now(),
-      });
-
-      // Start lock renewal
-      startLockRenewal(tempId, lockToken);
+      // Don't send lock_acquired or start lock renewal here
+      // Server auto-registers lock in handleBlockAdd
+      // handleRemoteBlockAdd will update lockToken and start renewal
     }
 
     return tempId;
-  }, [docId, userId, username, isConnected, send, editingBlockId, editingState, blocks, startLockRenewal]);
+  }, [docId, userId, username, isConnected, send, editingBlockId, editingState, blocks]);
 
   const deleteBlock = useCallback(async (blockId: string): Promise<boolean> => {
     if (!isConnected) return false;

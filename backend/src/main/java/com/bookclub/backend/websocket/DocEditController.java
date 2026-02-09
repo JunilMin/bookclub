@@ -191,6 +191,18 @@ public class DocEditController {
                     response.put("type", "lock_release");
                 }
             }
+            case "lock_acquired" -> {
+                // Client claims a lock (e.g., for newly created blocks) - register it on server
+                DocLockService.LockResult result = docLockService.requestLock(docId, blockId, userId, username, clientId);
+                if (result.isSuccess()) {
+                    response.put("type", "lock_acquired");
+                    response.put("lockToken", result.getLockInfo().getLockToken());
+                    response.put("lockUntil", result.getLockInfo().getLockUntil());
+                } else {
+                    response.put("type", "lock_denied");
+                    response.put("reason", result.getReason());
+                }
+            }
             default -> {
                 logger.warn("Unknown lock type: {}", lockType);
                 return;
@@ -208,7 +220,7 @@ public class DocEditController {
     /**
      * Block Content Preview 처리 (v2.1)
      * 실시간 동기화를 위한 preview 브로드캐스트 (DB 저장 없음)
-     * 락을 보유한 사용자만 전송 가능
+     * Preview is best-effort - no strict lock check needed since it doesn't modify data
      */
     @MessageMapping("/docs/{docId}/block/preview")
     public void handleBlockPreview(
@@ -220,15 +232,8 @@ public class DocEditController {
 
         logger.debug("Block preview received for doc {}: blockId={}, userId={}", docId, blockId, userId);
 
-        // Verify lock ownership (optional - for security)
-        DocLockService.LockInfo lockInfo = docLockService.getLockInfo(docId, blockId);
-        if (lockInfo == null || !lockInfo.getUserId().equals(userId)) {
-            // Silently ignore if no lock (preview is best-effort)
-            logger.debug("Block preview ignored - no lock: blockId={}, userId={}", blockId, userId);
-            return;
-        }
-
-        // Broadcast to all clients immediately (no DB save)
+        // Broadcast to all clients immediately (no DB save, no lock check)
+        // Lock enforcement is only on block_update (which modifies DB)
         messagingTemplate.convertAndSend("/topic/docs/" + docId + "/block/preview", operation);
     }
 
@@ -309,6 +314,9 @@ public class DocEditController {
         // Create block in database
         SessionNote.Block newBlock = sessionNoteService.addBlock(docId, type, content, afterBlockId, userId);
 
+        // Auto-register lock for creator (so preview/update work immediately)
+        DocLockService.LockResult lockResult = docLockService.requestLock(docId, newBlock.getId(), userId, username, clientId);
+
         // Broadcast to all clients
         Map<String, Object> response = new HashMap<>();
         response.put("type", "block_add");
@@ -321,7 +329,28 @@ public class DocEditController {
         response.put("tempBlockId", tempBlockId); // Include for tempId → serverId mapping
         response.put("timestamp", System.currentTimeMillis());
 
+        // Include lock info in response for creator to update their lock state
+        if (lockResult.isSuccess()) {
+            response.put("lockToken", lockResult.getLockInfo().getLockToken());
+            response.put("lockUntil", lockResult.getLockInfo().getLockUntil());
+        }
+
         messagingTemplate.convertAndSend("/topic/docs/" + docId + "/block/add", response);
+
+        // Also broadcast lock_acquired on lock topic for other clients
+        if (lockResult.isSuccess()) {
+            Map<String, Object> lockResponse = new HashMap<>();
+            lockResponse.put("type", "lock_acquired");
+            lockResponse.put("docId", docId);
+            lockResponse.put("blockId", newBlock.getId());
+            lockResponse.put("userId", userId);
+            lockResponse.put("username", username);
+            lockResponse.put("clientId", clientId);
+            lockResponse.put("lockToken", lockResult.getLockInfo().getLockToken());
+            lockResponse.put("lockUntil", lockResult.getLockInfo().getLockUntil());
+            lockResponse.put("timestamp", System.currentTimeMillis());
+            messagingTemplate.convertAndSend("/topic/docs/" + docId + "/lock", lockResponse);
+        }
     }
 
     /**

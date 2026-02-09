@@ -6,6 +6,9 @@ import com.bookclub.backend.session.dto.GetSessionResponse;
 import com.bookclub.backend.session.dto.JoinSessionRequest;
 import com.bookclub.backend.session.dto.JoinSessionResponse;
 import com.bookclub.backend.session.dto.NoteSummaryResponse;
+import com.bookclub.backend.session.model.SpeakingQueue;
+import com.bookclub.backend.session.model.SpeakingQueue.SessionParticipant;
+import com.bookclub.backend.session.repository.SpeakingQueueRepository;
 import com.bookclub.backend.session.service.SpeakingQueueService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +36,9 @@ public class SessionController {
 
     @Autowired
     private SpeakingQueueService speakingQueueService;
+
+    @Autowired
+    private SpeakingQueueRepository speakingQueueRepository;
 
     /**
      * 세션 참가 (없으면 생성, 있으면 재사용)
@@ -117,19 +124,36 @@ public class SessionController {
                     .body(new ErrorResponse("Authentication required", "UNAUTHORIZED"));
             }
 
-            Map<String, Map<String, Object>> result = new HashMap<>();
+            // Batch query 1: get all sessions for the given postIds (1 query instead of N)
+            List<Session> sessions = sessionRepository.findByPostIdIn(postIds);
+            Map<String, Session> postIdToSession = new HashMap<>();
+            List<String> sessionIds = new ArrayList<>();
+            for (Session session : sessions) {
+                postIdToSession.put(session.getPostId(), session);
+                sessionIds.add(session.getId());
+            }
 
+            // Batch query 2: get all speaking queues for found sessions (1 query instead of N)
+            Map<String, Integer> sessionOnlineCounts = new HashMap<>();
+            if (!sessionIds.isEmpty()) {
+                List<SpeakingQueue> queues = speakingQueueRepository.findBySessionIdIn(sessionIds);
+                for (SpeakingQueue queue : queues) {
+                    int onlineCount = (int) queue.getParticipants().stream()
+                            .filter(SessionParticipant::isOnline)
+                            .count();
+                    sessionOnlineCounts.put(queue.getSessionId(), onlineCount);
+                }
+            }
+
+            // Build result from in-memory maps
+            Map<String, Map<String, Object>> result = new HashMap<>();
             for (String postId : postIds) {
                 Map<String, Object> status = new HashMap<>();
+                Session session = postIdToSession.get(postId);
 
-                // Find session for this post
-                Optional<Session> sessionOpt = sessionRepository.findByPostId(postId);
-
-                if (sessionOpt.isPresent()) {
-                    String sessionId = sessionOpt.get().getId();
-                    int activeParticipants = speakingQueueService.getOnlineParticipantCount(sessionId);
-                    status.put("activeParticipants", activeParticipants);
-                    status.put("sessionId", sessionId);
+                if (session != null) {
+                    status.put("activeParticipants", sessionOnlineCounts.getOrDefault(session.getId(), 0));
+                    status.put("sessionId", session.getId());
                 } else {
                     status.put("activeParticipants", 0);
                     status.put("sessionId", null);

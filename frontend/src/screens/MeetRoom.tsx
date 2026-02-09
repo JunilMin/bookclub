@@ -26,7 +26,7 @@ import { AIContentVersionSummary, AIContentVersion } from '../types/meetRoom';
 import { getUserById, getDisplayPhotoUrl } from '../api/user';
 import { kickMember, restoreMember, getPostById, endMeeting } from '../api/posts';
 import { getReportedUserIds } from '../api/reports';
-import { getMyAttendance, AttendanceRecord } from '../api/attendance';
+import { getMyAttendance, updateNoteAttendance, AttendanceRecord } from '../api/attendance';
 import { BlockedUser } from '../components/meet/LeftPanel/ModeratorControls';
 import AttendanceProgress from '../components/meet/LeftPanel/AttendanceProgress';
 import ReportModal from '../components/meet/ReportModal';
@@ -983,6 +983,17 @@ const MeetRoom: React.FC = () => {
     }
   }, [sessionId, accessToken, user?.id]);
 
+  // Attendance: note character count change handler
+  const handleNoteCharCountChange = useCallback(async (charCount: number) => {
+    if (!sessionId || !accessToken || charCount <= 0) return;
+    try {
+      const updated = await updateNoteAttendance(sessionId, charCount, accessToken);
+      if (updated) setAttendance(updated);
+    } catch (err) {
+      console.error('[MeetRoom] Failed to update note attendance:', err);
+    }
+  }, [sessionId, accessToken]);
+
   const handleOrganizeNotes = useCallback(async () => {
     if (!sessionId || !accessToken) return;
     setIsOrganizing(true);
@@ -1041,7 +1052,7 @@ const MeetRoom: React.FC = () => {
       {
         type: 'heading',
         attrs: { level: 2 },
-        content: [{ type: 'text', text: 'AI Summary' }],
+        content: [{ type: 'text', text: t('meet_ai_summary_title') || 'AI Summary' }],
       },
       // One-liner
       {
@@ -1057,7 +1068,7 @@ const MeetRoom: React.FC = () => {
       summaryContent.push({
         type: 'heading',
         attrs: { level: 3 },
-        content: [{ type: 'text', text: 'Key Discussion Points' }],
+        content: [{ type: 'text', text: t('meet_ai_key_points') || 'Key Discussion Points' }],
       });
       summaryContent.push({
         type: 'bulletList',
@@ -1073,7 +1084,7 @@ const MeetRoom: React.FC = () => {
       summaryContent.push({
         type: 'heading',
         attrs: { level: 3 },
-        content: [{ type: 'text', text: 'Notable Quotes' }],
+        content: [{ type: 'text', text: t('meet_ai_notable_quotes') || 'Notable Quotes' }],
       });
       summary.quotes.forEach((quote: string) => {
         summaryContent.push({
@@ -1088,7 +1099,7 @@ const MeetRoom: React.FC = () => {
       summaryContent.push({
         type: 'heading',
         attrs: { level: 3 },
-        content: [{ type: 'text', text: 'Agreements & Disagreements' }],
+        content: [{ type: 'text', text: t('meet_ai_agreements') || 'Agreements & Disagreements' }],
       });
       summaryContent.push({
         type: 'bulletList',
@@ -1110,7 +1121,7 @@ const MeetRoom: React.FC = () => {
       summaryContent.push({
         type: 'heading',
         attrs: { level: 3 },
-        content: [{ type: 'text', text: 'Follow-up Questions' }],
+        content: [{ type: 'text', text: t('meet_ai_follow_up') || 'Follow-up Questions' }],
       });
       summaryContent.push({
         type: 'orderedList',
@@ -1123,7 +1134,7 @@ const MeetRoom: React.FC = () => {
 
     // Insert to notes
     notesRef.current.insertContentAtEnd(summaryContent);
-  }, [recording?.aiSummary]);
+  }, [recording?.aiSummary, t]);
 
   const handleInsertOrganizedToNotes = useCallback(() => {
     if (!recording?.aiOrganizedContent || !notesRef.current) return;
@@ -1476,7 +1487,7 @@ const MeetRoom: React.FC = () => {
             {queue?.participants?.filter(p => p.isOnline).length || 0}
           </span>
           <span className="meetroom-connection-status" data-connected={isConnected}>
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ? t('meet_connected') : t('meet_disconnected')}
           </span>
           {isCreator && (
             <button
@@ -1594,6 +1605,7 @@ const MeetRoom: React.FC = () => {
               onAiVersionBlockUpdate={handleAiVersionBlockUpdate}
               onAiVersionBlockAdd={handleAiVersionBlockAdd}
               onAiVersionBlockDelete={handleAiVersionBlockDelete}
+              onCharCountChange={handleNoteCharCountChange}
             />
           )}
         </main>

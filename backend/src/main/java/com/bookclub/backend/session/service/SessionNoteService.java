@@ -17,6 +17,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class SessionNoteService {
@@ -28,6 +30,14 @@ public class SessionNoteService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    // Per-document locks to prevent concurrent load-modify-save race conditions
+    // (e.g., when insertContentAtEnd sends multiple block_add messages rapidly)
+    private final ConcurrentHashMap<String, ReentrantLock> documentLocks = new ConcurrentHashMap<>();
+
+    private ReentrantLock getDocumentLock(String sessionId) {
+        return documentLocks.computeIfAbsent(sessionId, k -> new ReentrantLock());
+    }
 
     /**
      * Get or create a note, triggering migration if needed.
@@ -54,6 +64,13 @@ public class SessionNoteService {
      * Uses findFirstBySessionId to safely handle potential duplicates.
      */
     public SessionNote getOrCreateNote(String sessionId, String title) {
+        return getOrCreateNote(sessionId, title, "en");
+    }
+
+    /**
+     * Get or create a note with title and language, triggering migration if needed.
+     */
+    public SessionNote getOrCreateNote(String sessionId, String title, String lang) {
         Optional<SessionNote> noteOpt = sessionNoteRepository.findFirstBySessionIdOrderByCreatedAtDesc(sessionId);
 
         if (noteOpt.isPresent()) {
@@ -65,7 +82,7 @@ public class SessionNoteService {
             return note;
         }
 
-        SessionNote note = new SessionNote(sessionId, title);
+        SessionNote note = new SessionNote(sessionId, title, lang != null ? lang : "en");
         return sessionNoteRepository.save(note);
     }
 
@@ -160,17 +177,23 @@ public class SessionNoteService {
      * Update block order (reorder blocks via drag-drop)
      */
     public SessionNote updateBlockOrder(String sessionId, List<String> blockOrder, String userId) {
-        SessionNote note = getOrCreateNote(sessionId);
+        ReentrantLock lock = getDocumentLock(sessionId);
+        lock.lock();
+        try {
+            SessionNote note = getOrCreateNote(sessionId);
 
-        if (note.getBlockOrder() == null) {
-            note.setBlockOrder(new ArrayList<>());
+            if (note.getBlockOrder() == null) {
+                note.setBlockOrder(new ArrayList<>());
+            }
+            note.setBlockOrder(blockOrder);
+            note.setLastEditedById(userId);
+            note.setUpdatedAt(LocalDateTime.now());
+            note.setVersion(note.getVersion() + 1);
+
+            return sessionNoteRepository.save(note);
+        } finally {
+            lock.unlock();
         }
-        note.setBlockOrder(blockOrder);
-        note.setLastEditedById(userId);
-        note.setUpdatedAt(LocalDateTime.now());
-        note.setVersion(note.getVersion() + 1);
-
-        return sessionNoteRepository.save(note);
     }
 
     /**
@@ -210,34 +233,40 @@ public class SessionNoteService {
      * @return Updated Block or null if block not found
      */
     public Block updateBlockContent(String sessionId, String blockId, String content, String userId, int expectedVersion) {
-        SessionNote note = getOrCreateNote(sessionId);
+        ReentrantLock lock = getDocumentLock(sessionId);
+        lock.lock();
+        try {
+            SessionNote note = getOrCreateNote(sessionId);
 
-        if (note.getBlocks() == null) {
-            note.setBlocks(new HashMap<>());
+            if (note.getBlocks() == null) {
+                note.setBlocks(new HashMap<>());
+            }
+
+            Block block = note.getBlocks().get(blockId);
+            if (block == null) {
+                logger.warn("Block not found: sessionId={}, blockId={}", sessionId, blockId);
+                return null;
+            }
+
+            // Optimistic locking: check version
+            // Since lock ownership is verified at controller level, we log warning but proceed
+            // This handles rapid saves from the same user (debounce can still overlap with network latency)
+            if (expectedVersion > 0 && block.getVersion() != expectedVersion) {
+                logger.info("Version mismatch for block {} (proceeding anyway - lock owner): expected {}, actual {}",
+                    blockId, expectedVersion, block.getVersion());
+                // Continue anyway - lock ownership guarantees single writer
+            }
+
+            block.setContent(content);
+            block.incrementVersion();
+            note.setLastEditedById(userId);
+            note.setUpdatedAt(LocalDateTime.now());
+
+            sessionNoteRepository.save(note);
+            return block;
+        } finally {
+            lock.unlock();
         }
-
-        Block block = note.getBlocks().get(blockId);
-        if (block == null) {
-            logger.warn("Block not found: sessionId={}, blockId={}", sessionId, blockId);
-            return null;
-        }
-
-        // Optimistic locking: check version
-        // Since lock ownership is verified at controller level, we log warning but proceed
-        // This handles rapid saves from the same user (debounce can still overlap with network latency)
-        if (expectedVersion > 0 && block.getVersion() != expectedVersion) {
-            logger.info("Version mismatch for block {} (proceeding anyway - lock owner): expected {}, actual {}",
-                blockId, expectedVersion, block.getVersion());
-            // Continue anyway - lock ownership guarantees single writer
-        }
-
-        block.setContent(content);
-        block.incrementVersion();
-        note.setLastEditedById(userId);
-        note.setUpdatedAt(LocalDateTime.now());
-
-        sessionNoteRepository.save(note);
-        return block;
     }
 
     /**
@@ -250,61 +279,73 @@ public class SessionNoteService {
      * @return Created Block
      */
     public Block addBlock(String sessionId, String type, String content, String afterBlockId, String userId) {
-        SessionNote note = getOrCreateNote(sessionId);
+        ReentrantLock lock = getDocumentLock(sessionId);
+        lock.lock();
+        try {
+            SessionNote note = getOrCreateNote(sessionId);
 
-        if (note.getBlocks() == null) {
-            note.setBlocks(new HashMap<>());
+            if (note.getBlocks() == null) {
+                note.setBlocks(new HashMap<>());
+            }
+            if (note.getBlockOrder() == null) {
+                note.setBlockOrder(new ArrayList<>());
+            }
+
+            // Create new block
+            String blockId = SessionNote.generateBlockId();
+            Block block = new Block(blockId, type, content, userId);
+
+            // Add to blocks map
+            note.getBlocks().put(blockId, block);
+
+            // Add to block order
+            if (afterBlockId == null || !note.getBlockOrder().contains(afterBlockId)) {
+                // Add at end
+                note.getBlockOrder().add(blockId);
+            } else {
+                // Insert after specified block
+                int index = note.getBlockOrder().indexOf(afterBlockId);
+                note.getBlockOrder().add(index + 1, blockId);
+            }
+
+            note.setLastEditedById(userId);
+            note.setUpdatedAt(LocalDateTime.now());
+            note.setVersion(note.getVersion() + 1);
+
+            sessionNoteRepository.save(note);
+            return block;
+        } finally {
+            lock.unlock();
         }
-        if (note.getBlockOrder() == null) {
-            note.setBlockOrder(new ArrayList<>());
-        }
-
-        // Create new block
-        String blockId = SessionNote.generateBlockId();
-        Block block = new Block(blockId, type, content, userId);
-
-        // Add to blocks map
-        note.getBlocks().put(blockId, block);
-
-        // Add to block order
-        if (afterBlockId == null || !note.getBlockOrder().contains(afterBlockId)) {
-            // Add at end
-            note.getBlockOrder().add(blockId);
-        } else {
-            // Insert after specified block
-            int index = note.getBlockOrder().indexOf(afterBlockId);
-            note.getBlockOrder().add(index + 1, blockId);
-        }
-
-        note.setLastEditedById(userId);
-        note.setUpdatedAt(LocalDateTime.now());
-        note.setVersion(note.getVersion() + 1);
-
-        sessionNoteRepository.save(note);
-        return block;
     }
 
     /**
      * Delete a block
      */
     public boolean deleteBlock(String sessionId, String blockId, String userId) {
-        SessionNote note = getOrCreateNote(sessionId);
+        ReentrantLock lock = getDocumentLock(sessionId);
+        lock.lock();
+        try {
+            SessionNote note = getOrCreateNote(sessionId);
 
-        if (note.getBlocks() == null || !note.getBlocks().containsKey(blockId)) {
-            return false;
+            if (note.getBlocks() == null || !note.getBlocks().containsKey(blockId)) {
+                return false;
+            }
+
+            note.getBlocks().remove(blockId);
+            if (note.getBlockOrder() != null) {
+                note.getBlockOrder().remove(blockId);
+            }
+
+            note.setLastEditedById(userId);
+            note.setUpdatedAt(LocalDateTime.now());
+            note.setVersion(note.getVersion() + 1);
+
+            sessionNoteRepository.save(note);
+            return true;
+        } finally {
+            lock.unlock();
         }
-
-        note.getBlocks().remove(blockId);
-        if (note.getBlockOrder() != null) {
-            note.getBlockOrder().remove(blockId);
-        }
-
-        note.setLastEditedById(userId);
-        note.setUpdatedAt(LocalDateTime.now());
-        note.setVersion(note.getVersion() + 1);
-
-        sessionNoteRepository.save(note);
-        return true;
     }
 
     // ============================================

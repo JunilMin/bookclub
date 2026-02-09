@@ -37,6 +37,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
         "/api/users/register",
         "/api/users/count",
         "/api/reviews/average-rating",
+        "/api/help",
         "/api/auth",
         "/api/ISBN",
         "/api/books",

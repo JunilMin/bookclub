@@ -1,32 +1,31 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { submitHelpMessage } from '../api/help';
 import './styles/Help.css';
 
 const Help: React.FC = () => {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success'>('idle');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email.trim() || !message.trim()) {
       return;
     }
 
-    const recipient = 'wnsdy98@gmail.com';
-    const subject = encodeURIComponent('[BookClub] 문의 사항');
-    const body = encodeURIComponent(
-      `보낸 사람: ${email}\n\n${message}`
-    );
+    setSubmitStatus('loading');
 
-    // Open mailto link
-    window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
-
-    setSubmitStatus('success');
-    setEmail('');
-    setMessage('');
+    try {
+      await submitHelpMessage(email.trim(), message.trim());
+      setSubmitStatus('success');
+      setEmail('');
+      setMessage('');
+    } catch {
+      setSubmitStatus('error');
+    }
   };
 
   return (
@@ -106,9 +105,13 @@ const Help: React.FC = () => {
             <button
               type="submit"
               className="help-submit-btn"
-              disabled={!email.trim() || !message.trim()}
+              disabled={!email.trim() || !message.trim() || submitStatus === 'loading'}
             >
-              <i className="ri-send-plane-line"></i>
+              {submitStatus === 'loading' ? (
+                <i className="ri-loader-4-line ri-spin"></i>
+              ) : (
+                <i className="ri-send-plane-line"></i>
+              )}
               <span>{t('help_contact_submit')}</span>
             </button>
 
@@ -116,6 +119,13 @@ const Help: React.FC = () => {
               <div className="help-submit-message success">
                 <i className="ri-check-line"></i>
                 <span>{t('help_contact_success')}</span>
+              </div>
+            )}
+
+            {submitStatus === 'error' && (
+              <div className="help-submit-message error">
+                <i className="ri-error-warning-line"></i>
+                <span>{t('help_contact_error')}</span>
               </div>
             )}
           </form>

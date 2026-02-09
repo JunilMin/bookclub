@@ -43,6 +43,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/books/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/reviews/average-rating").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/help").permitAll()
                 .requestMatchers("/ws/**").permitAll()  // WebSocket은 별도 인터셉터에서 인증
                 // 나머지 모든 요청은 인증 필요
                 .anyRequest().authenticated()
