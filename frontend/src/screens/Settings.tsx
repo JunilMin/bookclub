@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
-import { updateUser, User, UserLocation } from '../api/user';
+import { updateUser, User, UserLocation, validateUsernameAPI } from '../api/user';
+import { validateUsername } from '../utils/validateUsername';
 import { useSettingsStore } from '../store/settingsStore';
 import { resizeAndConvertToBase64 } from '../api/storage';
 import './styles/Settings.css';
@@ -215,6 +216,7 @@ const Settings: React.FC = () => {
     addKeyword,
     removeKeyword,
     toggleGenre,
+    togglePreferredDay,
     setUserLocation,
     setPhotoCustom,
     clearPhotoCustom,
@@ -242,6 +244,9 @@ const Settings: React.FC = () => {
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [privacySaveMessage, setPrivacySaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [email, setEmail] = useState('');
+  const [usernameCheckStatus, setUsernameCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle');
+  const [usernameCheckMessage, setUsernameCheckMessage] = useState('');
+  const [originalUsername, setOriginalUsername] = useState('');
 
   // Google 연동 해제 관련 상태
   const [showUnlinkModal, setShowUnlinkModal] = useState(false);
@@ -261,6 +266,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     if (user) {
       setEmail(user.email || '');
+      setOriginalUsername(user.username || '');
 
       // Profile introduce data
       const introduce = user.profile?.introduce;
@@ -272,7 +278,10 @@ const Settings: React.FC = () => {
         selectedGenres: introduce?.preferredGenre || [],
         keywords: introduce?.keywords || [],
         readingStyle: introduce?.styles?.discussionStyle || '',
-        preferredTime: introduce?.styles?.preferredTime || '',
+        preferredDays: introduce?.styles?.preferredDays || [],
+        preferredPeriod: introduce?.styles?.preferredPeriod || '',
+        preferredStartTime: introduce?.styles?.preferredStartTime || 0,
+        preferredEndTime: introduce?.styles?.preferredEndTime || 0,
         discussionSize: introduce?.styles?.preferredSize || '',
         aiUsage: introduce?.styles?.useAI || '',
         discussionGoal: introduce?.goals?.participate || 0,
@@ -299,6 +308,57 @@ const Settings: React.FC = () => {
       initializeFromUser(profileData, privacyData, photoData);
     }
   }, [user, initializeFromUser]);
+
+  // Username change handler - reset check status when username changes
+  const handleUsernameChange = (value: string) => {
+    setProfileField('username', value);
+    setUsernameCheckStatus('idle');
+    setUsernameCheckMessage('');
+  };
+
+  // Username validation
+  const handleCheckUsername = async () => {
+    const username = profile.username.trim();
+    if (!username) return;
+
+    // 로컬 유효성 검사 먼저
+    const { isValid, error } = validateUsername(username);
+    if (!isValid) {
+      setUsernameCheckStatus('taken');
+      setUsernameCheckMessage(t(error));
+      return;
+    }
+
+    // 변경 없으면 검사 불필요
+    if (username === originalUsername) {
+      setUsernameCheckStatus('available');
+      setUsernameCheckMessage(t('set_username_available'));
+      return;
+    }
+
+    setUsernameCheckStatus('checking');
+    setUsernameCheckMessage('');
+
+    try {
+      const result = await validateUsernameAPI(username);
+      if (result.valid) {
+        setUsernameCheckStatus('available');
+        setUsernameCheckMessage(t('set_username_available'));
+      } else {
+        setUsernameCheckStatus('taken');
+        if (result.reason === 'duplicate') {
+          setUsernameCheckMessage(t('set_username_error_duplicate'));
+        } else if (result.reason === 'profanity') {
+          setUsernameCheckMessage(t('set_username_error_profanity'));
+        } else {
+          setUsernameCheckMessage(result.message || t('set_username_error_check_failed'));
+        }
+      }
+    } catch {
+      setUsernameCheckStatus('error');
+      setUsernameCheckMessage(t('set_username_error_check_failed'));
+    }
+  };
 
   // Keyword handlers
   const handleAddKeyword = () => {
@@ -338,6 +398,12 @@ const Settings: React.FC = () => {
       return;
     }
 
+    // Username 변경 시 중복검사 필수
+    if (profile.username.trim() !== originalUsername && usernameCheckStatus !== 'available') {
+      setSaveMessage({ type: 'error', text: t('set_username_check_first') });
+      return;
+    }
+
     setSaving(true);
     setSaveMessage(null);
 
@@ -362,7 +428,10 @@ const Settings: React.FC = () => {
             preferredGenre: profile.selectedGenres,
             styles: {
               discussionStyle: profile.readingStyle,
-              preferredTime: profile.preferredTime,
+              preferredDays: profile.preferredDays,
+              preferredPeriod: profile.preferredPeriod,
+              preferredStartTime: profile.preferredStartTime,
+              preferredEndTime: profile.preferredEndTime,
               preferredSize: profile.discussionSize,
               useAI: profile.aiUsage,
             },
@@ -765,32 +834,41 @@ const Settings: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Name Fields */}
-                  <div className="settings-field-grid">
-                    <div className="settings-field">
-                      <label className="settings-label">{t('settings_display_name')}</label>
+                  {/* Username */}
+                  <div className="settings-field">
+                    <label className="settings-label">{t('settings_username')}</label>
+                    <div className="settings-username-row">
                       <input
                         type="text"
-                        className="settings-input"
-                        placeholder={t('settings_display_name_placeholder')}
-                        value={profile.displayName}
-                        onChange={(e) => setProfileField('displayName', e.target.value)}
+                        className={`settings-input ${usernameCheckStatus === 'available' ? 'valid' : usernameCheckStatus === 'taken' ? 'invalid' : ''}`}
+                        placeholder={t('set_username_placeholder')}
+                        value={profile.username}
+                        onChange={(e) => handleUsernameChange(e.target.value)}
                       />
+                      <button
+                        type="button"
+                        className="settings-btn-check-username"
+                        onClick={handleCheckUsername}
+                        disabled={!profile.username.trim() || profile.username.trim() === originalUsername || usernameCheckStatus === 'checking'}
+                      >
+                        {usernameCheckStatus === 'checking' ? (
+                          <>
+                            <i className="ri-loader-4-line spinning"></i>
+                            {t('set_username_checking')}
+                          </>
+                        ) : (
+                          t('set_username_check')
+                        )}
+                      </button>
                     </div>
-                    <div className="settings-field">
-                      <label className="settings-label">{t('settings_username')}</label>
-                      <div className="settings-input-with-prefix">
-                        <span className="settings-input-prefix">@</span>
-                        <input
-                          type="text"
-                          className="settings-input"
-                          placeholder="username"
-                          value={profile.username}
-                          onChange={(e) => setProfileField('username', e.target.value)}
-                        />
-                      </div>
-                      <p className="settings-field-hint">{t('settings_username_hint')}</p>
-                    </div>
+                    {usernameCheckMessage && (
+                      <p className={`settings-username-check-message ${usernameCheckStatus === 'available' ? 'success' : 'error'}`}>
+                        {usernameCheckStatus === 'available' && <i className="ri-check-line"></i>}
+                        {(usernameCheckStatus === 'taken' || usernameCheckStatus === 'error') && <i className="ri-error-warning-line"></i>}
+                        {usernameCheckMessage}
+                      </p>
+                    )}
+                    <p className="settings-field-hint">{t('settings_username_hint')}</p>
                   </div>
 
                   {/* Email */}
@@ -906,36 +984,68 @@ const Settings: React.FC = () => {
                     <p className="settings-field-hint">{t('settings_genres_selected', { count: profile.selectedGenres.length })}</p>
                   </div>
 
-                  {/* Style & Time */}
-                  <div className="settings-field-grid">
-                    <div className="settings-field">
-                      <label className="settings-label">{t('settings_reading_style')}</label>
-                      <select
-                        className="settings-select"
-                        value={profile.readingStyle}
-                        onChange={(e) => setProfileField('readingStyle', e.target.value)}
-                      >
-                        <option value="analytical">{t('settings_style_analytical')}</option>
-                        <option value="emotional">{t('settings_style_emotional')}</option>
-                        <option value="critical">{t('settings_style_critical')}</option>
-                        <option value="creative">{t('settings_style_creative')}</option>
-                        <option value="practical">{t('settings_style_practical')}</option>
-                      </select>
+                  {/* Reading Style */}
+                  <div className="settings-field">
+                    <label className="settings-label">{t('settings_reading_style')}</label>
+                    <select
+                      className={`settings-select ${!profile.readingStyle ? 'placeholder' : ''}`}
+                      value={profile.readingStyle}
+                      onChange={(e) => setProfileField('readingStyle', e.target.value)}
+                    >
+                      <option value="" disabled>{t('settings_style_placeholder')}</option>
+                      <option value="analytical">{t('settings_style_analytical')}</option>
+                      <option value="emotional">{t('settings_style_emotional')}</option>
+                      <option value="critical">{t('settings_style_critical')}</option>
+                      <option value="creative">{t('settings_style_creative')}</option>
+                      <option value="practical">{t('settings_style_practical')}</option>
+                    </select>
+                  </div>
+
+                  {/* Preferred Schedule */}
+                  <div className="settings-field">
+                    <label className="settings-label">{t('settings_preferred_schedule')}</label>
+                    <div className="settings-days-row">
+                      {(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          className={`settings-day-btn ${profile.preferredDays.includes(day) ? 'active' : ''}`}
+                          onClick={() => togglePreferredDay(day)}
+                        >
+                          {t(`settings_day_${day}`)}
+                        </button>
+                      ))}
                     </div>
-                    <div className="settings-field">
-                      <label className="settings-label">{t('settings_preferred_time')}</label>
+                    <div className="settings-time-row">
                       <select
-                        className="settings-select"
-                        value={profile.preferredTime}
-                        onChange={(e) => setProfileField('preferredTime', e.target.value)}
+                        className={`settings-select settings-time-select ${!profile.preferredPeriod ? 'placeholder' : ''}`}
+                        value={profile.preferredPeriod}
+                        onChange={(e) => setProfileField('preferredPeriod', e.target.value)}
                       >
-                        <option value="weekday_morning">{t('settings_time_weekday_morning')}</option>
-                        <option value="weekday_afternoon">{t('settings_time_weekday_afternoon')}</option>
-                        <option value="weekday_evening">{t('settings_time_weekday_evening')}</option>
-                        <option value="weekend_morning">{t('settings_time_weekend_morning')}</option>
-                        <option value="weekend_afternoon">{t('settings_time_weekend_afternoon')}</option>
-                        <option value="weekend_evening">{t('settings_time_weekend_evening')}</option>
-                        <option value="anytime">{t('settings_time_anytime')}</option>
+                        <option value="" disabled>{t('settings_period_placeholder')}</option>
+                        <option value="am">{t('settings_period_am')}</option>
+                        <option value="pm">{t('settings_period_pm')}</option>
+                      </select>
+                      <select
+                        className={`settings-select settings-time-select ${!profile.preferredStartTime ? 'placeholder' : ''}`}
+                        value={profile.preferredStartTime}
+                        onChange={(e) => setProfileField('preferredStartTime', Number(e.target.value))}
+                      >
+                        <option value={0} disabled>{t('settings_start_time_placeholder')}</option>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                          <option key={h} value={h}>{t('settings_time_hour', { hour: h })}</option>
+                        ))}
+                      </select>
+                      <span className="settings-time-separator">~</span>
+                      <select
+                        className={`settings-select settings-time-select ${!profile.preferredEndTime ? 'placeholder' : ''}`}
+                        value={profile.preferredEndTime}
+                        onChange={(e) => setProfileField('preferredEndTime', Number(e.target.value))}
+                      >
+                        <option value={0} disabled>{t('settings_end_time_placeholder')}</option>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                          <option key={h} value={h}>{t('settings_time_hour', { hour: h })}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -945,10 +1055,11 @@ const Settings: React.FC = () => {
                     <div className="settings-field">
                       <label className="settings-label">{t('settings_discussion_size')}</label>
                       <select
-                        className="settings-select"
+                        className={`settings-select ${!profile.discussionSize ? 'placeholder' : ''}`}
                         value={profile.discussionSize}
                         onChange={(e) => setProfileField('discussionSize', e.target.value)}
                       >
+                        <option value="" disabled>{t('settings_size_placeholder')}</option>
                         <option value="small">{t('settings_size_small')}</option>
                         <option value="medium">{t('settings_size_medium')}</option>
                         <option value="large">{t('settings_size_large')}</option>
@@ -959,10 +1070,11 @@ const Settings: React.FC = () => {
                     <div className="settings-field">
                       <label className="settings-label">{t('settings_ai_usage')}</label>
                       <select
-                        className="settings-select"
+                        className={`settings-select ${!profile.aiUsage ? 'placeholder' : ''}`}
                         value={profile.aiUsage}
                         onChange={(e) => setProfileField('aiUsage', e.target.value)}
                       >
+                        <option value="" disabled>{t('settings_ai_placeholder')}</option>
                         <option value="active">{t('settings_ai_active')}</option>
                         <option value="partial">{t('settings_ai_partial')}</option>
                         <option value="minimal">{t('settings_ai_minimal')}</option>

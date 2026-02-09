@@ -72,7 +72,7 @@ const en = {
   login_privacy: 'Privacy Policy',
 
   // Home
-  home_welcome: 'Welcome to Mamalias',
+  home_welcome: 'Welcome to Mammalias',
   home_description: 'Join one-time online book discussions freely',
 
   // Session
@@ -150,7 +150,7 @@ const en = {
 
   // Set Username Page
   set_username_title: 'Set Your Nickname',
-  set_username_subtitle: 'Please set a nickname to use in Mamalias.',
+  set_username_subtitle: 'Please set a nickname to use in Mammalias.',
   set_username_label: 'Nickname',
   set_username_placeholder: 'Enter your nickname',
   set_username_check: 'Check',
@@ -162,13 +162,17 @@ const en = {
   set_username_check_first: 'Please check for duplicates first.',
   set_username_rules_title: 'Nickname Rules',
   set_username_rule_1: 'Spaces and special characters are not allowed.',
-  set_username_rule_2: 'Up to 8 Korean characters or 14 English characters.',
-  set_username_rule_3: 'Duplicate nicknames are not allowed.',
+  set_username_rule_2: 'Minimum 2 Korean characters or 4 English characters.',
+  set_username_rule_3: 'Up to 8 Korean characters or 14 English characters.',
+  set_username_rule_4: 'Profanity, hate speech, or inappropriate words are not allowed.',
   set_username_error_empty: 'Please enter a nickname.',
   set_username_error_space: 'Spaces are not allowed.',
   set_username_error_special: 'Only Korean, English, and numbers are allowed.',
   set_username_error_length_kr: 'Korean nicknames can be up to 8 characters.',
   set_username_error_length_en: 'English nicknames can be up to 14 characters.',
+  set_username_error_min_kr: 'Korean nicknames must be at least 2 characters.',
+  set_username_error_min_en: 'English nicknames must be at least 4 characters.',
+  set_username_error_min_mixed: 'Nickname is too short.',
   set_username_error_length_mixed: 'Nickname is too long.',
   set_username_error_duplicate: 'This nickname is already in use.',
   set_username_error_profanity: 'This nickname contains inappropriate words.',
@@ -464,6 +468,7 @@ const en = {
   settings_style_critical: 'Critical - Values critical thinking',
   settings_style_creative: 'Creative - Enjoys creative interpretation',
   settings_style_practical: 'Practical - Values real-life application',
+  settings_style_placeholder: 'Select your discussion style',
   settings_preferred_time: 'Preferred Discussion Time',
   settings_time_weekday_morning: 'Weekday Morning (9-12)',
   settings_time_weekday_afternoon: 'Weekday Afternoon (2-5)',
@@ -472,17 +477,33 @@ const en = {
   settings_time_weekend_afternoon: 'Weekend Afternoon (2-5)',
   settings_time_weekend_evening: 'Weekend Evening (7-10)',
   settings_time_anytime: 'Anytime',
+  settings_preferred_schedule: 'Preferred Discussion Time',
+  settings_day_mon: 'Mon',
+  settings_day_tue: 'Tue',
+  settings_day_wed: 'Wed',
+  settings_day_thu: 'Thu',
+  settings_day_fri: 'Fri',
+  settings_day_sat: 'Sat',
+  settings_day_sun: 'Sun',
+  settings_period_am: 'AM',
+  settings_period_pm: 'PM',
+  settings_time_hour: '{{hour}}:00',
+  settings_period_placeholder: 'AM/PM',
+  settings_start_time_placeholder: 'Start time',
+  settings_end_time_placeholder: 'End time',
   settings_discussion_size: 'Preferred Discussion Size',
   settings_size_small: 'Small (3-5) - Intimate discussion',
   settings_size_medium: 'Medium (6-8) - Balanced discussion',
   settings_size_large: 'Large (9-12) - Diverse opinions',
   settings_size_xlarge: 'Extra Large (13+) - Public discussion',
   settings_size_any: 'Any size',
+  settings_size_placeholder: 'Select your preferred group size',
   settings_ai_usage: 'AI Feature Usage',
   settings_ai_active: 'Active - Frequently use AI assistance',
   settings_ai_partial: 'Partial - Use when needed',
   settings_ai_minimal: 'Minimal - Use basic features only',
   settings_ai_none: 'None - Discuss without AI',
+  settings_ai_placeholder: 'Select your AI usage preference',
   settings_monthly_goals: 'Monthly Activity Goals',
   settings_goal_participate: 'Discussion Participation Goal',
   settings_goal_participate_hint: 'Monthly discussion participation goal',
@@ -744,7 +765,7 @@ const en = {
   footer_legal: 'Legal',
   footer_terms: 'Terms of Service',
   footer_privacy: 'Privacy Policy',
-  footer_copyright: '© 2024 Mamalias. All rights reserved.',
+  footer_copyright: '© 2024 Mammalias. All rights reserved.',
 
   // Meeting Page
   meeting_title: 'Meeting Room',
@@ -906,7 +927,7 @@ const en = {
 
   // About Page - Features Section
   about_features_badge: 'Features',
-  about_features_title: 'Why Choose Mamalias?',
+  about_features_title: 'Why Choose Mammalias?',
   about_features_subtitle: 'Experience the future of book discussions with AI-powered features that make every conversation meaningful and memorable.',
 
   about_feature_onetime_title: 'One-Time Meetings',
@@ -942,7 +963,7 @@ const en = {
   about_feature_global_title: 'Global Network',
   about_feature_global_desc: 'Connect with book lovers worldwide and experience diverse perspectives.',
 
-  about_comparison_title: 'Traditional Book Clubs vs Mamalias',
+  about_comparison_title: 'Traditional Book Clubs vs Mammalias',
   about_comparison_item: 'Item',
   about_comparison_traditional: 'Traditional',
   about_comparison_participation: 'Participation',
@@ -966,7 +987,7 @@ const en = {
 
   // About Page - Testimonials Section
   about_testimonials_title: 'Reader Stories',
-  about_testimonials_subtitle: 'Hear from readers who have grown with Mamalias',
+  about_testimonials_subtitle: 'Hear from readers who have grown with Mammalias',
 
   about_testimonial_1_name: 'Sarah Chen',
   about_testimonial_1_job: 'Software Engineer',
@@ -1241,7 +1262,7 @@ const en = {
   // Revolution Page (Hall of Fame)
   revolution_title_line1: 'Hall of',
   revolution_title_line2: 'Fame',
-  revolution_description_1: 'Build Mamalias together with your ideas.',
+  revolution_description_1: 'Build Mammalias together with your ideas.',
   revolution_description_2: 'Upvoted suggestions rise to the top of the ecosystem pyramid.',
   revolution_stat_total: 'Total Suggestions',
   revolution_stat_completed: 'Completed',
@@ -1288,7 +1309,7 @@ const en = {
   revolution_error_load_failed: 'Failed to load suggestion.',
 
   // Review Modal (Service feedback)
-  review_title: 'Thank you for using Mamalias!',
+  review_title: 'Thank you for using Mammalias!',
   review_subtitle: 'How was your discussion experience? Your feedback helps us improve.',
   review_rating_label: 'Overall Rating',
   review_good_label: 'What did you enjoy?',

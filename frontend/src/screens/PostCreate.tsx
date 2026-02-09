@@ -41,7 +41,7 @@ const PostCreate: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, accessToken } = useAuth();
+  const { user, accessToken, isGoogleLinked, refreshGoogleAccessToken } = useAuth();
   const addPost = useBoardStore((state) => state.addPost);
 
   const defaultBookLanguage: BookLanguage = i18n.language === 'ko' ? 'kr' : 'en';
@@ -361,6 +361,11 @@ const PostCreate: React.FC = () => {
     };
 
     try {
+      // Google 로그인 사용자: Meet 링크 생성을 위해 Google OAuth 토큰 갱신
+      if (isGoogleLinked()) {
+        await refreshGoogleAccessToken();
+      }
+
       const createdPost = await createPost(newPost, accessToken);
 
       // Store에 새 포스트 추가 (Board에서 바로 표시됨)

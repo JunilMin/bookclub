@@ -31,10 +31,13 @@ export interface ReportedStats {
 
 // 프로필 스타일 타입
 export interface ProfileStyles {
-  discussionStyle?: string;   // 토론 스타일
-  preferredTime?: string;     // 선호 시간대
-  preferredSize?: string;     // 선호 인원
-  useAI?: string;             // AI 사용 여부
+  discussionStyle?: string;       // 토론 스타일
+  preferredDays?: string[];       // 선호 요일 ["mon","tue",...]
+  preferredPeriod?: string;       // 오전/오후 "am" | "pm"
+  preferredStartTime?: number;    // 시작 시간 1~12
+  preferredEndTime?: number;      // 종료 시간 1~12
+  preferredSize?: string;         // 선호 인원
+  useAI?: string;                 // AI 사용 여부
 }
 
 // 프로필 목표 타입

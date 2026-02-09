@@ -150,40 +150,46 @@ public class SessionNote {
     }
 
     public SessionNote(String sessionId) {
-        this.sessionId = sessionId;
-        this.title = "Discussion Notes";  // Default title (will be updated with book name)
-        this.version = 1;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        this.migrated = true;  // New documents start in block format
-        this.blockOrder = new ArrayList<>();
-        this.blocks = new HashMap<>();
-        initializeDefaultBlocks();
+        this(sessionId, "Discussion Notes", "en");
     }
 
     public SessionNote(String sessionId, String title) {
+        this(sessionId, title, "en");
+    }
+
+    public SessionNote(String sessionId, String title, String lang) {
         this.sessionId = sessionId;
-        this.title = title;  // Use provided title (e.g., "[2026-01-13] Clean Code")
+        this.title = title;
         this.version = 1;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.migrated = true;  // New documents start in block format
         this.blockOrder = new ArrayList<>();
         this.blocks = new HashMap<>();
-        initializeDefaultBlocks();
+        initializeDefaultBlocks(lang);
     }
 
     /**
-     * Initialize document with default blocks
+     * Initialize document with default blocks (language-aware)
      */
-    private void initializeDefaultBlocks() {
+    private void initializeDefaultBlocks(String lang) {
+        boolean isKo = "ko".equalsIgnoreCase(lang);
+
+        String mainTopics = isKo ? "주요 주제" : "Main Topics";
+        String addPoints = isKo ? "토론 포인트를 추가하세요..." : "Add your discussion points here...";
+        String keyQuotes = isKo ? "인상 깊은 인용구" : "Key Quotes";
+        String addQuotes = isKo ? "인상 깊은 인용구를 추가하세요..." : "Add memorable quotes here...";
+        String openQuestions = isKo ? "열린 질문" : "Open Questions";
+        String addQuestions = isKo ? "탐구할 질문을 추가하세요..." : "Questions to explore...";
+        String titleText = isKo ? "토론 노트" : "Discussion Notes";
+
         // Block 1: Title heading
         String block1Id = generateBlockId();
         blockOrder.add(block1Id);
         blocks.put(block1Id, new Block(
             block1Id,
             "heading",
-            "{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"Discussion Notes\"}]}",
+            "{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"" + titleText + "\"}]}",
             null
         ));
 
@@ -193,7 +199,7 @@ public class SessionNote {
         blocks.put(block2Id, new Block(
             block2Id,
             "heading",
-            "{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"Main Topics\"}]}",
+            "{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"" + mainTopics + "\"}]}",
             null
         ));
 
@@ -203,7 +209,7 @@ public class SessionNote {
         blocks.put(block3Id, new Block(
             block3Id,
             "bulletList",
-            "{\"type\":\"bulletList\",\"content\":[{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Add your discussion points here...\"}]}]}]}",
+            "{\"type\":\"bulletList\",\"content\":[{\"type\":\"listItem\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"" + addPoints + "\"}]}]}]}",
             null
         ));
 
@@ -213,7 +219,7 @@ public class SessionNote {
         blocks.put(block4Id, new Block(
             block4Id,
             "heading",
-            "{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"Key Quotes\"}]}",
+            "{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"" + keyQuotes + "\"}]}",
             null
         ));
 
@@ -223,7 +229,7 @@ public class SessionNote {
         blocks.put(block5Id, new Block(
             block5Id,
             "blockquote",
-            "{\"type\":\"blockquote\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Add memorable quotes here...\"}]}]}",
+            "{\"type\":\"blockquote\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"" + addQuotes + "\"}]}]}",
             null
         ));
 
@@ -233,7 +239,7 @@ public class SessionNote {
         blocks.put(block6Id, new Block(
             block6Id,
             "heading",
-            "{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"Open Questions\"}]}",
+            "{\"type\":\"heading\",\"attrs\":{\"level\":2},\"content\":[{\"type\":\"text\",\"text\":\"" + openQuestions + "\"}]}",
             null
         ));
 
@@ -243,7 +249,7 @@ public class SessionNote {
         blocks.put(block7Id, new Block(
             block7Id,
             "taskList",
-            "{\"type\":\"taskList\",\"content\":[{\"type\":\"taskItem\",\"attrs\":{\"checked\":false},\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Questions to explore...\"}]}]}]}",
+            "{\"type\":\"taskList\",\"content\":[{\"type\":\"taskItem\",\"attrs\":{\"checked\":false},\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"" + addQuestions + "\"}]}]}]}",
             null
         ));
     }

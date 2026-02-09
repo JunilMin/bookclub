@@ -276,7 +276,7 @@ const Revolution: React.FC = () => {
 
           {/* Description */}
           <p className="revolution-description">
-            {t('revolution_description_1') || '여러분의 아이디어로 Mamalias를 함께 만들어갑니다.'}
+            {t('revolution_description_1') || '여러분의 아이디어로 Mammalias를 함께 만들어갑니다.'}
             <br />
             {t('revolution_description_2') ||
               '추천을 받은 건의사항은 생태계 피라미드의 정상으로 올라갑니다.'}

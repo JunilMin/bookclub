@@ -80,7 +80,17 @@ public class SessionNoteController {
                 }
             }
 
-            SessionNote note = sessionNoteService.getOrCreateNote(sessionId, noteTitle);
+            // 도서 언어 정보 추출 (bookData.ln: "ko" 또는 "en")
+            String lang = "en";
+            if (sessionOpt.isPresent()) {
+                Optional<Post> postForLang = postRepository.findById(sessionOpt.get().getPostId());
+                if (postForLang.isPresent() && postForLang.get().getBookData() != null
+                        && postForLang.get().getBookData().getLn() != null) {
+                    lang = postForLang.get().getBookData().getLn();
+                }
+            }
+
+            SessionNote note = sessionNoteService.getOrCreateNote(sessionId, noteTitle, lang);
             return ResponseEntity.ok(note);
         } catch (Exception e) {
             logger.severe("Error getting notes for sessionId=" + sessionId + ": " + e.getMessage());

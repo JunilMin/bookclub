@@ -399,7 +399,7 @@ const CollaborativeNotes = forwardRef<CollaborativeNotesRef, CollaborativeNotesP
           <div className="notes-meta">
             {remoteUsers.length > 0 && (
               <span className="editors-count">
-                {remoteUsers.length} {remoteUsers.length === 1 ? 'editor' : 'editors'} active
+                {t('meet_editors_active', { count: remoteUsers.length })}
               </span>
             )}
           </div>

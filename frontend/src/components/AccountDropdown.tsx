@@ -111,7 +111,6 @@ const AccountDropdown: React.FC = () => {
               </div>
               <div className="user-info">
                 <span className="user-name">{user.username}</span>
-                <span className="user-email">@{user.username?.toLowerCase().replace(/\s/g, '')}</span>
               </div>
             </div>
           </div>

@@ -112,6 +112,34 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> validateUsername(@PathVariable String username) {
         Map<String, Object> result = new HashMap<>();
 
+        // 0. 최소 길이 체크: 한글 2자 이상, 영문 4자 이상
+        long koreanCount = username.chars().filter(c -> c >= 0xAC00 && c <= 0xD7A3).count();
+        if (koreanCount == username.length()) {
+            // 한글만
+            if (username.length() < 2) {
+                result.put("valid", false);
+                result.put("reason", "too_short");
+                result.put("message", "한글 닉네임은 2자 이상이어야 합니다.");
+                return ResponseEntity.ok(result);
+            }
+        } else if (koreanCount == 0) {
+            // 영문/숫자만
+            if (username.length() < 4) {
+                result.put("valid", false);
+                result.put("reason", "too_short");
+                result.put("message", "영문 닉네임은 4자 이상이어야 합니다.");
+                return ResponseEntity.ok(result);
+            }
+        } else {
+            // 혼합
+            if (koreanCount < 2 && (username.length() - koreanCount) < 4) {
+                result.put("valid", false);
+                result.put("reason", "too_short");
+                result.put("message", "닉네임이 너무 짧습니다.");
+                return ResponseEntity.ok(result);
+            }
+        }
+
         // 1. 중복 체크
         boolean isDuplicate = userService.getUserByUsername(username).isPresent();
         if (isDuplicate) {

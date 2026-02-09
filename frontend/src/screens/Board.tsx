@@ -1081,7 +1081,7 @@ const Board: React.FC = () => {
                           <h2 style={{ display: 'flex', justifyContent: 'space-around' }}>
                             <span>{room.book.title}</span>
                             <span>{room.book.author}</span>
-                            <span>Mamalias</span>
+                            <span>Mammalias</span>
                           </h2>
                         </div>
                       </div>
@@ -1221,7 +1221,7 @@ const Board: React.FC = () => {
                           <h2 style={{ display: 'flex', justifyContent: 'space-around' }}>
                             <span>{room.book.title}</span>
                             <span>{room.book.author}</span>
-                            <span>Mamalias</span>
+                            <span>Mammalias</span>
                           </h2>
                         </div>
                       </div>

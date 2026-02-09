@@ -21,7 +21,10 @@ export interface ProfileSettings {
   selectedGenres: string[];
   keywords: string[];
   readingStyle: string;
-  preferredTime: string;
+  preferredDays: string[];
+  preferredPeriod: string;
+  preferredStartTime: number;
+  preferredEndTime: number;
   discussionSize: string;
   aiUsage: string;
   discussionGoal: number;
@@ -70,6 +73,7 @@ export interface SettingsActions {
   addKeyword: (keyword: string) => void;
   removeKeyword: (keyword: string) => void;
   toggleGenre: (genre: string) => void;
+  togglePreferredDay: (day: string) => void;
 
   // Privacy 액션
   setPrivacyField: <K extends keyof PrivacySettings>(field: K, value: PrivacySettings[K]) => void;
@@ -119,7 +123,10 @@ const initialProfileSettings: ProfileSettings = {
   selectedGenres: [],
   keywords: [],
   readingStyle: '',
-  preferredTime: '',
+  preferredDays: [],
+  preferredPeriod: '',
+  preferredStartTime: 0,
+  preferredEndTime: 0,
   discussionSize: '',
   aiUsage: '',
   discussionGoal: 0,
@@ -170,7 +177,10 @@ const isProfileEqual = (a: ProfileSettings, b: ProfileSettings): boolean => {
     JSON.stringify(a.selectedGenres) === JSON.stringify(b.selectedGenres) &&
     JSON.stringify(a.keywords) === JSON.stringify(b.keywords) &&
     a.readingStyle === b.readingStyle &&
-    a.preferredTime === b.preferredTime &&
+    JSON.stringify(a.preferredDays) === JSON.stringify(b.preferredDays) &&
+    a.preferredPeriod === b.preferredPeriod &&
+    a.preferredStartTime === b.preferredStartTime &&
+    a.preferredEndTime === b.preferredEndTime &&
     a.discussionSize === b.discussionSize &&
     a.aiUsage === b.aiUsage &&
     a.discussionGoal === b.discussionGoal &&
@@ -265,6 +275,26 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
 
     const newProfile = { ...profile, selectedGenres: newGenres };
+    const isDirty = originalProfile ? !isProfileEqual(newProfile, originalProfile) : true;
+
+    set({
+      profile: newProfile,
+      isProfileDirty: isDirty,
+    });
+  },
+
+  // 선호 요일 토글
+  togglePreferredDay: (day) => {
+    const { profile, originalProfile } = get();
+    let newDays: string[];
+
+    if (profile.preferredDays.includes(day)) {
+      newDays = profile.preferredDays.filter((d) => d !== day);
+    } else {
+      newDays = [...profile.preferredDays, day];
+    }
+
+    const newProfile = { ...profile, preferredDays: newDays };
     const isDirty = originalProfile ? !isProfileEqual(newProfile, originalProfile) : true;
 
     set({

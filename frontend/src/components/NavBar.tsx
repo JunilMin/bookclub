@@ -20,7 +20,7 @@ function NavBar() {
             <div className='nav-wrapper'>
                 <div className='nav-inner-container'>
                     <div className='left-nav-wrap'>
-                        <p>Mamalias</p>
+                        <p>Mammalias</p>
                     </div>
                     <div className='mid-nav-wrap'>
                         <Link to="/">{t('nav_dashboard')}</Link>

@@ -366,10 +366,13 @@ public class User {
   @Setter
   @NoArgsConstructor
   public static class Styles {
-    private String discussionStyle;   // 토론 스타일
-    private String preferredTime;     // 선호 시간대
-    private String preferredSize;     // 선호 인원
-    private String useAI;             // AI 사용 여부
+    private String discussionStyle;          // 토론 스타일
+    private List<String> preferredDays;      // 선호 요일 ["mon","tue",...]
+    private String preferredPeriod;          // 오전/오후 "am" or "pm"
+    private int preferredStartTime;          // 시작 시간 1~12
+    private int preferredEndTime;            // 종료 시간 1~12
+    private String preferredSize;            // 선호 인원
+    private String useAI;                    // AI 사용 여부
   }
 
   // 목표 내부 클래스

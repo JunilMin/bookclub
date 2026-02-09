@@ -147,7 +147,7 @@
 .block-list-empty-space {
   flex: 1;
   min-height: 150px;
-  cursor: default;
+  cursor: text;
   /* Ensure it's clickable */
   pointer-events: auto;
 }

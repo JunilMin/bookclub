@@ -344,6 +344,7 @@ const BlockEditorCore: React.FC<BlockEditorCoreProps> = ({
     const target = e.target as HTMLElement;
     const isOnBlock = target.closest('.block-renderer');
     const isOnInteractive = target.closest('button, input, a, [role="button"]');
+    const isOnEmptySpace = target.closest('.block-list-empty-space');
 
     if (isOnBlock || isOnInteractive) return;
 
@@ -354,7 +355,10 @@ const BlockEditorCore: React.FC<BlockEditorCoreProps> = ({
       return;
     }
 
-    // Start marquee selection
+    // Don't start marquee from empty space below blocks (click handler will add new block)
+    if (isOnEmptySpace) return;
+
+    // Start marquee selection (only from block area gaps)
     const listRect = blockListRef.current?.getBoundingClientRect();
     if (!listRect) return;
 
@@ -830,6 +834,18 @@ const BlockEditorCore: React.FC<BlockEditorCoreProps> = ({
     await onAddBlock('paragraph', lastBlockId);
   }, [blockOrder, onAddBlock]);
 
+  // Click on empty space below blocks → create new block (only when not editing)
+  const handleEmptySpaceClick = useCallback((e: React.MouseEvent) => {
+    if (disabled) return;
+    // Ignore if clicking on a block or interactive element
+    const target = e.target as HTMLElement;
+    if (target.closest('.block-renderer, button, input, a, [role="button"]')) return;
+    // If currently editing, let handleMarqueeMouseDown handle it (save + finish)
+    if (editingBlockId) return;
+    // Create new paragraph block at the end
+    handleAddBlockAtEnd();
+  }, [disabled, editingBlockId, handleAddBlockAtEnd]);
+
   // ============================================
   // Block Selection Handler
   // ============================================
@@ -1107,10 +1123,11 @@ const BlockEditorCore: React.FC<BlockEditorCoreProps> = ({
               );
             })}
 
-            {/* Empty space for marquee selection */}
+            {/* Empty space - click to add new block, drag for marquee */}
             <div
               className="block-list-empty-space"
               onMouseDown={handleMarqueeMouseDown}
+              onClick={handleEmptySpaceClick}
             />
 
             {/* Marquee Selection Rectangle */}
@@ -1198,13 +1215,6 @@ const BlockEditorCore: React.FC<BlockEditorCoreProps> = ({
         </div>
       )}
 
-      {/* Footer */}
-      <div className="notes-footer">
-        <span className="notes-hint">
-          {t('meet_block_notes_hint') ||
-            'Click to edit • Drag to select • Ctrl+C/V to copy/paste'}
-        </span>
-      </div>
     </div>
   );
 };

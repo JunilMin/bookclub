@@ -14,7 +14,7 @@ const Footer: React.FC = () => {
           {/* Brand Section */}
           <div className="footer-brand">
             <Link to="/" className="footer-logo">
-              <span className="footer-logo-text">Mamalias</span>
+              <span className="footer-logo-text">Mammalias</span>
             </Link>
             <p className="footer-description">
               {t('footer_description')}
@@ -74,7 +74,7 @@ const Footer: React.FC = () => {
         {/* Bottom Bar */}
         <div className="footer-bottom">
           <p className="footer-copyright">
-            © {currentYear} Mamalias. All rights reserved.
+            © {currentYear} Mammalias. All rights reserved.
           </p>
           <div className="footer-bottom-links">
             <a href="#privacy">{t('footer_privacy')}</a>

@@ -3,52 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext/AuthContext';
 import { validateUsernameAPI, updateUser } from '../api/user';
+import { validateUsername } from '../utils/validateUsername';
 import './styles/SetUsername.css';
-
-// 닉네임 유효성 검사
-const validateUsername = (username: string): { isValid: boolean; error: string } => {
-  // 빈 문자열 체크
-  if (!username.trim()) {
-    return { isValid: false, error: 'set_username_error_empty' };
-  }
-
-  // 공백 체크
-  if (/\s/.test(username)) {
-    return { isValid: false, error: 'set_username_error_space' };
-  }
-
-  // 특수문자 체크 (한글, 영문, 숫자만 허용)
-  if (!/^[가-힣a-zA-Z0-9]+$/.test(username)) {
-    return { isValid: false, error: 'set_username_error_special' };
-  }
-
-  // 길이 체크: 한글은 8자, 영문은 14자
-  // 한글 문자 수 계산
-  const koreanCount = (username.match(/[가-힣]/g) || []).length;
-  const nonKoreanCount = username.length - koreanCount;
-
-  // 한글 1자 = 영문 1.75자로 환산하여 총 14자 이하인지 체크
-  // 또는 단순히: 한글만 있으면 8자, 영문만 있으면 14자
-  if (koreanCount > 0 && koreanCount === username.length) {
-    // 한글만 있는 경우
-    if (username.length > 8) {
-      return { isValid: false, error: 'set_username_error_length_kr' };
-    }
-  } else if (koreanCount === 0) {
-    // 영문/숫자만 있는 경우
-    if (username.length > 14) {
-      return { isValid: false, error: 'set_username_error_length_en' };
-    }
-  } else {
-    // 혼합된 경우: 한글 1자 = 1.75 영문자로 계산
-    const equivalentLength = koreanCount * 1.75 + nonKoreanCount;
-    if (equivalentLength > 14) {
-      return { isValid: false, error: 'set_username_error_length_mixed' };
-    }
-  }
-
-  return { isValid: true, error: '' };
-};
 
 const SetUsername: React.FC = () => {
   const { t } = useTranslation();
@@ -149,57 +105,88 @@ const SetUsername: React.FC = () => {
   return (
     <div className="set-username-container">
       <div className="set-username-card">
-        <h1 className="set-username-title">{t('set_username_title')}</h1>
-        <p className="set-username-subtitle">{t('set_username_subtitle')}</p>
+        <div className="set-username-header">
+          <div className="set-username-icon-wrap">
+            <i className="ri-edit-line"></i>
+          </div>
+          <h1 className="set-username-title">{t('set_username_title')}</h1>
+          <p className="set-username-subtitle">{t('set_username_subtitle')}</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="set-username-form">
-          <div className="input-group">
-            <label htmlFor="username">{t('set_username_label')}</label>
-            <div className="input-with-button">
+          <div className="set-username-field">
+            <label className="set-username-label" htmlFor="username">{t('set_username_label')}</label>
+            <div className="set-username-input-row">
               <input
                 type="text"
                 id="username"
+                className={`set-username-input ${validationError ? 'error' : isAvailable === true ? 'success' : ''}`}
                 value={username}
                 onChange={handleUsernameChange}
                 placeholder={t('set_username_placeholder')}
                 disabled={isSubmitting}
-                className={validationError ? 'error' : isAvailable === true ? 'success' : ''}
+                autoFocus
               />
               <button
                 type="button"
+                className="set-username-check-btn"
                 onClick={handleCheckDuplicate}
                 disabled={isChecking || !username || !!validationError}
-                className="check-button"
               >
-                {isChecking ? t('set_username_checking') : t('set_username_check')}
+                {isChecking ? (
+                  <>
+                    <i className="ri-loader-4-line spinning"></i>
+                    <span>{t('set_username_checking')}</span>
+                  </>
+                ) : (
+                  <span>{t('set_username_check')}</span>
+                )}
               </button>
             </div>
 
-            {/* 유효성/중복 체크 결과 메시지 */}
             {validationError && (
-              <p className="error-message">{t(validationError)}</p>
+              <p className="set-username-msg error">
+                <i className="ri-error-warning-line"></i>
+                {t(validationError)}
+              </p>
             )}
             {isAvailable === true && !validationError && (
-              <p className="success-message">{t('set_username_available')}</p>
+              <p className="set-username-msg success">
+                <i className="ri-check-line"></i>
+                {t('set_username_available')}
+              </p>
             )}
           </div>
 
-          {/* 닉네임 규칙 안내 */}
-          <div className="username-rules">
-            <p className="rules-title">{t('set_username_rules_title')}</p>
-            <ul>
+          <div className="set-username-rules">
+            <div className="set-username-rules-header">
+              <i className="ri-information-line"></i>
+              <span>{t('set_username_rules_title')}</span>
+            </div>
+            <ul className="set-username-rules-list">
               <li>{t('set_username_rule_1')}</li>
               <li>{t('set_username_rule_2')}</li>
               <li>{t('set_username_rule_3')}</li>
+              <li>{t('set_username_rule_4')}</li>
             </ul>
           </div>
 
           <button
             type="submit"
-            className="submit-button"
+            className="set-username-submit-btn"
             disabled={isSubmitting || isAvailable !== true}
           >
-            {isSubmitting ? t('set_username_submitting') : t('set_username_submit')}
+            {isSubmitting ? (
+              <>
+                <i className="ri-loader-4-line spinning"></i>
+                <span>{t('set_username_submitting')}</span>
+              </>
+            ) : (
+              <>
+                <i className="ri-check-line"></i>
+                <span>{t('set_username_submit')}</span>
+              </>
+            )}
           </button>
         </form>
       </div>

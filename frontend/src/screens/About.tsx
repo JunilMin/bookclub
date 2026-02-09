@@ -367,7 +367,7 @@ function About() {
                   <tr>
                     <th>{t('about_comparison_item')}</th>
                     <th>{t('about_comparison_traditional')}</th>
-                    <th className="highlight">Mamalias</th>
+                    <th className="highlight">Mammalias</th>
                   </tr>
                 </thead>
                 <tbody>

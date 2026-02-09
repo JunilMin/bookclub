@@ -182,7 +182,6 @@ const Profile: React.FC = () => {
               <div className="profile-hero-details-main">
                 <div className="profile-hero-name-section">
                   <h2 className="profile-hero-name">{user.username || ''}</h2>
-                  <p className="profile-hero-handle">@{user.email?.split('@')[0]}</p>
                   <p className="profile-hero-meta">
                     {t('profile_member_since', { date: formatJoinDate(user.createdAt) || '2024.01.01' })}
                   </p>
@@ -812,8 +811,8 @@ const Profile: React.FC = () => {
                       <div className="profile-style-card">
                         <h5 className="profile-style-card-title">{t('profile_preferred_time')}</h5>
                         <p className="profile-style-card-desc">
-                          {user.profile?.introduce?.styles?.preferredTime
-                            ? t(`settings_time_${user.profile.introduce.styles.preferredTime}`)
+                          {user.profile?.introduce?.styles?.preferredDays && user.profile.introduce.styles.preferredDays.length > 0
+                            ? `${user.profile.introduce.styles.preferredDays.map((d: string) => t(`settings_day_${d}`)).join(', ')} · ${t(`settings_period_${user.profile.introduce.styles.preferredPeriod || 'pm'}`)} ${user.profile.introduce.styles.preferredStartTime || 1}${t('code') === 'ko' ? '시' : ':00'} ~ ${user.profile.introduce.styles.preferredEndTime || 3}${t('code') === 'ko' ? '시' : ':00'}`
                             : t('profile_not_set')}
                         </p>
                       </div>

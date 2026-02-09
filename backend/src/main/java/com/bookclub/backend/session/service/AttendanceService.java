@@ -601,6 +601,12 @@ public class AttendanceService {
             return;  // 이미 확정됨
         }
 
+        // 시작 시간 전에는 출석 확정 불가
+        LocalDateTime startAt = record.getTime() != null ? record.getTime().getStartAt() : null;
+        if (startAt != null && LocalDateTime.now().isBefore(startAt)) {
+            return;  // 미팅 시작 시간 전
+        }
+
         if (record.meetsConfirmationCriteria()) {
             record.setStatus(AttendanceStatus.CONFIRMED);
         }

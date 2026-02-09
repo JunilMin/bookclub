@@ -79,6 +79,8 @@ interface BlockBasedNotesProps {
   onAiVersionBlockUpdate?: (version: number, blockId: string, content: string) => Promise<void>;
   onAiVersionBlockAdd?: (version: number, type: string, content: string, afterBlockId: string | null) => Promise<string | null>;
   onAiVersionBlockDelete?: (version: number, blockId: string) => Promise<void>;
+  // Attendance: character count callback
+  onCharCountChange?: (charCount: number) => void;
 }
 
 export interface BlockBasedNotesRef {
@@ -110,6 +112,7 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
     onAiVersionBlockUpdate,
     onAiVersionBlockAdd,
     onAiVersionBlockDelete,
+    onCharCountChange,
   }, ref) => {
     const { t } = useTranslation();
 
@@ -170,6 +173,74 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
     // Ref to track editing block ID for undo/redo editor updates
     const editingBlockIdRef = useRef(editingBlockId);
     editingBlockIdRef.current = editingBlockId;
+
+    // ---- Attendance: track only MY typed characters ----
+    // Accumulates characters the current user has typed (across all blocks they edit)
+    const myTypedCharsRef = useRef<number>(0);
+    const lastReportedCharsRef = useRef<number>(0);
+    // Stores per-block baseline when user starts editing (to measure delta)
+    const blockBaselineRef = useRef<Record<string, number>>({});
+
+    const extractTextFromContent = useCallback((content: string): string => {
+      try {
+        const parsed = JSON.parse(content);
+        const walk = (node: any): string => {
+          if (node.type === 'text') return node.text || '';
+          if (node.content && Array.isArray(node.content)) {
+            return node.content.map(walk).join('');
+          }
+          return '';
+        };
+        return walk(parsed);
+      } catch {
+        return '';
+      }
+    }, []);
+
+    // Called every time user auto-saves a block they're editing
+    const trackCharCountForAttendance = useCallback((blockId: string, content: string) => {
+      if (!onCharCountChange) return;
+
+      const currentLen = extractTextFromContent(content).length;
+
+      // If no baseline for this block, set it (first time editing this block)
+      if (blockBaselineRef.current[blockId] === undefined) {
+        // Get the block's original content before user started editing
+        const originalBlock = blocksRef.current[blockId];
+        if (originalBlock) {
+          blockBaselineRef.current[blockId] = extractTextFromContent(originalBlock.content).length;
+        } else {
+          blockBaselineRef.current[blockId] = 0;
+        }
+      }
+
+      const baseline = blockBaselineRef.current[blockId];
+      const delta = Math.max(0, currentLen - baseline);
+
+      // Update baseline to current (so we track cumulative additions)
+      // But keep original baseline to measure total new chars for this block
+      // Recalculate total typed chars across all blocks
+      let totalTyped = 0;
+      for (const [bid, base] of Object.entries(blockBaselineRef.current)) {
+        if (bid === blockId) {
+          totalTyped += delta;
+        } else {
+          const block = blocksRef.current[bid];
+          if (block) {
+            const len = extractTextFromContent(block.content).length;
+            totalTyped += Math.max(0, len - base);
+          }
+        }
+      }
+
+      myTypedCharsRef.current = totalTyped;
+
+      // Debounce: report only when changed by >= 3 characters
+      if (Math.abs(totalTyped - lastReportedCharsRef.current) >= 3) {
+        lastReportedCharsRef.current = totalTyped;
+        onCharCountChange(totalTyped);
+      }
+    }, [onCharCountChange, extractTextFromContent]);
 
     // Block document hook (AI Notes) - separate document with "-ai" suffix
     const {
@@ -339,8 +410,9 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
       (blockId: string, content: string) => {
         trackTextChange(blockId, content);
         broadcastContent(blockId, content);
+        trackCharCountForAttendance(blockId, content);
       },
-      [broadcastContent, trackTextChange]
+      [broadcastContent, trackTextChange, trackCharCountForAttendance]
     );
 
     const handleCancelEdit = useCallback(() => {
@@ -861,7 +933,7 @@ const BlockBasedNotes = forwardRef<BlockBasedNotesRef, BlockBasedNotesProps>(
             <div className="notes-meta">
               {remoteUsers.length > 0 && (
                 <span className="editors-count">
-                  {remoteUsers.length} {remoteUsers.length === 1 ? 'editor' : 'editors'} active
+                  {t('meet_editors_active', { count: remoteUsers.length })}
                 </span>
               )}
             </div>

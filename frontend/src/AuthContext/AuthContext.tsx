@@ -96,6 +96,7 @@ interface AuthContextProps {
   hasPasswordProvider: () => boolean; // 비밀번호 로그인 연결 여부 확인
   isGoogleLinked: () => boolean; // Google 연동 여부 확인
   setPasswordForGoogleUser: (newPassword: string) => Promise<void>; // Google 사용자에게 비밀번호 설정
+  refreshGoogleAccessToken: () => Promise<string>; // Google OAuth 토큰 재발급
 }
 
 const app = initializeApp(firebaseConfig);
@@ -670,6 +671,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return currentUser.emailVerified;
   };
 
+  // Google OAuth Access Token 재발급 (Meet 링크 생성용)
+  // 쿠키 만료(1시간) 시 signInWithPopup으로 새 토큰 획득
+  const refreshGoogleAccessToken = async (): Promise<string> => {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/calendar');
+    try {
+      const userCredential = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(userCredential);
+      const newGoogleToken = credential?.accessToken || "";
+
+      if (newGoogleToken) {
+        setGoogleAccessToken(newGoogleToken);
+        // 현재 Firebase token과 함께 쿠키 갱신
+        const firebaseToken = await userCredential.user.getIdToken();
+        await setTokenCookie(firebaseToken, newGoogleToken);
+        console.log("Google Access Token 재발급 성공");
+      } else {
+        console.warn("Google Access Token 재발급 실패: 토큰을 받지 못함");
+      }
+      return newGoogleToken;
+    } catch (e: any) {
+      console.error("Google Access Token 재발급 실패:", e.message);
+      return "";
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -698,6 +725,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         hasPasswordProvider,
         isGoogleLinked,
         setPasswordForGoogleUser,
+        refreshGoogleAccessToken,
       }}
     >
       {children}

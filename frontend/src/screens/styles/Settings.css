@@ -232,6 +232,73 @@
   padding-left: 32px;
 }
 
+/* Username check row */
+.settings-username-row {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-username-row .settings-input {
+  flex: 1;
+}
+
+.settings-input.valid {
+  border-color: #059669;
+}
+
+.settings-input.invalid {
+  border-color: #dc2626;
+}
+
+.settings-btn-check-username {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 16px;
+  background: #0f172a;
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.settings-btn-check-username:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.settings-btn-check-username:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.settings-btn-check-username i {
+  font-size: 16px;
+}
+
+.settings-username-check-message {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.settings-username-check-message.success {
+  color: #059669;
+}
+
+.settings-username-check-message.error {
+  color: #dc2626;
+}
+
+.settings-username-check-message i {
+  font-size: 14px;
+}
+
 .settings-field-hint {
   font-size: 12px;
   color: #64748b;
@@ -302,6 +369,10 @@
   outline: none;
   border-color: #06b6d4;
   box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+.settings-select.placeholder {
+  color: #94a3b8;
 }
 
 /* Photo Section */
@@ -534,6 +605,57 @@
 .settings-checkbox-label span.checked {
   color: #0f172a;
   font-weight: 500;
+}
+
+/* Preferred Days */
+.settings-days-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.settings-day-btn {
+  min-width: 44px;
+  padding: 8px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-day-btn:hover {
+  border-color: #06B6D4;
+  color: #06B6D4;
+}
+
+.settings-day-btn.active {
+  background: #06B6D4;
+  border-color: #06B6D4;
+  color: #ffffff;
+}
+
+/* Time Row */
+.settings-time-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-time-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-time-separator {
+  color: #64748b;
+  font-size: 16px;
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
 /* Goals Grid */
