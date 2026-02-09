@@ -246,6 +246,39 @@ public class UserSessionNoteController {
     }
 
     /**
+     * 즐겨찾기 토글
+     * PUT /api/user-notes/{noteId}/liked
+     */
+    @PutMapping("/{noteId}/liked")
+    public ResponseEntity<?> toggleLiked(
+            @PathVariable String noteId,
+            HttpServletRequest httpRequest) {
+        try {
+            String userId = extractUserId(httpRequest);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Authentication required", "UNAUTHORIZED"));
+            }
+
+            UserSessionNote updated = userSessionNoteService.toggleLiked(noteId, userId);
+            return ResponseEntity.ok(Map.of(
+                "noteId", noteId,
+                "liked", Boolean.TRUE.equals(updated.getLiked())
+            ));
+
+        } catch (UserSessionNoteService.NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse(e.getMessage(), "NOT_FOUND"));
+        } catch (UserSessionNoteService.ForbiddenException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse(e.getMessage(), "FORBIDDEN"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("Internal server error: " + e.getMessage(), "SERVER_ERROR"));
+        }
+    }
+
+    /**
      * 개인 노트 삭제
      * DELETE /api/user-notes/{noteId}
      */

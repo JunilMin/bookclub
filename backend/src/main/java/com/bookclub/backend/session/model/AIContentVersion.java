@@ -22,7 +22,8 @@ import java.util.Map;
  */
 @Document(collection = "ai_content_versions")
 @CompoundIndexes({
-    @CompoundIndex(name = "session_version_idx", def = "{'sessionId': 1, 'version': 1}", unique = true)
+    @CompoundIndex(name = "session_version_idx", def = "{'sessionId': 1, 'version': 1}", unique = true),
+    @CompoundIndex(name = "note_version_idx", def = "{'noteId': 1, 'version': 1}")
 })
 @Getter
 @Setter
@@ -34,6 +35,9 @@ public class AIContentVersion {
 
     @Indexed
     private String sessionId;
+
+    @Indexed
+    private String noteId;  // null이면 공유 세션, 값이면 개인 노트
 
     private int version;  // 1, 2, 3... (auto-incremented)
 

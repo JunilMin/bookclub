@@ -78,12 +78,13 @@ const Favorites: React.FC = () => {
     [favoriteIsbnSet]
   );
 
-  // Fetch favorites on mount
+  // Fetch favorites on mount (and when language changes)
   useEffect(() => {
     if (user) {
-      fetchFavorites();
+      const lang = i18n.language === 'ko' ? 'ko' : 'en';
+      fetchFavorites(true, lang);
     }
-  }, [user, fetchFavorites]);
+  }, [user, fetchFavorites, i18n.language]);
 
   // Click outside handler to close dropdown
   useEffect(() => {

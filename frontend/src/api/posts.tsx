@@ -70,6 +70,17 @@ export interface EndPostResponse {
   endedBy: string | null;
 }
 
+// 총 포스트 수 조회 (공개 API)
+export const getPostCount = async (): Promise<number> => {
+  try {
+    const response = await axiosInstance.get('/posts/count');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching post count:", error);
+    return 0;
+  }
+};
+
 // 모든 포스트 조회 (userId 전달 시 강퇴된 게시물 제외, token 없이도 공개 조회 가능)
 export const getAllPosts = async (token?: string, userId?: string): Promise<Post[]> => {
   if (token) {

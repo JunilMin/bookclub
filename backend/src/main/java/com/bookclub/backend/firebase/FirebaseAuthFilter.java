@@ -36,6 +36,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
     private static final Set<String> PUBLIC_EXACT_PATHS = Set.of(
         "/api/users/register",
         "/api/users/count",
+        "/api/reviews/average-rating",
         "/api/auth",
         "/api/ISBN",
         "/api/books",

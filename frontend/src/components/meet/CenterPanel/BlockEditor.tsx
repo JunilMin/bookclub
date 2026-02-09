@@ -177,7 +177,10 @@ const BlockEditor = forwardRef<BlockEditorRef, BlockEditorProps>(({
   // This ensures TipTap input rules work correctly
   const initialContent = ensureDocStructure(sanitizeContent(parseBlockContent(block.content)));
 
-  // Debounced auto-save for real-time sync
+  // Debounced auto-save for real-time sync (broadcast only, not actual save)
+  // NOTE: Do NOT update lastSavedContentRef here - onAutoSave is a broadcast,
+  // not an actual save. Updating it would cause handleSave() to skip the real
+  // save (via onSave) when the user clicks outside or finishes editing.
   const debouncedAutoSave = useCallback((content: string) => {
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
@@ -186,7 +189,6 @@ const BlockEditor = forwardRef<BlockEditorRef, BlockEditorProps>(({
     autoSaveTimerRef.current = setTimeout(() => {
       if (content !== lastSavedContentRef.current && onAutoSave) {
         onAutoSave(content);
-        lastSavedContentRef.current = content;
       }
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [onAutoSave]);
@@ -213,6 +215,7 @@ const BlockEditor = forwardRef<BlockEditorRef, BlockEditorProps>(({
       // - HorizontalRule (--- at start)
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        history: false, // Disable built-in undo/redo - handled by useBlockHistory at block level
         // Ensure input rules are enabled (default is true)
         bulletList: {}, // Explicit empty config ensures extension is included
         orderedList: {},
@@ -403,10 +406,11 @@ const BlockEditor = forwardRef<BlockEditorRef, BlockEditorProps>(({
           if (content !== lastSavedContentRef.current) {
             if (onAutoSave) {
               onAutoSave(content);
+              // Don't update lastSavedContentRef - onAutoSave is broadcast only
             } else {
               onSave(content);
+              lastSavedContentRef.current = content;
             }
-            lastSavedContentRef.current = content;
           }
           hasChangesRef.current = false;
         }

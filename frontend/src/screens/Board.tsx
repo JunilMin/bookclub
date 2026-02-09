@@ -8,6 +8,8 @@ import { getUserCount } from '../api/user';
 import { useAuth } from '../AuthContext/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import RoomModal, { Room } from '../components/RoomModal';
+import ReviewModal from '../components/ReviewModal';
+import { checkReviewNeeded } from '../api/review';
 import './styles/Board.css';
 
 // Post background images
@@ -272,6 +274,7 @@ const Board: React.FC = () => {
   const [isEndedSectionClosing, setIsEndedSectionClosing] = useState(false);
   const [userCount, setUserCount] = useState<number>(0);
   const [isScrollingDown, setIsScrollingDown] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Search debounce timer
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,6 +386,21 @@ const Board: React.FC = () => {
       stopPolling();
     };
   }, [accessToken, user?.id, initBoard, startPolling, stopPolling]);
+
+  // ==========================================================================
+  // Review Modal Check
+  // ==========================================================================
+  useEffect(() => {
+    if (!accessToken || !user?.id) return;
+
+    checkReviewNeeded(accessToken)
+      .then(({ shouldShow }) => {
+        if (shouldShow) setShowReviewModal(true);
+      })
+      .catch((err) => {
+        console.error('[Board] Review check failed:', err);
+      });
+  }, [accessToken, user?.id]);
 
   // ==========================================================================
   // Visibility & Focus Event Handlers (for instant refresh + timer reset)
@@ -1269,6 +1287,14 @@ const Board: React.FC = () => {
           onDelete={handleDelete}
           onUpdate={handleUpdate}
           isProcessing={isProcessing}
+        />
+      )}
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <ReviewModal
+          onClose={() => setShowReviewModal(false)}
+          accessToken={accessToken!}
         />
       )}
     </div>

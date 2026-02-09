@@ -270,7 +270,7 @@ public class SessionService {
 
             // User's relation
             summary.setHost(hostId != null && hostId.equals(user.getId()));
-            summary.setFavorite(false); // TODO: Implement favorites feature
+            summary.setLiked(false); // TODO: Implement liked for NoteSummary
 
             summaries.add(summary);
         }

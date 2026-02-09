@@ -49,4 +49,18 @@ public interface AIContentVersionRepository extends MongoRepository<AIContentVer
      * Check if a specific version exists
      */
     boolean existsBySessionIdAndVersion(String sessionId, int version);
+
+    // ============================================
+    // Personal Note (noteId-based) queries
+    // ============================================
+
+    List<AIContentVersion> findByNoteIdOrderByVersionDesc(String noteId);
+
+    Optional<AIContentVersion> findByNoteIdAndVersion(String noteId, int version);
+
+    Optional<AIContentVersion> findFirstByNoteIdOrderByVersionDesc(String noteId);
+
+    long countByNoteId(String noteId);
+
+    void deleteByNoteIdAndVersionLessThan(String noteId, int version);
 }

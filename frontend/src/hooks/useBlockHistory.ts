@@ -67,7 +67,11 @@ interface UseBlockHistoryReturn {
 }
 
 export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistoryReturn {
-  const { onAddBlock, onDeleteBlock, onUpdateBlock, onReorderBlock, getBlock: _getBlock, getBlockOrder: _getBlockOrder } = options;
+  const { onAddBlock, onDeleteBlock, onUpdateBlock, onReorderBlock, getBlock, getBlockOrder: _getBlockOrder } = options;
+
+  // Keep getBlock in a ref so trackTextChange always has the latest version
+  const getBlockRef = useRef(getBlock);
+  getBlockRef.current = getBlock;
 
   // 히스토리 스택 (ref로 관리하여 리렌더링 방지)
   const undoStackRef = useRef<HistoryEntry[]>([]);
@@ -84,12 +88,33 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
   // Undo/Redo 작업 중인지 추적 (무한 루프 방지)
   const isUndoRedoInProgressRef = useRef(false);
 
+  // Undo/Redo 완료 후 잠시 trackTextChange를 억제 (debouncedAutoSave 30ms가 뒤늦게 fire되는 것 방지)
+  const suppressTrackUntilRef = useRef(0);
+
+  // 최근 삭제된 블록 ID 추적 (삭제된 블록에 대한 spurious trackTextChange 방지)
+  const deletedBlockIdsRef = useRef<Set<string>>(new Set());
+
   /**
    * 텍스트 변경 플러시 (현재 pending된 변경을 스택에 푸시)
    */
   const flushTextChange = useCallback(() => {
     const pending = pendingTextChangeRef.current;
     if (pending && pending.originalContent !== pending.currentContent) {
+      // 삭제된 블록에 대한 변경은 무시
+      if (deletedBlockIdsRef.current.has(pending.blockId)) {
+        if (pending.timeoutId) clearTimeout(pending.timeoutId);
+        pendingTextChangeRef.current = null;
+        return;
+      }
+
+      // 블록이 존재하는지 확인 (삭제 후 unmount cleanup에서 생성된 spurious pending 방지)
+      const blockExists = getBlockRef.current(pending.blockId);
+      if (!blockExists) {
+        if (pending.timeoutId) clearTimeout(pending.timeoutId);
+        pendingTextChangeRef.current = null;
+        return;
+      }
+
       // 타이머 클리어
       if (pending.timeoutId) {
         clearTimeout(pending.timeoutId);
@@ -118,6 +143,10 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
 
       // pending 초기화
       pendingTextChangeRef.current = null;
+    } else if (pending) {
+      // pending exists but no change (originalContent === currentContent)
+      if (pending.timeoutId) clearTimeout(pending.timeoutId);
+      pendingTextChangeRef.current = null;
     }
   }, []);
 
@@ -127,6 +156,12 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
   const trackTextChange = useCallback((blockId: string, content: string) => {
     // Undo/Redo 중에는 추적하지 않음
     if (isUndoRedoInProgressRef.current) return;
+
+    // Undo/Redo 직후 debouncedAutoSave에 의한 호출 억제
+    if (Date.now() < suppressTrackUntilRef.current) return;
+
+    // 삭제된 블록에 대한 변경은 무시 (unmount cleanup에서 호출될 수 있음)
+    if (deletedBlockIdsRef.current.has(blockId)) return;
 
     const pending = pendingTextChangeRef.current;
 
@@ -146,10 +181,13 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
         flushTextChange();
       }
 
-      // 새 pending 시작
+      // 새 pending 시작 - 블록의 현재 상태(수정 전)를 원본으로 저장
+      const currentBlock = getBlockRef.current(blockId);
+      const originalContent = currentBlock?.content || content;
+
       pendingTextChangeRef.current = {
         blockId,
-        originalContent: content, // 첫 입력이므로 현재 내용이 원본
+        originalContent, // 블록의 수정 전 내용을 원본으로 저장
         currentContent: content,
         timeoutId: null,
       };
@@ -189,6 +227,9 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
 
     flushTextChange();
 
+    // 삭제된 블록 ID 등록 (이후 unmount cleanup에서의 trackTextChange 방지)
+    deletedBlockIdsRef.current.add(blockId);
+
     const entry: HistoryEntry = {
       type: 'block_delete',
       blockId,
@@ -204,6 +245,14 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
       undoStackRef.current.shift();
     }
     redoStackRef.current = [];
+
+    // 삭제된 블록에 대한 pending이 생기지 않도록 즉시 클리어
+    if (pendingTextChangeRef.current?.blockId === blockId) {
+      if (pendingTextChangeRef.current.timeoutId) {
+        clearTimeout(pendingTextChangeRef.current.timeoutId);
+      }
+      pendingTextChangeRef.current = null;
+    }
   }, [flushTextChange]);
 
   /**
@@ -263,9 +312,18 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
   const undo = useCallback(async (): Promise<boolean> => {
     flushTextChange();
 
-    const entry = undoStackRef.current.pop();
-    if (!entry) return false;
+    // Log stack state before pop
+    console.log('[History] Undo stack before pop (size=' + undoStackRef.current.length + '):',
+      undoStackRef.current.map(e => `${e.type}(${e.blockId.substring(0, 8)})`).join(', '));
 
+    const entry = undoStackRef.current.pop();
+    if (!entry) {
+      console.log('[History] Undo: stack empty, nothing to undo');
+      return false;
+    }
+
+    console.log('[History] Undo:', entry.type, 'blockId:', entry.blockId,
+      'data.block exists:', !!entry.data.block, 'data.afterBlockId:', entry.data.afterBlockId);
     isUndoRedoInProgressRef.current = true;
 
     try {
@@ -279,13 +337,22 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
         case 'block_delete': {
           // 삭제된 블록 복원
           if (entry.data.block) {
+            // 삭제된 블록 ID 레지스트리에서 제거 (복원되면 다시 추적 가능하도록)
+            deletedBlockIdsRef.current.delete(entry.blockId);
+
             const newBlockId = await onAddBlock(
               entry.data.block.type,
               entry.data.afterBlockId ?? null,
               entry.data.block.content
             );
+            if (!newBlockId) {
+              // addBlock failed (e.g., not connected) - put entry back on undo stack
+              deletedBlockIdsRef.current.add(entry.blockId);
+              undoStackRef.current.push(entry);
+              return false;
+            }
             // 복원된 블록의 ID가 다를 수 있음 - entry 업데이트
-            if (newBlockId && newBlockId !== entry.blockId) {
+            if (newBlockId !== entry.blockId) {
               entry.blockId = newBlockId;
             }
           }
@@ -311,15 +378,18 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
 
       // Redo 스택에 푸시
       redoStackRef.current.push(entry);
+      console.log('[History] Undo success → redo stack size:', redoStackRef.current.length);
 
       return true;
     } catch (error) {
-      console.error('Undo failed:', error);
+      console.error('[History] Undo failed:', error);
       // 실패 시 다시 undo 스택에 넣기
       undoStackRef.current.push(entry);
       return false;
     } finally {
       isUndoRedoInProgressRef.current = false;
+      // debouncedAutoSave (30ms)가 undo 완료 후에 fire되어 spurious pending을 만드는 것 방지
+      suppressTrackUntilRef.current = Date.now() + 100;
     }
   }, [flushTextChange, onAddBlock, onDeleteBlock, onUpdateBlock, onReorderBlock]);
 
@@ -328,7 +398,11 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
    */
   const redo = useCallback(async (): Promise<boolean> => {
     const entry = redoStackRef.current.pop();
-    if (!entry) return false;
+    if (!entry) {
+      console.log('[History] Redo: stack empty, nothing to redo');
+      return false;
+    }
+    console.log('[History] Redo:', entry.type, 'blockId:', entry.blockId);
 
     isUndoRedoInProgressRef.current = true;
 
@@ -342,7 +416,12 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
               entry.data.afterBlockId ?? null,
               entry.data.block.content
             );
-            if (newBlockId && newBlockId !== entry.blockId) {
+            if (!newBlockId) {
+              console.warn('[History] Redo block_add: onAddBlock returned null, redo failed');
+              redoStackRef.current.push(entry);
+              return false;
+            }
+            if (newBlockId !== entry.blockId) {
               entry.blockId = newBlockId;
             }
           }
@@ -351,6 +430,7 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
 
         case 'block_delete': {
           // 블록 다시 삭제
+          deletedBlockIdsRef.current.add(entry.blockId);
           await onDeleteBlock(entry.blockId);
           break;
         }
@@ -383,6 +463,7 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
       return false;
     } finally {
       isUndoRedoInProgressRef.current = false;
+      suppressTrackUntilRef.current = Date.now() + 100;
     }
   }, [onAddBlock, onDeleteBlock, onUpdateBlock, onReorderBlock]);
 
@@ -406,6 +487,7 @@ export function useBlockHistory(options: UseBlockHistoryOptions): UseBlockHistor
   const clearHistory = useCallback(() => {
     undoStackRef.current = [];
     redoStackRef.current = [];
+    deletedBlockIdsRef.current.clear();
     if (pendingTextChangeRef.current?.timeoutId) {
       clearTimeout(pendingTextChangeRef.current.timeoutId);
     }

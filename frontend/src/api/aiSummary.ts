@@ -30,7 +30,7 @@ export interface NoteSummaryResponse {
   aiSummary: AISummary;
   sessionCreatedAt: string;
   isHost: boolean;
-  isFavorite: boolean;
+  liked: boolean;
 }
 
 /**
@@ -201,6 +201,134 @@ export const updateAiVersionBlockOrder = async (
   const response = await axiosInstance.put(
     `/sessions/${sessionId}/ai-versions/${version}/blocks/order`,
     { blockOrder, userId }
+  );
+  return response.data;
+};
+
+// ============================================
+// Personal Note AI APIs
+// ============================================
+
+/**
+ * Generate AI summary for a personal note
+ */
+export const generatePersonalAISummary = async (
+  noteId: string,
+  token: string,
+  language: string = 'en'
+): Promise<{ personalAiSummary: AISummary; noteId: string }> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/user-notes/${noteId}/ai-summary?language=${language}`);
+  return response.data;
+};
+
+/**
+ * Organize personal note content using AI
+ */
+export const organizePersonalNotes = async (
+  noteId: string,
+  token: string,
+  language: string = 'en'
+): Promise<AIOrganizeResponse> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(`/user-notes/${noteId}/ai-organize?language=${language}`);
+  return response.data;
+};
+
+/**
+ * Get all AI content versions for a personal note
+ */
+export const getPersonalAiContentVersions = async (
+  noteId: string,
+  token: string
+): Promise<AIContentVersionsResponse> => {
+  setAccessToken(token);
+  const response = await axiosInstance.get(`/user-notes/${noteId}/ai-versions`);
+  return response.data;
+};
+
+/**
+ * Get a specific AI content version for a personal note
+ */
+export const getPersonalAiContentVersion = async (
+  noteId: string,
+  version: number,
+  token: string
+): Promise<AIContentVersion> => {
+  setAccessToken(token);
+  const response = await axiosInstance.get(`/user-notes/${noteId}/ai-versions/${version}`);
+  return response.data;
+};
+
+/**
+ * Update a block's content in a personal AI version
+ */
+export const updatePersonalAiVersionBlockContent = async (
+  noteId: string,
+  version: number,
+  blockId: string,
+  content: string,
+  userId: string,
+  token: string
+): Promise<Block> => {
+  setAccessToken(token);
+  const response = await axiosInstance.put(
+    `/user-notes/${noteId}/ai-versions/${version}/blocks/${blockId}/content`,
+    { content, userId }
+  );
+  return response.data;
+};
+
+/**
+ * Add a new block to a personal AI version
+ */
+export const addPersonalAiVersionBlock = async (
+  noteId: string,
+  version: number,
+  type: string,
+  content: string,
+  afterBlockId: string | null,
+  userId: string,
+  token: string
+): Promise<Block> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(
+    `/user-notes/${noteId}/ai-versions/${version}/blocks`,
+    { type, content, afterBlockId, userId }
+  );
+  return response.data;
+};
+
+/**
+ * Delete a block from a personal AI version
+ */
+export const deletePersonalAiVersionBlock = async (
+  noteId: string,
+  version: number,
+  blockId: string,
+  userId: string,
+  token: string
+): Promise<{ success: boolean; blockId: string }> => {
+  setAccessToken(token);
+  const response = await axiosInstance.delete(
+    `/user-notes/${noteId}/ai-versions/${version}/blocks/${blockId}`
+  );
+  return response.data;
+};
+
+/**
+ * Import a shared (session) AI version as a personal note version
+ */
+export const importSharedAiVersion = async (
+  noteId: string,
+  sessionId: string,
+  version: number,
+  token: string
+): Promise<AIContentVersion> => {
+  setAccessToken(token);
+  const response = await axiosInstance.post(
+    `/user-notes/${noteId}/ai-versions/import`,
+    { sessionId, version }
   );
   return response.data;
 };

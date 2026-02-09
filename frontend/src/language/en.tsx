@@ -64,14 +64,14 @@ const en = {
   login_google: 'Continue with Google',
   login_signup: 'Sign Up',
   login_google_subtitle: 'Sign in with Google to start your reading journey',
-  login_features_description: 'By signing in, you\'ll get access to all book club features including creating and joining discussion rooms',
+  login_features_description: 'By signing in, you\'ll get access to all book meeting features including creating and joining discussion rooms',
   login_terms_prefix: 'By continuing, you agree to our',
   login_terms: 'Terms of Service',
   login_terms_and: 'and',
   login_privacy: 'Privacy Policy',
 
   // Home
-  home_welcome: 'Welcome to BookClub',
+  home_welcome: 'Welcome to Mamalias',
   home_description: 'Join one-time online book discussions freely',
 
   // Session
@@ -149,7 +149,7 @@ const en = {
 
   // Set Username Page
   set_username_title: 'Set Your Nickname',
-  set_username_subtitle: 'Please set a nickname to use in BookClub.',
+  set_username_subtitle: 'Please set a nickname to use in Mamalias.',
   set_username_label: 'Nickname',
   set_username_placeholder: 'Enter your nickname',
   set_username_check: 'Check',
@@ -250,6 +250,40 @@ const en = {
   note_detail_ai_summary: 'AI Summary',
   note_detail_title_placeholder: 'Enter note title',
   note_detail_content_placeholder: 'Enter note content',
+  note_detail_speaking_logs: 'Speaking Logs',
+  note_detail_no_speaking_logs: 'No speaking logs available',
+  note_detail_coming_soon: 'Coming Soon',
+  note_detail_add_block: 'Add Block',
+  note_detail_unsaved_changes: 'Unsaved changes',
+  note_detail_auto_saved: 'Auto-saved',
+  note_detail_auto_saving: 'Auto-saving...',
+  note_detail_quotes: 'Notable Quotes',
+  note_detail_open_questions: 'Open Questions',
+  note_detail_no_ai_summary: 'No AI summary available',
+  note_detail_ai_transcription: 'AI Transcription',
+  note_detail_no_transcription: 'No transcription available',
+  note_detail_endorsement_title: 'Rate Participants',
+  note_detail_endorsement_desc: "You haven't rated all participants yet.",
+  note_detail_endorsement_button: 'Rate Now',
+  note_detail_tab_personal: 'Personal Notes',
+  note_detail_tab_ai: 'AI Organization',
+  note_detail_ai_tools: 'AI Tools',
+  note_detail_ai_empty_desc: 'Organize your discussion notes with AI.',
+  note_detail_generate_summary: 'Generate Summary',
+  note_detail_regenerate_summary: 'Regenerate Summary',
+  note_detail_organize_notes: 'Organize Notes',
+  note_detail_reorganize: 'Reorganize',
+  note_detail_generating: 'Generating...',
+  note_detail_organizing: 'Organizing...',
+  note_detail_shared_organized: 'Shared Organized',
+  note_detail_my_organized: 'My Organized',
+  note_detail_import: 'Import',
+  note_detail_importing: 'Importing...',
+  note_detail_no_shared_organized: 'No shared organized versions',
+  note_detail_no_personal_organized: 'No personal organized versions yet',
+  note_detail_readonly_badge: 'Read Only',
+  note_detail_shared_version_label: 'Shared v{{version}}',
+  meet_block_delete_selected: 'Delete {{count}} selected block(s)?',
 
   // Profile Page
   profile_login_required: 'Please login to view your profile.',
@@ -702,12 +736,13 @@ const en = {
   footer_faq: 'FAQ',
   footer_contact: 'Contact Us',
   footer_about: 'About',
+  footer_suggestion: 'Suggestion',
   footer_my_profile: 'My Profile',
   footer_feedback: 'Send Feedback',
   footer_legal: 'Legal',
   footer_terms: 'Terms of Service',
   footer_privacy: 'Privacy Policy',
-  footer_copyright: '© 2024 BookClub. All rights reserved.',
+  footer_copyright: '© 2024 Mamalias. All rights reserved.',
 
   // Meeting Page
   meeting_title: 'Meeting Room',
@@ -856,7 +891,7 @@ const en = {
 
   // About Page - Features Section
   about_features_badge: 'Features',
-  about_features_title: 'Why Choose BookClub?',
+  about_features_title: 'Why Choose Mamalias?',
   about_features_subtitle: 'Experience the future of book discussions with AI-powered features that make every conversation meaningful and memorable.',
 
   about_feature_onetime_title: 'One-Time Meetings',
@@ -892,7 +927,7 @@ const en = {
   about_feature_global_title: 'Global Network',
   about_feature_global_desc: 'Connect with book lovers worldwide and experience diverse perspectives.',
 
-  about_comparison_title: 'Traditional Book Clubs vs BookClub',
+  about_comparison_title: 'Traditional Book Clubs vs Mamalias',
   about_comparison_item: 'Item',
   about_comparison_traditional: 'Traditional',
   about_comparison_participation: 'Participation',
@@ -916,7 +951,7 @@ const en = {
 
   // About Page - Testimonials Section
   about_testimonials_title: 'Reader Stories',
-  about_testimonials_subtitle: 'Hear from readers who have grown with BookClub',
+  about_testimonials_subtitle: 'Hear from readers who have grown with Mamalias',
 
   about_testimonial_1_name: 'Sarah Chen',
   about_testimonial_1_job: 'Software Engineer',
@@ -954,7 +989,7 @@ const en = {
 
   about_pricing_free_title: 'Free',
   about_pricing_free_desc: 'Perfect for casual readers',
-  about_pricing_free_feature_1: 'Join up to 3 book clubs',
+  about_pricing_free_feature_1: 'Join up to 3 book meetings',
   about_pricing_free_feature_2: 'Access public discussions',
   about_pricing_free_feature_3: 'Basic AI recommendations',
   about_pricing_free_feature_4: 'Community chat',
@@ -962,7 +997,7 @@ const en = {
 
   about_pricing_premium_title: 'Premium',
   about_pricing_premium_desc: 'For passionate readers',
-  about_pricing_premium_feature_1: 'Unlimited book clubs',
+  about_pricing_premium_feature_1: 'Unlimited book meetings',
   about_pricing_premium_feature_2: 'Create private rooms',
   about_pricing_premium_feature_3: 'Advanced AI insights',
   about_pricing_premium_feature_4: 'Reading analytics',
@@ -983,7 +1018,7 @@ const en = {
 
   about_pricing_comparison_title: 'Detailed Feature Comparison',
   about_pricing_feature: 'Feature',
-  about_pricing_table_clubs: 'Book Club Access',
+  about_pricing_table_clubs: 'Book Meeting Access',
   about_pricing_table_clubs_free: '3 clubs',
   about_pricing_table_clubs_premium: 'Unlimited',
   about_pricing_table_clubs_team: 'Unlimited',
@@ -1035,7 +1070,7 @@ const en = {
   reputation_attendance_rate: 'Attendance Rate',
   reputation_ontime_rate: 'On-time Rate',
   reputation_endorsement_title: 'Reputation Score Analysis',
-  reputation_endorsement_subtitle: 'Your book club activity evaluation measured by 6 key indicators',
+  reputation_endorsement_subtitle: 'Your book meeting activity evaluation measured by 6 key indicators',
   reputation_current_score: 'Current Score',
   reputation_max_score: 'Max Score (5.0)',
   reputation_average_score: 'Average Score',
@@ -1235,6 +1270,19 @@ const en = {
   revolution_login_to_comment: 'Please log in to comment.',
   revolution_delete_comment_confirm: 'Are you sure you want to delete this comment?',
   revolution_error_load_failed: 'Failed to load suggestion.',
+
+  // Review Modal (Service feedback)
+  review_title: 'Thank you for using Mamalias!',
+  review_subtitle: 'How was your discussion experience? Your feedback helps us improve.',
+  review_rating_label: 'Overall Rating',
+  review_good_label: 'What did you enjoy?',
+  review_good_placeholder: 'Share what you liked about the experience...',
+  review_bad_label: 'What could be improved?',
+  review_bad_placeholder: 'Share any suggestions for improvement...',
+  review_consent_label: 'I agree to share my review publicly',
+  review_skip: 'Skip',
+  review_submit: 'Submit',
+  review_submitting: 'Submitting...',
 };
 
 export default en;

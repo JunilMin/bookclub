@@ -56,13 +56,13 @@ const Footer: React.FC = () => {
             <h4 className="footer-section-title">{t('footer_support')}</h4>
             <ul className="footer-links">
               <li>
-                <a href="#help">{t('footer_help_center')}</a>
+                <Link to="/help">{t('footer_faq')}</Link>
               </li>
               <li>
-                <a href="#faq">{t('footer_faq')}</a>
+                <Link to="/help">{t('footer_contact')}</Link>
               </li>
               <li>
-                <a href="#contact">{t('footer_contact')}</a>
+                <Link to="/revolution">{t('footer_suggestion')}</Link>
               </li>
               <li>
                 <Link to="/about">{t('footer_about')}</Link>

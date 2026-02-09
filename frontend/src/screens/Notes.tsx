@@ -165,7 +165,7 @@ const NoteCard = React.memo<NoteCardProps>(
           <span className="notes-badge-genre">{note.bookGenre}</span>
         )}
         <button
-          className={`notes-btn-favorite ${note.isFavorite ? 'active' : ''}`}
+          className={`notes-btn-favorite ${note.liked ? 'active' : ''}`}
           onClick={(e) => onToggleFavorite(e, note.noteId)}
         >
           <FiStar />
@@ -323,9 +323,9 @@ const Notes: React.FC = () => {
   const handleToggleFavorite = useCallback(
     (e: React.MouseEvent, noteId: string) => {
       e.stopPropagation();
-      toggleFavorite(noteId);
+      if (accessToken) toggleFavorite(noteId, accessToken);
     },
-    [toggleFavorite]
+    [toggleFavorite, accessToken]
   );
 
   const handleLoginClick = useCallback(() => {
@@ -356,7 +356,7 @@ const Notes: React.FC = () => {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       result = result.filter((n) => new Date(n.noteCreatedAt) >= thirtyDaysAgo);
     } else if (activeTab === 'favorites') {
-      result = result.filter((n) => n.isFavorite);
+      result = result.filter((n) => n.liked);
     }
 
     // Search filter
@@ -395,7 +395,7 @@ const Notes: React.FC = () => {
   const stats = useMemo(() => {
     return {
       total: notes.length,
-      favorites: notes.filter((n) => n.isFavorite).length,
+      favorites: notes.filter((n) => n.liked).length,
       totalParticipants: notes.reduce((sum, n) => sum + n.participantCount, 0),
     };
   }, [notes]);

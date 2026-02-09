@@ -46,5 +46,5 @@ public class NoteSummaryResponse {
 
     // User's relation to this meeting
     private boolean isHost;
-    private boolean isFavorite;
+    private boolean liked;
 }

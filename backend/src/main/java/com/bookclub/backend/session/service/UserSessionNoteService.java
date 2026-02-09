@@ -203,14 +203,19 @@ public class UserSessionNoteService {
         response.setHostPhotoUrl(hostPhotoUrl);
         response.setHostRating(hostRating);
 
-        // AI Summary (if available)
+        // AI Summary (shared, from session recording)
         if (recordingOpt.isPresent() && recordingOpt.get().getAiSummary() != null) {
             response.setAiSummary(recordingOpt.get().getAiSummary());
         }
 
+        // Personal AI Summary (user-specific, stored in UserSessionNote)
+        if (note.getPersonalAiSummary() != null) {
+            response.setPersonalAiSummary(note.getPersonalAiSummary());
+        }
+
         // User's relation
         response.setHost(hostId != null && hostId.equals(userId));
-        response.setFavorite(false); // TODO: Implement favorites
+        response.setLiked(Boolean.TRUE.equals(note.getLiked()));
 
         // Participants list (호스트 제외 - 호스트는 별도 섹션에 표시)
         List<UserNoteResponse.ParticipantInfo> participants = new ArrayList<>();
@@ -373,6 +378,23 @@ public class UserSessionNoteService {
     /**
      * 개인 노트 삭제
      */
+    public UserSessionNote toggleLiked(String noteId, String userId) throws Exception {
+        Optional<UserSessionNote> noteOpt = userSessionNoteRepository.findById(noteId);
+        if (noteOpt.isEmpty()) {
+            throw new NotFoundException("Note not found");
+        }
+
+        UserSessionNote note = noteOpt.get();
+
+        if (!note.getUserId().equals(userId)) {
+            throw new ForbiddenException("You don't have permission to update this note");
+        }
+
+        boolean current = Boolean.TRUE.equals(note.getLiked());
+        note.setLiked(!current);
+        return userSessionNoteRepository.save(note);
+    }
+
     public void deleteNote(String noteId, String userId) throws Exception {
         Optional<UserSessionNote> noteOpt = userSessionNoteRepository.findById(noteId);
         if (noteOpt.isEmpty()) {

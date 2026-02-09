@@ -60,6 +60,7 @@ export interface AIContentVersionsResponse {
 export interface AIContentVersion {
   id: string;
   sessionId: string;
+  noteId?: string;
   version: number;
   blockOrder: string[];
   blocks: Record<string, Block>;

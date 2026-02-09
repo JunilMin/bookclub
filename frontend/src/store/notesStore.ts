@@ -1,6 +1,6 @@
 // frontend/src/store/notesStore.ts
 import { create } from 'zustand';
-import { getMyNotesEnriched, UserNoteResponse } from '../api/notes';
+import { getMyNotesEnriched, toggleNoteLiked, UserNoteResponse } from '../api/notes';
 
 // =============================================================================
 // Constants
@@ -47,7 +47,7 @@ export interface NotesActions {
   // Data manipulation
   updateNote: (note: UserNoteResponse) => void;
   removeNote: (noteId: string) => void;
-  toggleFavorite: (noteId: string) => void;
+  toggleFavorite: (noteId: string, token: string) => void;
 
   // Cache control
   invalidateCache: () => void;
@@ -199,17 +199,40 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     });
   },
 
-  toggleFavorite: (noteId: string) => {
-    set((state) => {
-      const note = state.byId[noteId];
-      if (!note) return state;
-      return {
+  toggleFavorite: (noteId: string, token: string) => {
+    // Optimistic update (if note exists in store)
+    const noteInStore = get().byId[noteId];
+    if (noteInStore) {
+      set((state) => ({
         byId: {
           ...state.byId,
-          [noteId]: { ...note, isFavorite: !note.isFavorite },
+          [noteId]: { ...state.byId[noteId], liked: !state.byId[noteId].liked },
         },
-      };
-    });
+      }));
+    }
+    // API call + invalidate cache so next Notes visit fetches fresh data
+    toggleNoteLiked(noteId, token)
+      .then(() => {
+        // If note wasn't in store, invalidate cache for next load
+        if (!noteInStore) {
+          set({ lastFetchTime: null });
+        }
+      })
+      .catch(() => {
+        // Rollback if note was in store
+        if (noteInStore) {
+          set((state) => {
+            const note = state.byId[noteId];
+            if (!note) return state;
+            return {
+              byId: {
+                ...state.byId,
+                [noteId]: { ...note, liked: !note.liked },
+              },
+            };
+          });
+        }
+      });
   },
 
   // ---------------------------------------------------------------------------
@@ -253,5 +276,5 @@ export const selectNotesCount = (state: NotesStore): number => {
  * Get favorites count
  */
 export const selectFavoritesCount = (state: NotesStore): number => {
-  return state.order.filter((id) => state.byId[id]?.isFavorite).length;
+  return state.order.filter((id) => state.byId[id]?.liked).length;
 };

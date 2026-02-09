@@ -77,12 +77,15 @@ export interface UserNoteResponse {
   // Participants (host included)
   participants?: ParticipantInfo[];
 
-  // AI Summary (if available)
+  // AI Summary (shared, from session recording)
   aiSummary?: AISummary;
+
+  // Personal AI Summary (user-specific)
+  personalAiSummary?: AISummary;
 
   // User's relation
   isHost: boolean;
-  isFavorite: boolean;
+  liked: boolean;
 }
 
 /**
@@ -255,6 +258,15 @@ export const getMyNotesEnriched = async (token: string): Promise<UserNoteRespons
 export const getNoteEnriched = async (noteId: string, token: string): Promise<UserNoteResponse> => {
   setAccessToken(token);
   const response = await axiosInstance.get(`/user-notes/${noteId}/enriched`);
+  return response.data;
+};
+
+/**
+ * Toggle note liked/favorite status
+ */
+export const toggleNoteLiked = async (noteId: string, token: string): Promise<{ noteId: string; liked: boolean }> => {
+  setAccessToken(token);
+  const response = await axiosInstance.put(`/user-notes/${noteId}/liked`);
   return response.data;
 };
 

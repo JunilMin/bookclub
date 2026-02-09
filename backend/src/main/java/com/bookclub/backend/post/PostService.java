@@ -28,6 +28,13 @@ public class PostService {
     private GoogleCalendarService googleCalendarService;
 
     /**
+     * 총 게시물 수 조회
+     */
+    public long getPostCount() {
+        return postRepository.count();
+    }
+
+    /**
      * 모든 게시물 조회 (호스트 정보 포함)
      */
     public List<Post> getAllPosts() {

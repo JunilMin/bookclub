@@ -244,6 +244,179 @@ public class AIContentVersionService {
         }
     }
 
+    // ============================================
+    // Personal Note (noteId-based) methods
+    // ============================================
+
+    /**
+     * Create a new AI content version for a personal note.
+     */
+    @Transactional
+    public AIContentVersion createPersonalVersion(
+            String noteId,
+            String sessionId,
+            String aiContent,
+            String userId,
+            String modelUsed,
+            boolean valid,
+            List<String> sourceFragmentIds,
+            List<String> outputFragmentIds,
+            List<String> missingFragments,
+            String validationError) {
+
+        int nextVersion = getNextPersonalVersionNumber(noteId);
+        logger.info("Creating personal AI content version {} for note {}", nextVersion, noteId);
+
+        AIContentVersion version = new AIContentVersion(sessionId, nextVersion, userId, modelUsed);
+        version.setNoteId(noteId);
+        version.setAiContent(aiContent);
+        version.setValid(valid);
+        version.setSourceFragmentIds(sourceFragmentIds);
+        version.setOutputFragmentIds(outputFragmentIds);
+        version.setMissingFragments(missingFragments);
+        version.setValidationError(validationError);
+
+        convertContentToBlocks(version, aiContent, userId);
+
+        AIContentVersion saved = repository.save(version);
+        cleanupOldPersonalVersions(noteId);
+        return saved;
+    }
+
+    public int getNextPersonalVersionNumber(String noteId) {
+        Optional<AIContentVersion> latest = repository.findFirstByNoteIdOrderByVersionDesc(noteId);
+        return latest.map(v -> v.getVersion() + 1).orElse(1);
+    }
+
+    public List<AIContentVersion> getPersonalVersions(String noteId) {
+        return repository.findByNoteIdOrderByVersionDesc(noteId);
+    }
+
+    public Optional<AIContentVersion> getPersonalVersion(String noteId, int version) {
+        return repository.findByNoteIdAndVersion(noteId, version);
+    }
+
+    public long getPersonalVersionCount(String noteId) {
+        return repository.countByNoteId(noteId);
+    }
+
+    public SessionNote.Block updatePersonalBlockContent(
+            String noteId, int version, String blockId, String content, String userId) {
+        Optional<AIContentVersion> versionOpt = repository.findByNoteIdAndVersion(noteId, version);
+        if (versionOpt.isEmpty()) return null;
+        return doUpdateBlockContent(versionOpt.get(), blockId, content, userId);
+    }
+
+    public SessionNote.Block addPersonalBlock(
+            String noteId, int version, String type, String content, String afterBlockId, String userId) {
+        Optional<AIContentVersion> versionOpt = repository.findByNoteIdAndVersion(noteId, version);
+        if (versionOpt.isEmpty()) return null;
+        return doAddBlock(versionOpt.get(), type, content, afterBlockId, userId);
+    }
+
+    public boolean deletePersonalBlock(String noteId, int version, String blockId, String userId) {
+        Optional<AIContentVersion> versionOpt = repository.findByNoteIdAndVersion(noteId, version);
+        if (versionOpt.isEmpty()) return false;
+        return doDeleteBlock(versionOpt.get(), blockId, userId);
+    }
+
+    /**
+     * Import a shared (session) AI version as a personal note version.
+     * Deep-copies blocks from the shared version into a new personal version.
+     */
+    @Transactional
+    public AIContentVersion importSharedVersion(String noteId, String sessionId, int sharedVersionNum, String userId) {
+        Optional<AIContentVersion> sharedOpt = getVersion(sessionId, sharedVersionNum);
+        if (sharedOpt.isEmpty()) {
+            throw new RuntimeException("Shared version not found: session=" + sessionId + ", version=" + sharedVersionNum);
+        }
+        AIContentVersion shared = sharedOpt.get();
+
+        int nextVersion = getNextPersonalVersionNumber(noteId);
+        logger.info("Importing shared AI version {} (session={}) as personal version {} for note {}",
+                sharedVersionNum, sessionId, nextVersion, noteId);
+
+        AIContentVersion personal = new AIContentVersion(sessionId, nextVersion, userId,
+                shared.getModelUsed() != null ? shared.getModelUsed() : "imported");
+        personal.setNoteId(noteId);
+        personal.setAiContent(shared.getAiContent());
+        personal.setValid(shared.isValid());
+        personal.setSourceFragmentIds(shared.getSourceFragmentIds() != null ? new ArrayList<>(shared.getSourceFragmentIds()) : null);
+        personal.setOutputFragmentIds(shared.getOutputFragmentIds() != null ? new ArrayList<>(shared.getOutputFragmentIds()) : null);
+        personal.setMissingFragments(shared.getMissingFragments() != null ? new ArrayList<>(shared.getMissingFragments()) : null);
+        personal.setValidationError(shared.getValidationError());
+
+        // Deep-copy blocks
+        Map<String, SessionNote.Block> copiedBlocks = new HashMap<>();
+        if (shared.getBlocks() != null) {
+            for (Map.Entry<String, SessionNote.Block> entry : shared.getBlocks().entrySet()) {
+                SessionNote.Block orig = entry.getValue();
+                copiedBlocks.put(entry.getKey(),
+                        new SessionNote.Block(orig.getId(), orig.getType(), orig.getContent(), userId));
+            }
+        }
+        personal.setBlocks(copiedBlocks);
+        personal.setBlockOrder(shared.getBlockOrder() != null ? new ArrayList<>(shared.getBlockOrder()) : new ArrayList<>());
+
+        AIContentVersion saved = repository.save(personal);
+        cleanupOldPersonalVersions(noteId);
+        return saved;
+    }
+
+    @Transactional
+    public void cleanupOldPersonalVersions(String noteId) {
+        long count = repository.countByNoteId(noteId);
+        if (count <= MAX_VERSIONS) return;
+        List<AIContentVersion> versions = repository.findByNoteIdOrderByVersionDesc(noteId);
+        for (int i = MAX_VERSIONS; i < versions.size(); i++) {
+            logger.info("Deleting old personal AI version: note={}, version={}", noteId, versions.get(i).getVersion());
+            repository.delete(versions.get(i));
+        }
+    }
+
+    // ============================================
+    // Private helpers (shared by session & personal)
+    // ============================================
+
+    private SessionNote.Block doUpdateBlockContent(
+            AIContentVersion ver, String blockId, String content, String userId) {
+        boolean updated = ver.updateBlockContent(blockId, content, userId);
+        if (!updated) return null;
+        repository.save(ver);
+        return ver.getBlock(blockId);
+    }
+
+    private SessionNote.Block doAddBlock(
+            AIContentVersion ver, String type, String content, String afterBlockId, String userId) {
+        String blockId = AIContentVersion.generateBlockId();
+        SessionNote.Block block = new SessionNote.Block(blockId, type, content, userId);
+
+        if (ver.getBlocks() == null) ver.setBlocks(new HashMap<>());
+        ver.getBlocks().put(blockId, block);
+
+        if (ver.getBlockOrder() == null) ver.setBlockOrder(new ArrayList<>());
+        if (afterBlockId == null || !ver.getBlockOrder().contains(afterBlockId)) {
+            ver.getBlockOrder().add(blockId);
+        } else {
+            int index = ver.getBlockOrder().indexOf(afterBlockId);
+            ver.getBlockOrder().add(index + 1, blockId);
+        }
+
+        ver.setLastEditedBy(userId);
+        ver.setUpdatedAt(LocalDateTime.now());
+        repository.save(ver);
+        return block;
+    }
+
+    private boolean doDeleteBlock(AIContentVersion ver, String blockId, String userId) {
+        boolean deleted = ver.deleteBlock(blockId);
+        if (deleted) {
+            ver.setLastEditedBy(userId);
+            repository.save(ver);
+        }
+        return deleted;
+    }
+
     /**
      * Convert TipTap JSON content to block format
      */

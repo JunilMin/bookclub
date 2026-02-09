@@ -2,21 +2,53 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getUserCount } from '../api/user';
+import { getPostCount } from '../api/posts';
+import { getAverageRating } from '../api/review';
 import './styles/About.css';
 import './styles/Board.css';
 
+/**
+ * 숫자를 단위별로 포맷 (10, 100, 1000 단위 내림 + "+")
+ * KR: 1만+, 3만+  /  EN: 10K+, 30K+
+ */
+const formatStatCount = (n: number, lang: string): string => {
+  const isKo = lang.startsWith('ko');
+
+  if (isKo) {
+    if (n >= 100_000_000) return `${Math.floor(n / 100_000_000)}억+`;
+    if (n >= 10_000) return `${Math.floor(n / 10_000)}만+`;
+    if (n >= 1_000) return `${Math.floor(n / 1_000) * 1_000}+`;
+    if (n >= 100) return `${Math.floor(n / 100) * 100}+`;
+    if (n >= 10) return `${Math.floor(n / 10) * 10}+`;
+    return String(n);
+  }
+
+  // EN
+  if (n >= 1_000_000) return `${Math.floor(n / 1_000_000)}M+`;
+  if (n >= 1_000) return `${Math.floor(n / 1_000)}K+`;
+  if (n >= 100) return `${Math.floor(n / 100) * 100}+`;
+  if (n >= 10) return `${Math.floor(n / 10) * 10}+`;
+  return String(n);
+};
+
 function About() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [userCount, setUserCount] = useState<number>(0);
+  const [postCount, setPostCount] = useState<number>(0);
+  const [avgRating, setAvgRating] = useState<number>(0);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
 
   useEffect(() => {
-    const fetchUserCount = async () => {
-      const count = await getUserCount();
-      setUserCount(count);
+    const fetchCounts = async () => {
+      const [users, posts, rating] = await Promise.all([
+        getUserCount(), getPostCount(), getAverageRating()
+      ]);
+      setUserCount(users);
+      setPostCount(posts);
+      setAvgRating(rating);
     };
-    fetchUserCount();
+    fetchCounts();
   }, []);
 
   return (
@@ -117,7 +149,7 @@ function About() {
               <div className="stat-icon-wrapper stat-icon-primary">
                 <i className="ri-group-line"></i>
               </div>
-              <div className="stat-value">{userCount.toLocaleString()}+</div>
+              <div className="stat-value">{formatStatCount(userCount, i18n.language)}</div>
               <div className="stat-label">{t('browse_stat_readers_grid')}</div>
               <div className="stat-subtitle">{t('browse_stat_readers_sub')}</div>
             </div>
@@ -128,7 +160,7 @@ function About() {
               <div className="stat-icon-wrapper stat-icon-secondary">
                 <i className="ri-book-open-line"></i>
               </div>
-              <div className="stat-value">5,000+</div>
+              <div className="stat-value">{formatStatCount(postCount, i18n.language)}</div>
               <div className="stat-label">{t('browse_stat_discussions')}</div>
               <div className="stat-subtitle">{t('browse_stat_discussions_sub')}</div>
             </div>
@@ -139,14 +171,21 @@ function About() {
               <div className="stat-icon-wrapper stat-icon-accent">
                 <i className="ri-star-fill"></i>
               </div>
-              <div className="stat-value">4.9</div>
+              <div className="stat-value">{avgRating > 0 ? avgRating.toFixed(1) : '-'}</div>
               <div className="stat-label">{t('browse_stat_rating')}</div>
               <div className="stat-stars">
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
-                <i className="ri-star-fill"></i>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <i
+                    key={star}
+                    className={
+                      avgRating >= star
+                        ? 'ri-star-fill'
+                        : avgRating >= star - 0.5
+                        ? 'ri-star-half-fill'
+                        : 'ri-star-line'
+                    }
+                  ></i>
+                ))}
               </div>
             </div>
           </div>
@@ -328,7 +367,7 @@ function About() {
                   <tr>
                     <th>{t('about_comparison_item')}</th>
                     <th>{t('about_comparison_traditional')}</th>
-                    <th className="highlight">BookClub</th>
+                    <th className="highlight">Mamalias</th>
                   </tr>
                 </thead>
                 <tbody>

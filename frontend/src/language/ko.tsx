@@ -64,7 +64,7 @@ const ko = {
   login_google: 'Google로 계속하기',
   login_signup: '회원가입',
   login_google_subtitle: 'Google로 로그인하여 독서 여정을 시작하세요',
-  login_features_description: '로그인하시면 토론방 만들기, 참여하기 등 모든 북클럽 기능을 이용하실 수 있습니다',
+  login_features_description: '로그인하시면 토론방 만들기, 참여하기 등 모든 북미팅 기능을 이용하실 수 있습니다',
   login_terms_prefix: '계속 진행하면',
   login_terms: '서비스 약관',
   login_terms_and: '및',
@@ -250,6 +250,40 @@ const ko = {
   note_detail_ai_summary: 'AI 요약',
   note_detail_title_placeholder: '노트 제목을 입력하세요',
   note_detail_content_placeholder: '노트 내용을 입력하세요',
+  note_detail_speaking_logs: '발언 기록',
+  note_detail_no_speaking_logs: '발언 기록이 없습니다',
+  note_detail_coming_soon: '준비 중',
+  note_detail_add_block: '블록 추가',
+  note_detail_unsaved_changes: '저장되지 않은 변경사항',
+  note_detail_auto_saved: '자동 저장됨',
+  note_detail_auto_saving: '자동 저장 중...',
+  note_detail_quotes: '인상 깊은 인용구',
+  note_detail_open_questions: '열린 질문',
+  note_detail_no_ai_summary: 'AI 요약이 없습니다',
+  note_detail_ai_transcription: 'AI 전사 기록',
+  note_detail_no_transcription: '전사 기록이 없습니다',
+  note_detail_endorsement_title: '참가자 평가',
+  note_detail_endorsement_desc: '아직 평가하지 않은 참가자가 있습니다.',
+  note_detail_endorsement_button: '평가하기',
+  note_detail_tab_personal: '개인 노트',
+  note_detail_tab_ai: 'AI 정리',
+  note_detail_ai_tools: 'AI 도구',
+  note_detail_ai_empty_desc: 'AI로 토론 노트를 자동 정리합니다.',
+  note_detail_generate_summary: 'AI 요약 생성',
+  note_detail_regenerate_summary: '요약 재생성',
+  note_detail_organize_notes: '노트 정리',
+  note_detail_reorganize: '다시 정리',
+  note_detail_generating: '생성 중...',
+  note_detail_organizing: '정리 중...',
+  note_detail_shared_organized: '공유 AI 정리',
+  note_detail_my_organized: '내 AI 정리',
+  note_detail_import: '가져오기',
+  note_detail_importing: '가져오는 중...',
+  note_detail_no_shared_organized: '공유 AI 정리가 없습니다',
+  note_detail_no_personal_organized: '아직 개인 AI 정리가 없습니다',
+  note_detail_readonly_badge: '읽기 전용',
+  note_detail_shared_version_label: '공유 v{{version}}',
+  meet_block_delete_selected: '선택한 {{count}}개 블록을 삭제하시겠습니까?',
 
   // Profile Page
   profile_login_required: '프로필을 보려면 로그인이 필요합니다.',
@@ -702,6 +736,7 @@ const ko = {
   footer_faq: 'FAQ',
   footer_contact: '문의하기',
   footer_about: '소개',
+  footer_suggestion: '건의하기',
   footer_my_profile: '내 프로필',
   footer_feedback: '피드백 보내기',
   footer_legal: '법적 정보',
@@ -856,7 +891,7 @@ const ko = {
 
   // About Page - Features Section
   about_features_badge: 'Features',
-  about_features_title: '왜 BookClub을 선택해야 할까요?',
+  about_features_title: '왜 Mamalias을 선택해야 할까요?',
   about_features_subtitle: '모든 대화를 의미 있고 기억에 남게 만드는 AI 기반 기능으로 독서 토론의 미래를 경험하세요.',
 
   about_feature_onetime_title: '일회성 모임',
@@ -892,7 +927,7 @@ const ko = {
   about_feature_global_title: '글로벌 네트워크',
   about_feature_global_desc: '전 세계의 독서 애호가들과 연결되어 다양한 관점을 경험하세요.',
 
-  about_comparison_title: '기존 북클럽 vs BookClub',
+  about_comparison_title: '기존 북클럽 vs Mamalias',
   about_comparison_item: '항목',
   about_comparison_traditional: '기존 북클럽',
   about_comparison_participation: '참여 방식',
@@ -916,7 +951,7 @@ const ko = {
 
   // About Page - Testimonials Section
   about_testimonials_title: '독자들의 이야기',
-  about_testimonials_subtitle: 'BookClub과 함께 성장한 독자들의 생생한 후기를 들어보세요',
+  about_testimonials_subtitle: 'Mamalias와 함께 성장한 독자들의 생생한 후기를 들어보세요',
 
   about_testimonial_1_name: '김지은',
   about_testimonial_1_job: '소프트웨어 엔지니어',
@@ -954,7 +989,7 @@ const ko = {
 
   about_pricing_free_title: '무료',
   about_pricing_free_desc: '가벼운 독자에게 완벽',
-  about_pricing_free_feature_1: '최대 3개 북클럽 참여',
+  about_pricing_free_feature_1: '최대 3개 북미팅 참여',
   about_pricing_free_feature_2: '공개 토론 접근',
   about_pricing_free_feature_3: '기본 AI 추천',
   about_pricing_free_feature_4: '커뮤니티 채팅',
@@ -962,7 +997,7 @@ const ko = {
 
   about_pricing_premium_title: '프리미엄',
   about_pricing_premium_desc: '열정적인 독자를 위한',
-  about_pricing_premium_feature_1: '무제한 북클럽',
+  about_pricing_premium_feature_1: '무제한 북미팅',
   about_pricing_premium_feature_2: '비공개 방 생성',
   about_pricing_premium_feature_3: '고급 AI 인사이트',
   about_pricing_premium_feature_4: '독서 분석',
@@ -983,7 +1018,7 @@ const ko = {
 
   about_pricing_comparison_title: '상세 기능 비교',
   about_pricing_feature: '기능',
-  about_pricing_table_clubs: '북클럽 참여',
+  about_pricing_table_clubs: '북미팅 참여',
   about_pricing_table_clubs_free: '3개',
   about_pricing_table_clubs_premium: '무제한',
   about_pricing_table_clubs_team: '무제한',
@@ -1035,7 +1070,7 @@ const ko = {
   reputation_attendance_rate: '출석률',
   reputation_ontime_rate: '정시 출석률',
   reputation_endorsement_title: '평판 점수 분석',
-  reputation_endorsement_subtitle: '6가지 핵심 지표로 측정된 당신의 북클럽 활동 평가',
+  reputation_endorsement_subtitle: '6가지 핵심 지표로 측정된 당신의 북미팅 활동 평가',
   reputation_current_score: '현재 점수',
   reputation_max_score: '최대 점수 (5.0)',
   reputation_average_score: '평균 점수',
@@ -1235,6 +1270,19 @@ const ko = {
   revolution_login_to_comment: '댓글을 작성하려면 로그인이 필요합니다.',
   revolution_delete_comment_confirm: '댓글을 삭제하시겠습니까?',
   revolution_error_load_failed: '건의사항을 불러오는데 실패했습니다.',
+
+  // Review Modal (서비스 피드백)
+  review_title: 'BookClub을 이용해주셔서 감사합니다!',
+  review_subtitle: '토론 경험은 어떠셨나요? 소중한 피드백이 서비스 개선에 큰 도움이 됩니다.',
+  review_rating_label: '전체 평점',
+  review_good_label: '좋았던 점',
+  review_good_placeholder: '좋았던 점을 공유해주세요...',
+  review_bad_label: '아쉬운 점',
+  review_bad_placeholder: '개선할 점이 있다면 알려주세요...',
+  review_consent_label: '리뷰를 공개하는 것에 동의합니다',
+  review_skip: '건너뛰기',
+  review_submit: '제출하기',
+  review_submitting: '제출 중...',
 };
 
 export default ko;

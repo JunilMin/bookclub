@@ -44,6 +44,12 @@ public class UserSessionNote {
 
     private LocalDateTime updatedAt;
 
+    // 즐겨찾기 (null = false, 마이그레이션 대비)
+    private Boolean liked;
+
+    // 개인 AI 요약 (사용자별 독립 저장)
+    private SessionRecording.AISummary personalAiSummary;
+
     /**
      * 공용 노트에서 fork하여 개인 노트 생성
      * Block-based notes의 경우 getContentFromBlocks()로 TipTap JSON 재구성

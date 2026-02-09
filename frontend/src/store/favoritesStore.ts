@@ -1,6 +1,6 @@
 // frontend/src/store/favoritesStore.ts
 import { create } from 'zustand';
-import { getMyFav, UserFavorite, AIRecommendation, regenerateAIRecommendations } from '../api/favorites';
+import { getMyFav, UserFavorite, AIRecommendation, regenerateAIRecommendations, getEnhancedAIRecommendations } from '../api/favorites';
 import { getBookByISBN, BookSearchResult } from '../api/bookSearch';
 
 // =============================================================================
@@ -32,7 +32,7 @@ export interface FavoritesState {
 
 export interface FavoritesActions {
   // Fetch
-  fetchFavorites: (forceRefresh?: boolean) => Promise<void>;
+  fetchFavorites: (forceRefresh?: boolean, lang?: string) => Promise<void>;
 
   // AI Recommendations
   regenerateAIRecommendations: (lang?: string) => Promise<boolean>;
@@ -104,7 +104,7 @@ export const useFavoritesStore = create<FavoritesStore>((set, get) => ({
   // ---------------------------------------------------------------------------
   // fetchFavorites: 2-phase loading with caching
   // ---------------------------------------------------------------------------
-  fetchFavorites: async (forceRefresh = false) => {
+  fetchFavorites: async (forceRefresh = false, lang = 'ko') => {
     const state = get();
 
     // Check cache validity
@@ -118,29 +118,42 @@ export const useFavoritesStore = create<FavoritesStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const fav = await getMyFav();
+      // Fetch user favorites and AI recommendations in parallel
+      const [fav, aiResponse] = await Promise.all([
+        getMyFav(),
+        getEnhancedAIRecommendations(lang),
+      ]);
 
-      // Phase 1: Show basic data immediately (fast render)
+      // AI recommendations: enhanced API already includes title/author/coverUrl (no N+1)
+      const enrichedAIRecs: EnrichedAIRecommendation[] = aiResponse.recommendations.map((rec) => ({
+        isbn: rec.isbn,
+        reason: rec.reason,
+        recommendedAt: rec.recommendedAt,
+        bookInfo: {
+          isbn: rec.isbn,
+          title: rec.title,
+          author: rec.author,
+          thumbnail: rec.coverUrl ? { small: rec.coverUrl, medium: rec.coverUrl } : undefined,
+          categories: rec.genre ? [rec.genre] : [],
+        },
+      }));
+
+      // Phase 1: Show user favorites basic + AI already enriched
       const basicUserFavs: EnrichedFavorite[] = (fav.user || []).map((f) => ({ ...f }));
-      const basicAIRecs: EnrichedAIRecommendation[] = (fav.ai || []).map((r) => ({ ...r }));
 
       set({
         userFavorites: basicUserFavs,
-        aiRecommendations: basicAIRecs,
+        aiRecommendations: enrichedAIRecs,
         isLoading: false,
         isEnriching: true,
         lastFetchTime: Date.now(),
       });
 
-      // Phase 2: Enrich with book info (background)
-      const [enrichedUserFavs, enrichedAIRecs] = await Promise.all([
-        enrichWithBookInfo(fav.user || []),
-        enrichWithBookInfo(fav.ai || []),
-      ]);
+      // Phase 2: Enrich only user favorites (AI already done)
+      const enrichedUserFavs = await enrichWithBookInfo(fav.user || []);
 
       set({
         userFavorites: enrichedUserFavs,
-        aiRecommendations: enrichedAIRecs,
         isEnriching: false,
       });
     } catch (error) {

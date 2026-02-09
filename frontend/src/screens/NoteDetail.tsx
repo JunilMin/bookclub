@@ -3,23 +3,6 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-  closestCenter,
-  CollisionDetection,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
   FiArrowLeft,
   FiCalendar,
   FiUsers,
@@ -33,13 +16,15 @@ import {
   FiMessageSquare,
   FiCpu,
   FiMic,
-  FiPlus,
-  FiBold,
-  FiItalic,
-  FiList,
-  FiCode,
-  FiRotateCcw,
-  FiRotateCw,
+  FiChevronDown,
+  FiChevronUp,
+  FiTag,
+  FiAlertCircle,
+  FiFileText,
+  FiLoader,
+  FiCheck,
+  FiCheckCircle,
+  FiDownload,
 } from 'react-icons/fi';
 import { useAuth } from '../AuthContext/AuthContext';
 import {
@@ -50,16 +35,42 @@ import {
   ParticipantInfo
 } from '../api/notes';
 import { getPendingParticipants } from '../api/endorsements';
+import { getUtterances } from '../api/utterances';
+import {
+  generatePersonalAISummary,
+  organizePersonalNotes,
+  getPersonalAiContentVersions,
+  getPersonalAiContentVersion,
+  updatePersonalAiVersionBlockContent,
+  addPersonalAiVersionBlock,
+  deletePersonalAiVersionBlock,
+  getAiContentVersions,
+  getAiContentVersion,
+  importSharedAiVersion,
+} from '../api/aiSummary';
+import {
+  SessionUtterance,
+  AIContentVersionSummary,
+  AIContentVersion,
+} from '../types/meetRoom';
 import { PendingParticipant } from '../types/endorsement';
 import EndorsementFeedbackModal from '../components/meet/EndorsementFeedbackModal';
+import { useNotesStore } from '../store/notesStore';
 import { useLocalBlockDocument } from '../hooks/useLocalBlockDocument';
 import { useBlockHistory } from '../hooks/useBlockHistory';
-import { BlockType } from '../types/blockDocument';
-import BlockRenderer from '../components/meet/CenterPanel/BlockRenderer';
-import SortableBlockRenderer from '../components/meet/CenterPanel/SortableBlockRenderer';
+import { Block, BlockType, createEmptyBlockContent } from '../types/blockDocument';
 import { BlockEditorRef } from '../components/meet/CenterPanel/BlockEditor';
+import BlockEditorCore from '../components/meet/CenterPanel/BlockEditorCore';
 import './styles/NoteDetail.css';
+import './styles/Notes.css';
 import '../components/meet/styles/BlockBasedNotes.css';
+import '../components/meet/styles/CenterPanel.css';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+type NoteTab = 'personal' | 'ai';
 
 // =============================================================================
 // Helper Functions
@@ -96,16 +107,11 @@ function generateAvatar(name: string | null | undefined): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-/**
- * Extract plain text content from a TipTap node recursively
- */
-function extractTextFromNode(node: any): string {
-  if (!node) return '';
-  if (node.type === 'text' && node.text) return node.text;
-  if (node.content && Array.isArray(node.content)) {
-    return node.content.map(extractTextFromNode).join('');
-  }
-  return '';
+function formatUtteranceDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 // =============================================================================
@@ -117,6 +123,7 @@ const NoteDetail: React.FC = () => {
   const navigate = useNavigate();
   const { noteId } = useParams<{ noteId: string }>();
   const { accessToken, user } = useAuth();
+  const { toggleFavorite } = useNotesStore();
 
   // State
   const [note, setNote] = useState<UserNoteResponse | null>(null);
@@ -125,31 +132,24 @@ const NoteDetail: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  // Drag state
-  const [activeId, setActiveId] = useState<string | null>(null);
-
-  // Selection state
-  const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set());
-  const lastFocusedBlockIdRef = useRef<string | null>(null);
-
-  // Marquee selection state
-  const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
-  const [marqueeStart, setMarqueeStart] = useState<{ x: number; y: number } | null>(null);
-  const [marqueeEnd, setMarqueeEnd] = useState<{ x: number; y: number } | null>(null);
-  const blockListRef = useRef<HTMLDivElement>(null);
-
-  // Pending navigation state
-  const [pendingEditBlockId, setPendingEditBlockId] = useState<string | null>(null);
-  const [isNavigationPending, setIsNavigationPending] = useState(false);
-  type PendingActionType = 'enter' | 'backspace' | 'arrowUp' | 'arrowDown';
-  const pendingActionRef = useRef<{ type: PendingActionType; count: number } | null>(null);
+  // Tab state
+  const [activeTab, setActiveTab] = useState<NoteTab>('personal');
+  const [rightPanelTab, setRightPanelTab] = useState<'summary' | 'organized'>('summary');
 
   // Editor ref for toolbar
   const editorRef = useRef<BlockEditorRef | null>(null);
+  const aiEditorRef = useRef<BlockEditorRef | null>(null);
 
   // Undo/Redo state for UI
   const [_historyVersion, setHistoryVersion] = useState(0);
+
+  // Utterance State
+  const [utterances, setUtterances] = useState<SessionUtterance[]>([]);
+  const [utterancesLoading, setUtterancesLoading] = useState(false);
+  const [expandedUtteranceId, setExpandedUtteranceId] = useState<string | null>(null);
+  const [utteranceViewMode, setUtteranceViewMode] = useState<'refined' | 'raw'>('refined');
 
   // Endorsement State
   const [isEndorsementModalOpen, setIsEndorsementModalOpen] = useState(false);
@@ -157,6 +157,22 @@ const NoteDetail: React.FC = () => {
   const [hasUnendorsed, setHasUnendorsed] = useState(false);
   const [endorsementLoading, setEndorsementLoading] = useState(false);
   const [isEndorsementCollapsing, setIsEndorsementCollapsing] = useState(false);
+
+  // AI Version State
+  const [aiVersions, setAiVersions] = useState<AIContentVersionSummary[]>([]);
+  const [sharedAiVersions, setSharedAiVersions] = useState<AIContentVersionSummary[]>([]);
+  const [selectedAiVersion, setSelectedAiVersion] = useState<number | null>(null);
+  const [aiVersionData, setAiVersionData] = useState<AIContentVersion | null>(null);
+  const [isLoadingVersion, setIsLoadingVersion] = useState(false);
+  const [importingVersion, setImportingVersion] = useState<number | null>(null);
+  const [isAiVersionReadOnly, setIsAiVersionReadOnly] = useState(false);
+
+  // AI Action State
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isOrganizing, setIsOrganizing] = useState(false);
+
+  // AI Tab Editing State
+  const [versionEditingBlockId, setVersionEditingBlockId] = useState<string | null>(null);
 
   // Block document hook
   const {
@@ -172,6 +188,7 @@ const NoteDetail: React.FC = () => {
     addBlock,
     deleteBlock,
     reorderBlocks,
+    reorderMultiple,
     getContent,
     setContent,
     clearChanges,
@@ -182,10 +199,23 @@ const NoteDetail: React.FC = () => {
     username: user?.username || '',
   });
 
+  // Ref to always access latest blocks (avoids stale closure in setTimeout)
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+
+  // Ref to track editing block ID for undo/redo editor updates
+  const editingBlockIdRef = useRef(editingBlockId);
+  editingBlockIdRef.current = editingBlockId;
+
+  // Auto-save timer ref
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Block history hook for undo/redo
   const {
     pushAddBlock: historyPushAddBlock,
     pushDeleteBlock: historyPushDeleteBlock,
+    pushReorderBlock: historyPushReorderBlock,
     trackTextChange,
     flushTextChange,
     undo: historyUndo,
@@ -204,6 +234,13 @@ const NoteDetail: React.FC = () => {
     },
     onUpdateBlock: (blockId, content) => {
       saveBlock(blockId, content);
+      if (editingBlockIdRef.current === blockId && editorRef.current?.editor) {
+        try {
+          const parsed = JSON.parse(content);
+          const docContent = parsed.type === 'doc' ? parsed : { type: 'doc', content: [parsed] };
+          editorRef.current.editor.commands.setContent(docContent);
+        } catch { /* ignore parse errors */ }
+      }
       setHistoryVersion(v => v + 1);
     },
     onReorderBlock: async (blockId, afterBlockId) => {
@@ -231,16 +268,6 @@ const NoteDetail: React.FC = () => {
     return success;
   }, [historyRedo]);
 
-  // Drag sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
   // ==========================================================================
   // Data Fetching
   // ==========================================================================
@@ -255,9 +282,6 @@ const NoteDetail: React.FC = () => {
         const data = await getNoteEnriched(noteId, accessToken);
         setNote(data);
         setEditedTitle(data.title || '');
-
-        // Set content for block document
-        // Always call setContent - the hook handles null/empty gracefully
         setContent(data.content || '');
       } catch (err) {
         console.error('Failed to fetch note:', err);
@@ -269,6 +293,49 @@ const NoteDetail: React.FC = () => {
 
     fetchNote();
   }, [accessToken, noteId, t, setContent]);
+
+  // ==========================================================================
+  // Fetch AI Versions
+  // ==========================================================================
+  useEffect(() => {
+    if (!accessToken || !noteId) return;
+
+    const fetchAiVersions = async () => {
+      try {
+        const response = await getPersonalAiContentVersions(noteId, accessToken);
+        const versions = response.versions || [];
+        setAiVersions(versions);
+        if (versions.length > 0) {
+          const latest = versions[0].version;
+          setSelectedAiVersion(latest);
+          const data = await getPersonalAiContentVersion(noteId, latest, accessToken);
+          setAiVersionData(data);
+        }
+      } catch {
+        // No versions available - that's fine
+      }
+    };
+
+    fetchAiVersions();
+  }, [accessToken, noteId]);
+
+  // ==========================================================================
+  // Fetch Shared AI Versions (from session)
+  // ==========================================================================
+  useEffect(() => {
+    if (!accessToken || !note?.sessionId) return;
+
+    const fetchSharedVersions = async () => {
+      try {
+        const response = await getAiContentVersions(note.sessionId, accessToken);
+        setSharedAiVersions(response.versions || []);
+      } catch {
+        // No shared versions available
+      }
+    };
+
+    fetchSharedVersions();
+  }, [accessToken, note?.sessionId]);
 
   // ==========================================================================
   // Fetch Endorsement Status
@@ -295,362 +362,17 @@ const NoteDetail: React.FC = () => {
   }, [accessToken, note?.sessionId]);
 
   // ==========================================================================
-  // Marquee Selection
-  // ==========================================================================
-  const getMarqueeRect = useCallback(() => {
-    if (!marqueeStart || !marqueeEnd) return null;
-    return {
-      left: Math.min(marqueeStart.x, marqueeEnd.x),
-      top: Math.min(marqueeStart.y, marqueeEnd.y),
-      right: Math.max(marqueeStart.x, marqueeEnd.x),
-      bottom: Math.max(marqueeStart.y, marqueeEnd.y),
-      width: Math.abs(marqueeEnd.x - marqueeStart.x),
-      height: Math.abs(marqueeEnd.y - marqueeStart.y),
-    };
-  }, [marqueeStart, marqueeEnd]);
-
-  const getBlocksInMarquee = useCallback(() => {
-    const marqueeRect = getMarqueeRect();
-    if (!marqueeRect || !blockListRef.current) return new Set<string>();
-
-    const selectedIds = new Set<string>();
-    const blockElements = blockListRef.current.querySelectorAll('[data-block-id]');
-
-    blockElements.forEach((el) => {
-      const blockId = el.getAttribute('data-block-id');
-      if (!blockId) return;
-
-      const rect = el.getBoundingClientRect();
-      const listRect = blockListRef.current!.getBoundingClientRect();
-
-      const blockTop = rect.top - listRect.top + blockListRef.current!.scrollTop;
-      const blockBottom = rect.bottom - listRect.top + blockListRef.current!.scrollTop;
-      const blockLeft = rect.left - listRect.left;
-      const blockRight = rect.right - listRect.left;
-
-      const intersects = !(
-        blockRight < marqueeRect.left ||
-        blockLeft > marqueeRect.right ||
-        blockBottom < marqueeRect.top ||
-        blockTop > marqueeRect.bottom
-      );
-
-      if (intersects) {
-        selectedIds.add(blockId);
-      }
-    });
-
-    return selectedIds;
-  }, [getMarqueeRect]);
-
-  const handleMarqueeMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-
-    const target = e.target as HTMLElement;
-    const isOnBlock = target.closest('.block-renderer');
-    const isOnInteractive = target.closest('button, input, a, [role="button"]');
-
-    if (isOnBlock || isOnInteractive) return;
-
-    if (editingBlockId) {
-      finishEditing();
-      return;
-    }
-
-    const listRect = blockListRef.current?.getBoundingClientRect();
-    if (!listRect) return;
-
-    const x = e.clientX - listRect.left;
-    const y = e.clientY - listRect.top + (blockListRef.current?.scrollTop || 0);
-
-    setMarqueeStart({ x, y });
-    setMarqueeEnd({ x, y });
-    setIsMarqueeSelecting(true);
-    setSelectedBlockIds(new Set());
-
-    e.preventDefault();
-  }, [editingBlockId, finishEditing]);
-
-  useEffect(() => {
-    if (!isMarqueeSelecting) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const listRect = blockListRef.current?.getBoundingClientRect();
-      if (!listRect) return;
-
-      const x = e.clientX - listRect.left;
-      const y = e.clientY - listRect.top + (blockListRef.current?.scrollTop || 0);
-
-      setMarqueeEnd({ x, y });
-      const selectedIds = getBlocksInMarquee();
-      setSelectedBlockIds(selectedIds);
-    };
-
-    const handleMouseUp = () => {
-      if (marqueeStart && marqueeEnd) {
-        const width = Math.abs(marqueeEnd.x - marqueeStart.x);
-        const height = Math.abs(marqueeEnd.y - marqueeStart.y);
-        if (width < 5 && height < 5) {
-          setSelectedBlockIds(new Set());
-        }
-      }
-
-      setIsMarqueeSelecting(false);
-      setMarqueeStart(null);
-      setMarqueeEnd(null);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isMarqueeSelecting, getBlocksInMarquee, marqueeStart, marqueeEnd]);
-
-  const clearSelection = useCallback(() => {
-    setSelectedBlockIds(new Set());
-    setIsMarqueeSelecting(false);
-    setMarqueeStart(null);
-    setMarqueeEnd(null);
-  }, []);
-
-  const selectAllBlocks = useCallback(() => {
-    if (editingBlockId) return;
-    setSelectedBlockIds(new Set(blockOrder));
-  }, [blockOrder, editingBlockId]);
-
-  // ==========================================================================
-  // Copy/Paste
-  // ==========================================================================
-  const copySelectedBlocks = useCallback(async () => {
-    if (selectedBlockIds.size === 0) return;
-
-    const selectedInOrder = blockOrder.filter(id => selectedBlockIds.has(id));
-    const blocksData = selectedInOrder.map(id => ({
-      type: blocks[id]?.type,
-      content: blocks[id]?.content,
-    })).filter(b => b.type && b.content);
-
-    if (blocksData.length === 0) return;
-
-    const plainText = blocksData.map(b => {
-      try {
-        const parsed = JSON.parse(b.content!);
-        return extractTextFromNode(parsed);
-      } catch {
-        return '';
-      }
-    }).join('\n\n');
-
-    try {
-      const clipboardData = new ClipboardItem({
-        'text/plain': new Blob([plainText], { type: 'text/plain' }),
-      });
-      await navigator.clipboard.write([clipboardData]);
-      (window as any).__bookclub_clipboard = blocksData;
-    } catch {
-      await navigator.clipboard.writeText(plainText);
-      (window as any).__bookclub_clipboard = blocksData;
-    }
-  }, [selectedBlockIds, blockOrder, blocks]);
-
-  const pasteBlocks = useCallback(async () => {
-    const internalData = (window as any).__bookclub_clipboard;
-
-    if (internalData && Array.isArray(internalData) && internalData.length > 0) {
-      let afterBlockId: string | null = null;
-
-      if (editingBlockId) {
-        afterBlockId = editingBlockId;
-        finishEditing();
-      } else if (selectedBlockIds.size > 0) {
-        const selectedInOrder = blockOrder.filter(id => selectedBlockIds.has(id));
-        afterBlockId = selectedInOrder[selectedInOrder.length - 1] || null;
-      } else if (lastFocusedBlockIdRef.current && blockOrder.includes(lastFocusedBlockIdRef.current)) {
-        afterBlockId = lastFocusedBlockIdRef.current;
-      } else {
-        afterBlockId = blockOrder[blockOrder.length - 1] || null;
-      }
-
-      let insertAfter = afterBlockId;
-      for (const blockData of internalData) {
-        const newId = addBlock(blockData.type, insertAfter, blockData.content);
-        if (newId) {
-          insertAfter = newId;
-        }
-      }
-
-      clearSelection();
-      return;
-    }
-
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text.trim()) {
-        const lastBlockId = blockOrder[blockOrder.length - 1] || null;
-        const content = JSON.stringify({
-          type: 'paragraph',
-          content: [{ type: 'text', text: text }]
-        });
-        addBlock('paragraph', lastBlockId, content);
-      }
-    } catch (err) {
-      console.error('[NoteDetail] Failed to paste:', err);
-    }
-  }, [selectedBlockIds, blockOrder, addBlock, clearSelection, editingBlockId, finishEditing]);
-
-  // ==========================================================================
-  // Keyboard Shortcuts
+  // Fetch Utterances
   // ==========================================================================
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isCtrlOrCmd = e.metaKey || e.ctrlKey;
+    if (!accessToken || !note?.sessionId) return;
 
-      // Ctrl/Cmd + Z - Undo
-      if (isCtrlOrCmd && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        flushTextChange();
-        handleUndo();
-        return;
-      }
-
-      // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y - Redo
-      if ((isCtrlOrCmd && e.key === 'z' && e.shiftKey) || (isCtrlOrCmd && e.key === 'y')) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleRedo();
-        return;
-      }
-
-      // Ctrl/Cmd + V - paste blocks
-      if (isCtrlOrCmd && e.key === 'v') {
-        const internalData = (window as any).__bookclub_clipboard;
-        if (internalData && Array.isArray(internalData) && internalData.length > 0) {
-          e.preventDefault();
-          e.stopPropagation();
-          pasteBlocks();
-          return;
-        }
-      }
-
-      // The rest only applies when NOT editing
-      if (editingBlockId) return;
-
-      // Escape - clear selection
-      if (e.key === 'Escape') {
-        clearSelection();
-        return;
-      }
-
-      // Ctrl/Cmd + A - select all
-      if (isCtrlOrCmd && e.key === 'a') {
-        e.preventDefault();
-        selectAllBlocks();
-        return;
-      }
-
-      // Ctrl/Cmd + C - copy
-      if (isCtrlOrCmd && e.key === 'c' && selectedBlockIds.size > 0) {
-        e.preventDefault();
-        copySelectedBlocks();
-        return;
-      }
-
-      // Delete/Backspace - delete selected blocks
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlockIds.size > 0) {
-        e.preventDefault();
-        if (window.confirm(t('meet_block_delete_selected') || `Delete ${selectedBlockIds.size} selected block(s)?`)) {
-          selectedBlockIds.forEach(id => deleteBlock(id));
-          clearSelection();
-        }
-        return;
-      }
-
-      // Tab - indent (convert to bullet list)
-      // Shift+Tab - outdent (convert to paragraph)
-      if (e.key === 'Tab' && selectedBlockIds.size > 0) {
-        e.preventDefault();
-
-        const selectedInOrder = blockOrder.filter(id => selectedBlockIds.has(id));
-
-        if (e.shiftKey) {
-          selectedInOrder.forEach(id => {
-            const block = blocks[id];
-            if (!block) return;
-            if (block.type === 'bulletList' || block.type === 'orderedList' || block.type === 'taskList') {
-              try {
-                const parsed = JSON.parse(block.content);
-                const textContent = extractTextFromNode(parsed);
-                const paragraphContent = JSON.stringify({
-                  type: 'paragraph',
-                  content: textContent ? [{ type: 'text', text: textContent }] : []
-                });
-                saveBlock(id, paragraphContent);
-              } catch { /* ignore */ }
-            }
-          });
-        } else {
-          selectedInOrder.forEach(id => {
-            const block = blocks[id];
-            if (!block) return;
-            if (block.type === 'paragraph') {
-              try {
-                const parsed = JSON.parse(block.content);
-                const textContent = extractTextFromNode(parsed);
-                const bulletContent = JSON.stringify({
-                  type: 'bulletList',
-                  content: [{
-                    type: 'listItem',
-                    content: [{
-                      type: 'paragraph',
-                      content: textContent ? [{ type: 'text', text: textContent }] : []
-                    }]
-                  }]
-                });
-                saveBlock(id, bulletContent);
-              } catch { /* ignore */ }
-            }
-          });
-        }
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingBlockId, selectedBlockIds, clearSelection, selectAllBlocks, copySelectedBlocks, pasteBlocks, deleteBlock, t, blockOrder, blocks, saveBlock, flushTextChange, handleUndo, handleRedo]);
-
-  // ==========================================================================
-  // Block Selection Handler
-  // ==========================================================================
-  const handleBlockSelect = useCallback((blockId: string, event: React.MouseEvent) => {
-    if (event.shiftKey && lastFocusedBlockIdRef.current) {
-      // Range selection
-      const startIdx = blockOrder.indexOf(lastFocusedBlockIdRef.current);
-      const endIdx = blockOrder.indexOf(blockId);
-      const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
-      const rangeIds = blockOrder.slice(from, to + 1);
-      setSelectedBlockIds(new Set(rangeIds));
-    } else if (event.metaKey || event.ctrlKey) {
-      // Toggle selection
-      setSelectedBlockIds(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(blockId)) {
-          newSet.delete(blockId);
-        } else {
-          newSet.add(blockId);
-        }
-        return newSet;
-      });
-    } else {
-      // Single selection
-      setSelectedBlockIds(new Set([blockId]));
-    }
-    lastFocusedBlockIdRef.current = blockId;
-  }, [blockOrder]);
+    setUtterancesLoading(true);
+    getUtterances(note.sessionId, accessToken)
+      .then((data) => setUtterances(data))
+      .catch((err) => console.error('Failed to fetch utterances:', err))
+      .finally(() => setUtterancesLoading(false));
+  }, [accessToken, note?.sessionId]);
 
   // ==========================================================================
   // Endorsement Handlers
@@ -696,6 +418,12 @@ const NoteDetail: React.FC = () => {
   const handleSave = useCallback(async () => {
     if (!accessToken || !noteId || !note) return;
 
+    // Cancel pending auto-save
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
     setIsSaving(true);
     try {
       const currentContent = getContent();
@@ -708,6 +436,7 @@ const NoteDetail: React.FC = () => {
       const updated = await getNoteEnriched(noteId, accessToken);
       setNote(updated);
       clearChanges();
+      setAutoSaveStatus('idle');
       setIsEditing(false);
     } catch (err) {
       console.error('Failed to save note:', err);
@@ -718,16 +447,463 @@ const NoteDetail: React.FC = () => {
   }, [accessToken, noteId, note, editedTitle, getContent, clearChanges, t]);
 
   // ==========================================================================
-  // Block Operations
+  // Auto-Save (debounced 3s after last change)
+  // ==========================================================================
+  useEffect(() => {
+    if (!hasChanges || !isEditing || !accessToken || !noteId) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setAutoSaveStatus('saving');
+      try {
+        const currentContent = getContent();
+        await updateUserNoteContent(noteId, currentContent, accessToken);
+        clearChanges();
+        setAutoSaveStatus('saved');
+
+        // Clear "saved" indicator after 3s
+        if (autoSaveSavedTimerRef.current) clearTimeout(autoSaveSavedTimerRef.current);
+        autoSaveSavedTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+        setAutoSaveStatus('idle');
+      }
+    }, 3000);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [hasChanges, isEditing, accessToken, noteId, getContent, clearChanges]);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (autoSaveSavedTimerRef.current) clearTimeout(autoSaveSavedTimerRef.current);
+    };
+  }, []);
+
+  // ==========================================================================
+  // AI Handlers
+  // ==========================================================================
+
+  const handleGenerateSummary = useCallback(async () => {
+    if (!noteId || !accessToken) return;
+    setIsGeneratingSummary(true);
+    try {
+      await generatePersonalAISummary(noteId, accessToken, t('code') || 'en');
+      // Refresh note to get updated personalAiSummary
+      const updated = await getNoteEnriched(noteId, accessToken);
+      setNote(updated);
+    } catch (err) {
+      console.error('Failed to generate summary:', err);
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  }, [noteId, accessToken, t]);
+
+  const handleOrganizeNotes = useCallback(async () => {
+    if (!noteId || !accessToken) return;
+    setIsOrganizing(true);
+    try {
+      const result = await organizePersonalNotes(noteId, accessToken, t('code') || 'en');
+
+      if (result.version) {
+        setSelectedAiVersion(result.version);
+        setAiVersionData({
+          id: result.versionId || '',
+          sessionId: note?.sessionId || '',
+          noteId: noteId,
+          version: result.version,
+          blockOrder: result.blockOrder || [],
+          blocks: result.blocks || {},
+          generatedAt: result.generatedAt || new Date().toISOString(),
+          updatedAt: result.generatedAt || new Date().toISOString(),
+          generatedBy: user?.id || null,
+          lastEditedBy: null,
+          valid: result.validation?.valid ?? true,
+          missingFragments: result.validation?.missingFragments || [],
+        });
+      }
+
+      // Refresh version list
+      try {
+        const response = await getPersonalAiContentVersions(noteId, accessToken);
+        setAiVersions(response.versions || []);
+      } catch { /* ignore */ }
+
+      // Switch to AI tab (personal = editable)
+      setIsAiVersionReadOnly(false);
+      setActiveTab('ai');
+    } catch (err) {
+      console.error('Failed to organize notes:', err);
+    } finally {
+      setIsOrganizing(false);
+    }
+  }, [noteId, note?.sessionId, accessToken, user?.id, t]);
+
+  const handleImportSharedVersion = useCallback(async (version: number) => {
+    if (!noteId || !note?.sessionId || !accessToken) return;
+    if (aiVersions.length >= 5) return;
+    setImportingVersion(version);
+    try {
+      const imported = await importSharedAiVersion(noteId, note.sessionId, version, accessToken);
+      // Refresh personal versions
+      const response = await getPersonalAiContentVersions(noteId, accessToken);
+      setAiVersions(response.versions || []);
+      // Select imported version and switch to AI tab
+      setSelectedAiVersion(imported.version);
+      setAiVersionData(imported);
+      setActiveTab('ai');
+    } catch (err) {
+      console.error('Failed to import shared version:', err);
+    } finally {
+      setImportingVersion(null);
+    }
+  }, [noteId, note?.sessionId, accessToken, aiVersions.length]);
+
+  const handleInsertSummaryToNotes = useCallback(() => {
+    const summary = note?.personalAiSummary || note?.aiSummary;
+    if (!summary) return;
+    let lastBlockId = blockOrder[blockOrder.length - 1] || null;
+
+    // Helper to insert a block and chain after it
+    const insertBlock = (type: BlockType, content: any) => {
+      const blockContent = JSON.stringify(content);
+      const newId = addBlock(type, lastBlockId, blockContent);
+      if (newId) lastBlockId = newId;
+    };
+
+    // Separator
+    insertBlock('horizontalRule', { type: 'horizontalRule' });
+
+    // Heading
+    insertBlock('heading', {
+      type: 'heading',
+      attrs: { level: 2 },
+      content: [{ type: 'text', text: 'AI Summary' }],
+    });
+
+    // One-liner
+    insertBlock('paragraph', {
+      type: 'paragraph',
+      content: [{ type: 'text', marks: [{ type: 'bold' }], text: summary.oneLiner }],
+    });
+
+    // Key Points
+    if (summary.keyPoints?.length > 0) {
+      insertBlock('heading', {
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: t('notes_key_points') || 'Key Discussion Points' }],
+      });
+      insertBlock('bulletList', {
+        type: 'bulletList',
+        content: summary.keyPoints.map((point: string) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
+        })),
+      });
+    }
+
+    // Quotes
+    if (summary.quotes?.length > 0) {
+      insertBlock('heading', {
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: t('note_detail_quotes') || 'Notable Quotes' }],
+      });
+      for (const quote of summary.quotes) {
+        insertBlock('blockquote', {
+          type: 'blockquote',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: `"${quote}"` }] }],
+        });
+      }
+    }
+
+    // Agreements
+    if (summary.agreements?.length > 0) {
+      insertBlock('heading', {
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: t('note_detail_agreements') || 'Agreements & Disagreements' }],
+      });
+      insertBlock('bulletList', {
+        type: 'bulletList',
+        content: summary.agreements.map((item: any) => ({
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{ type: 'text', text: `${item.isAgreement ? '✓' : '✗'} ${item.point}` }],
+          }],
+        })),
+      });
+    }
+
+    // Open Questions
+    if (summary.openQuestions?.length > 0) {
+      insertBlock('heading', {
+        type: 'heading',
+        attrs: { level: 3 },
+        content: [{ type: 'text', text: t('note_detail_open_questions') || 'Follow-up Questions' }],
+      });
+      insertBlock('orderedList', {
+        type: 'orderedList',
+        content: summary.openQuestions.map((q: string) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: q }] }],
+        })),
+      });
+    }
+
+    // Switch to personal tab and enable editing
+    setActiveTab('personal');
+    if (!isEditing) setIsEditing(true);
+  }, [note?.personalAiSummary, note?.aiSummary, blockOrder, addBlock, t, isEditing]);
+
+  const formatUtteranceTimestamp = useCallback((dateString: string | undefined): string => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const langCode = t('code') || 'en';
+    if (langCode === 'ko') {
+      return date.toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true,
+      });
+    }
+    return date.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    });
+  }, [t]);
+
+  const handleInsertUtteranceToNotes = useCallback((utterance: SessionUtterance) => {
+    const lastBlockId = blockOrder[blockOrder.length - 1] || null;
+
+    const timestamp = formatUtteranceTimestamp(utterance.startAt);
+
+    // Build utterance block content (same as MeetRoom)
+    const blockContent: any[] = [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: utterance.refinedText || utterance.rawText }],
+      },
+    ];
+
+    if (utterance.summary?.keyPoints?.length > 0) {
+      blockContent.push({
+        type: 'bulletList',
+        content: utterance.summary.keyPoints.map((point: string) => ({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: point }] }],
+        })),
+      });
+    }
+
+    // utteranceBlock with attrs — same format as shared notes
+    const content = {
+      type: 'utteranceBlock',
+      attrs: {
+        speakerName: utterance.speakerName,
+        speakerPhotoUrl: utterance.speakerPhotoUrl || '',
+        timestamp,
+        utteranceIndex: utterance.utteranceIndex,
+      },
+      content: blockContent,
+    };
+
+    addBlock('utteranceBlock', lastBlockId, JSON.stringify(content));
+
+    // Switch to personal tab and enable editing
+    setActiveTab('personal');
+    if (!isEditing) setIsEditing(true);
+  }, [blockOrder, addBlock, isEditing, formatUtteranceTimestamp]);
+
+  const handleSelectAiVersion = useCallback(async (version: number) => {
+    if (!noteId || !accessToken) return;
+    setIsLoadingVersion(true);
+    try {
+      const data = await getPersonalAiContentVersion(noteId, version, accessToken);
+      setAiVersionData(data);
+      setSelectedAiVersion(version);
+      setIsAiVersionReadOnly(false);
+      setVersionEditingBlockId(null);
+    } catch (err) {
+      console.error('Failed to load AI version:', err);
+    } finally {
+      setIsLoadingVersion(false);
+    }
+  }, [noteId, accessToken]);
+
+  const handleSelectSharedVersion = useCallback(async (version: number) => {
+    if (!note?.sessionId || !accessToken) return;
+    setIsLoadingVersion(true);
+    try {
+      const data = await getAiContentVersion(note.sessionId, version, accessToken);
+      setAiVersionData(data);
+      setSelectedAiVersion(null); // Deselect personal versions
+      setIsAiVersionReadOnly(true);
+      setVersionEditingBlockId(null);
+      setActiveTab('ai');
+    } catch (err) {
+      console.error('Failed to load shared AI version:', err);
+    } finally {
+      setIsLoadingVersion(false);
+    }
+  }, [note?.sessionId, accessToken]);
+
+  // ==========================================================================
+  // AI Tab Block Editing Handlers (REST API based, no undo/redo)
+  // ==========================================================================
+
+  const handleAiStartEdit = useCallback((blockId: string) => {
+    setVersionEditingBlockId(blockId);
+  }, []);
+
+  const handleAiSaveEdit = useCallback(async (blockId: string, content: string) => {
+    if (selectedAiVersion === null || !noteId || !accessToken || !user?.id) return;
+    try {
+      const updatedBlock = await updatePersonalAiVersionBlockContent(
+        noteId, selectedAiVersion, blockId, content, user.id, accessToken
+      );
+      setAiVersionData(prev => {
+        if (!prev || prev.version !== selectedAiVersion) return prev;
+        return { ...prev, blocks: { ...prev.blocks, [blockId]: updatedBlock } };
+      });
+    } catch (err) {
+      console.error('Failed to update AI block:', err);
+    }
+    setVersionEditingBlockId(null);
+  }, [selectedAiVersion, noteId, accessToken, user?.id]);
+
+  const handleAiAutoSave = useCallback((blockId: string, content: string) => {
+    if (selectedAiVersion === null || !noteId || !accessToken || !user?.id) return;
+    updatePersonalAiVersionBlockContent(
+      noteId, selectedAiVersion, blockId, content, user.id, accessToken
+    ).then(updatedBlock => {
+      setAiVersionData(prev => {
+        if (!prev || prev.version !== selectedAiVersion) return prev;
+        return { ...prev, blocks: { ...prev.blocks, [blockId]: updatedBlock } };
+      });
+    }).catch(err => console.error('Failed to auto-save AI block:', err));
+  }, [selectedAiVersion, noteId, accessToken, user?.id]);
+
+  const handleAiCancelEdit = useCallback(() => {
+    setVersionEditingBlockId(null);
+  }, []);
+
+  const handleAiFinishEditing = useCallback(() => {
+    setVersionEditingBlockId(null);
+  }, []);
+
+  const handleAiDeleteBlock = useCallback(async (blockId: string) => {
+    if (selectedAiVersion === null || !noteId || !accessToken || !user?.id) return;
+    if (!aiVersionData || aiVersionData.blockOrder.length <= 1) return;
+    setVersionEditingBlockId(null);
+    try {
+      await deletePersonalAiVersionBlock(noteId, selectedAiVersion, blockId, user.id, accessToken);
+      setAiVersionData(prev => {
+        if (!prev) return prev;
+        const { [blockId]: _, ...remainingBlocks } = prev.blocks;
+        return {
+          ...prev,
+          blockOrder: prev.blockOrder.filter(id => id !== blockId),
+          blocks: remainingBlocks,
+        };
+      });
+    } catch (err) {
+      console.error('Failed to delete AI block:', err);
+    }
+  }, [selectedAiVersion, noteId, accessToken, user?.id, aiVersionData]);
+
+  const handleAiAddBlock = useCallback(async (
+    type: BlockType,
+    afterBlockId?: string | null,
+  ): Promise<string | null> => {
+    if (selectedAiVersion === null || !noteId || !accessToken || !user?.id) return null;
+    const content = createEmptyBlockContent(type);
+    try {
+      const newBlock = await addPersonalAiVersionBlock(
+        noteId, selectedAiVersion, type, content, afterBlockId || null, user.id, accessToken
+      );
+      setAiVersionData(prev => {
+        if (!prev) return prev;
+        const newBlockOrder = [...prev.blockOrder];
+        const insertIndex = afterBlockId
+          ? newBlockOrder.indexOf(afterBlockId) + 1
+          : newBlockOrder.length;
+        newBlockOrder.splice(insertIndex, 0, newBlock.id);
+        return {
+          ...prev,
+          blockOrder: newBlockOrder,
+          blocks: { ...prev.blocks, [newBlock.id]: newBlock },
+        };
+      });
+      setTimeout(() => setVersionEditingBlockId(newBlock.id), 100);
+      return newBlock.id;
+    } catch (err) {
+      console.error('Failed to add AI block:', err);
+      return null;
+    }
+  }, [selectedAiVersion, noteId, accessToken, user?.id]);
+
+  const handleAiSaveAndCreateNext = useCallback((
+    blockId: string,
+    content: string,
+    nextBlockType: BlockType = 'paragraph',
+  ) => {
+    // Save current block then add next
+    handleAiAutoSave(blockId, content);
+    setVersionEditingBlockId(null);
+    handleAiAddBlock(nextBlockType, blockId);
+  }, [handleAiAutoSave, handleAiAddBlock]);
+
+  const handleAiDeleteSelectedBlocks = useCallback(async (blockIds: string[]) => {
+    if (selectedAiVersion === null || !noteId || !accessToken || !user?.id) return;
+    setVersionEditingBlockId(null);
+    for (const id of blockIds) {
+      try {
+        await deletePersonalAiVersionBlock(noteId, selectedAiVersion, id, user.id, accessToken);
+      } catch (err) {
+        console.error('Failed to delete AI block:', err);
+      }
+    }
+    setAiVersionData(prev => {
+      if (!prev) return prev;
+      const remainingBlocks = { ...prev.blocks };
+      for (const id of blockIds) delete remainingBlocks[id];
+      return {
+        ...prev,
+        blockOrder: prev.blockOrder.filter(id => !blockIds.includes(id)),
+        blocks: remainingBlocks,
+      };
+    });
+  }, [selectedAiVersion, noteId, accessToken, user?.id]);
+
+  // No-op undo/redo for AI tab
+  const aiNoopUndo = useCallback(async () => false, []);
+  const aiNoopRedo = useCallback(async () => false, []);
+  const aiNoopCanUndo = useCallback(() => false, []);
+  const aiNoopCanRedo = useCallback(() => false, []);
+  const aiNoopFlush = useCallback(() => {}, []);
+
+  // ==========================================================================
+  // Block Operation Handlers (for Personal Notes BlockEditorCore)
   // ==========================================================================
   const handleStartEditing = useCallback((blockId: string) => {
     if (!isEditing) {
       setIsEditing(true);
     }
     startEditing(blockId);
-    lastFocusedBlockIdRef.current = blockId;
-    clearSelection();
-  }, [isEditing, startEditing, clearSelection]);
+  }, [isEditing, startEditing]);
 
   const handleSaveBlock = useCallback((blockId: string, content: string) => {
     saveBlock(blockId, content);
@@ -739,10 +915,10 @@ const NoteDetail: React.FC = () => {
   }, [trackTextChange, saveBlock]);
 
   const handleDeleteBlock = useCallback((blockId: string) => {
-    const currentIndex = blockOrder.indexOf(blockId);
-    const prevBlockId = currentIndex > 0 ? blockOrder[currentIndex - 1] : null;
+    if (blockOrder.length <= 1) return;
 
-    const blockData = blocks[blockId];
+    const currentIndex = blockOrder.indexOf(blockId);
+    const blockData = blocksRef.current[blockId] || blocks[blockId];
     const afterBlockId = currentIndex > 0 ? blockOrder[currentIndex - 1] : null;
 
     finishEditing();
@@ -750,12 +926,6 @@ const NoteDetail: React.FC = () => {
 
     if (blockData) {
       historyPushDeleteBlock(blockId, blockData, afterBlockId);
-    }
-
-    if (prevBlockId) {
-      pendingActionRef.current = { type: 'backspace', count: 0 };
-      setIsNavigationPending(true);
-      setPendingEditBlockId(prevBlockId);
     }
   }, [blockOrder, blocks, finishEditing, deleteBlock, historyPushDeleteBlock]);
 
@@ -765,285 +935,88 @@ const NoteDetail: React.FC = () => {
     }
     const newBlockId = addBlock(type, afterBlockId);
     if (newBlockId) {
-      const newBlock = blocks[newBlockId];
-      if (newBlock) {
-        historyPushAddBlock(newBlockId, newBlock, afterBlockId ?? null);
-      }
+      setTimeout(() => {
+        const newBlock = blocksRef.current[newBlockId];
+        if (newBlock) {
+          historyPushAddBlock(newBlockId, newBlock, afterBlockId ?? null);
+        }
+      }, 50);
       setTimeout(() => {
         startEditing(newBlockId);
       }, 50);
     }
     return newBlockId;
-  }, [isEditing, addBlock, blocks, historyPushAddBlock, startEditing]);
+  }, [isEditing, addBlock, historyPushAddBlock, startEditing]);
 
   const handleSaveAndCreateNext = useCallback((
+    blockId: string,
     content: string,
     nextBlockType: BlockType = 'paragraph',
     nextListStart?: number
   ) => {
-    if (editingBlockId) {
-      flushTextChange();
-      saveBlock(editingBlockId, content);
+    flushTextChange();
+    saveBlock(blockId, content);
 
-      let initialContent: string | undefined;
-      if (nextBlockType === 'bulletList') {
-        initialContent = JSON.stringify({
-          type: 'bulletList',
-          content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }]
-        });
-      } else if (nextBlockType === 'orderedList') {
-        initialContent = JSON.stringify({
-          type: 'orderedList',
-          attrs: nextListStart ? { start: nextListStart } : undefined,
-          content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }]
-        });
-      } else if (nextBlockType === 'taskList') {
-        initialContent = JSON.stringify({
-          type: 'taskList',
-          content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph' }] }]
-        });
-      }
-
-      finishEditing();
-      const newBlockId = addBlock(nextBlockType, editingBlockId, initialContent);
-      if (newBlockId) {
-        const newBlock = blocks[newBlockId];
-        if (newBlock) {
-          historyPushAddBlock(newBlockId, newBlock, editingBlockId);
-        }
-        pendingActionRef.current = { type: 'enter', count: 0 };
-        setIsNavigationPending(true);
-        setPendingEditBlockId(newBlockId);
-      }
+    let initialContent: string | undefined;
+    if (nextBlockType === 'bulletList') {
+      initialContent = JSON.stringify({
+        type: 'bulletList',
+        content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }]
+      });
+    } else if (nextBlockType === 'orderedList') {
+      initialContent = JSON.stringify({
+        type: 'orderedList',
+        attrs: nextListStart ? { start: nextListStart } : undefined,
+        content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }]
+      });
+    } else if (nextBlockType === 'taskList') {
+      initialContent = JSON.stringify({
+        type: 'taskList',
+        content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph' }] }]
+      });
     }
-  }, [editingBlockId, saveBlock, finishEditing, addBlock, blocks, historyPushAddBlock, flushTextChange]);
 
-  const handleMoveToPrevBlock = useCallback(() => {
-    if (!editingBlockId) return;
-    const currentIndex = blockOrder.indexOf(editingBlockId);
+    finishEditing();
+    const newBlockId = addBlock(nextBlockType, blockId, initialContent);
+    if (newBlockId) {
+      setTimeout(() => {
+        const newBlock = blocksRef.current[newBlockId];
+        if (newBlock) {
+          historyPushAddBlock(newBlockId, newBlock, blockId);
+        }
+      }, 50);
+    }
+  }, [saveBlock, finishEditing, addBlock, historyPushAddBlock, flushTextChange]);
+
+  const handleMoveToPrevBlock = useCallback((blockId: string) => {
+    const currentIndex = blockOrder.indexOf(blockId);
     if (currentIndex > 0) {
       finishEditing();
-      pendingActionRef.current = { type: 'arrowUp', count: 0 };
-      setIsNavigationPending(true);
-      setPendingEditBlockId(blockOrder[currentIndex - 1]);
     }
-  }, [editingBlockId, blockOrder, finishEditing]);
+  }, [blockOrder, finishEditing]);
 
-  const handleMoveToNextBlock = useCallback(() => {
-    if (!editingBlockId) return;
-    const currentIndex = blockOrder.indexOf(editingBlockId);
+  const handleMoveToNextBlock = useCallback((blockId: string) => {
+    const currentIndex = blockOrder.indexOf(blockId);
     if (currentIndex < blockOrder.length - 1) {
       finishEditing();
-      pendingActionRef.current = { type: 'arrowDown', count: 0 };
-      setIsNavigationPending(true);
-      setPendingEditBlockId(blockOrder[currentIndex + 1]);
     }
-  }, [editingBlockId, blockOrder, finishEditing]);
+  }, [blockOrder, finishEditing]);
 
-  // ==========================================================================
-  // Pending Navigation System
-  // ==========================================================================
-  const isBlockEmpty = useCallback((blockId: string): boolean => {
-    const block = blocks[blockId];
-    if (!block) return false;
-
-    try {
-      const parsed = JSON.parse(block.content);
-      if (!parsed.content || parsed.content.length === 0) return true;
-      if (parsed.content.length === 1) {
-        const firstChild = parsed.content[0];
-        if (!firstChild.content || firstChild.content.length === 0) return true;
-        if (firstChild.content.length === 1 && firstChild.content[0].type === 'text') {
-          const text = firstChild.content[0].text || '';
-          return text.trim() === '';
-        }
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }, [blocks]);
-
-  const clearPendingState = useCallback(() => {
-    pendingActionRef.current = null;
-    setIsNavigationPending(false);
-    setPendingEditBlockId(null);
-  }, []);
-
-  useEffect(() => {
-    if (!pendingEditBlockId || !blocks[pendingEditBlockId]) return;
-
-    const blockId = pendingEditBlockId;
-    let cancelled = false;
-
-    const handlePendingEdit = async () => {
-      await new Promise(resolve => setTimeout(resolve, 80));
-
-      if (cancelled) return;
-
-      const action = pendingActionRef.current;
-      const currentIndex = blockOrder.indexOf(blockId);
-
-      if (!action || action.count <= 0) {
-        if (editingBlockId !== blockId) {
-          startEditing(blockId);
-        }
-        clearPendingState();
-        return;
-      }
-
-      action.count--;
-
-      if (editingBlockId === blockId) {
+  const handleDeleteSelectedBlocks = useCallback(
+    (blockIds: string[]) => {
+      for (const id of [...blockIds].reverse()) {
+        const blockData = blocksRef.current[id] || blocks[id];
+        const idx = blockOrder.indexOf(id);
+        const afterBlockId = idx > 0 ? blockOrder[idx - 1] : null;
         finishEditing();
-      }
-
-      switch (action.type) {
-        case 'enter':
-          try {
-            const newBlockId = addBlock('paragraph', blockId);
-            if (!cancelled && newBlockId) {
-              setPendingEditBlockId(newBlockId);
-            } else if (!cancelled) {
-              clearPendingState();
-            }
-          } catch {
-            if (!cancelled) clearPendingState();
-          }
-          break;
-
-        case 'backspace':
-          if (isBlockEmpty(blockId) && blockOrder.length > 1) {
-            const prevBlockId = currentIndex > 0 ? blockOrder[currentIndex - 1] : null;
-            deleteBlock(blockId);
-            if (!cancelled && prevBlockId) {
-              setPendingEditBlockId(prevBlockId);
-            } else if (!cancelled) {
-              clearPendingState();
-            }
-          } else {
-            if (editingBlockId !== blockId) {
-              startEditing(blockId);
-            }
-            clearPendingState();
-          }
-          break;
-
-        case 'arrowUp': {
-          const prevBlockId = currentIndex > 0 ? blockOrder[currentIndex - 1] : null;
-          if (!cancelled && prevBlockId) {
-            setPendingEditBlockId(prevBlockId);
-          } else if (!cancelled) {
-            if (editingBlockId !== blockId) startEditing(blockId);
-            clearPendingState();
-          }
-          break;
-        }
-
-        case 'arrowDown': {
-          const nextBlockId = currentIndex < blockOrder.length - 1 ? blockOrder[currentIndex + 1] : null;
-          if (!cancelled && nextBlockId) {
-            setPendingEditBlockId(nextBlockId);
-          } else if (!cancelled) {
-            if (editingBlockId !== blockId) startEditing(blockId);
-            clearPendingState();
-          }
-          break;
+        deleteBlock(id);
+        if (blockData) {
+          historyPushDeleteBlock(id, blockData, afterBlockId);
         }
       }
-    };
-
-    handlePendingEdit();
-
-    return () => { cancelled = true; };
-  }, [pendingEditBlockId, blocks, blockOrder, editingBlockId, startEditing, finishEditing, addBlock, deleteBlock, isBlockEmpty, clearPendingState]);
-
-  // Global key handler for block transitions
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (!pendingEditBlockId) return;
-
-      const currentAction = pendingActionRef.current;
-      if (!currentAction) return;
-
-      const activeElement = document.activeElement as HTMLElement | null;
-      const isInBlockEditor = activeElement?.closest('.block-editor-wrapper');
-      const isProseMirror = activeElement?.classList.contains('ProseMirror');
-
-      if (!isInBlockEditor && !isProseMirror) return;
-
-      let actionType: PendingActionType | null = null;
-
-      if (e.key === 'Enter' && !e.shiftKey) {
-        actionType = 'enter';
-      } else if (e.key === 'Backspace') {
-        actionType = 'backspace';
-      } else if (e.key === 'ArrowUp') {
-        actionType = 'arrowUp';
-      } else if (e.key === 'ArrowDown') {
-        actionType = 'arrowDown';
-      }
-
-      if (actionType && actionType === currentAction.type) {
-        e.preventDefault();
-        e.stopPropagation();
-        currentAction.count++;
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [pendingEditBlockId]);
-
-  // ==========================================================================
-  // Drag Handlers
-  // ==========================================================================
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const draggedId = event.active.id as string;
-    setActiveId(draggedId);
-
-    if (!selectedBlockIds.has(draggedId)) {
-      setSelectedBlockIds(new Set([draggedId]));
-    }
-  }, [selectedBlockIds]);
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over || active.id === over.id) return;
-
-    const activeIndex = blockOrder.indexOf(active.id as string);
-    const overIndex = blockOrder.indexOf(over.id as string);
-
-    if (activeIndex !== overIndex) {
-      reorderBlocks(activeIndex, overIndex);
-    }
-  }, [blockOrder, reorderBlocks]);
-
-  const handleDragCancel = useCallback(() => {
-    setActiveId(null);
-  }, []);
-
-  // Multi-drag collision detection
-  const multiDragCollisionDetection: CollisionDetection = useCallback((args) => {
-    const { active } = args;
-    const draggedId = active.id as string;
-    const isMultiDrag = selectedBlockIds.has(draggedId) && selectedBlockIds.size > 1;
-
-    if (!isMultiDrag) {
-      return closestCenter(args);
-    }
-
-    const filteredArgs = {
-      ...args,
-      droppableContainers: args.droppableContainers.filter(
-        (container) => !selectedBlockIds.has(container.id as string) || container.id === draggedId
-      ),
-    };
-
-    return closestCenter(filteredArgs);
-  }, [selectedBlockIds]);
+    },
+    [blockOrder, blocks, finishEditing, deleteBlock, historyPushDeleteBlock]
+  );
 
   // ==========================================================================
   // Participants List (memoized)
@@ -1085,56 +1058,6 @@ const NoteDetail: React.FC = () => {
       </div>
     );
   }, [note?.participants, t]);
-
-  // ==========================================================================
-  // Toolbar
-  // ==========================================================================
-  const toolbarActions = useMemo(() => {
-    if (!isEditing) return null;
-
-    const toggleBold = () => editorRef.current?.editor?.chain().focus().toggleBold().run();
-    const toggleItalic = () => editorRef.current?.editor?.chain().focus().toggleItalic().run();
-    const toggleBulletList = () => editorRef.current?.editor?.chain().focus().toggleBulletList().run();
-    const toggleCodeBlock = () => editorRef.current?.editor?.chain().focus().toggleCodeBlock().run();
-
-    return (
-      <div className="note-detail-block-toolbar">
-        <button
-          onClick={handleUndo}
-          disabled={!canUndo()}
-          title="Undo (Ctrl+Z)"
-          className={!canUndo() ? 'disabled' : ''}
-        >
-          <FiRotateCcw />
-        </button>
-        <button
-          onClick={handleRedo}
-          disabled={!canRedo()}
-          title="Redo (Ctrl+Shift+Z)"
-          className={!canRedo() ? 'disabled' : ''}
-        >
-          <FiRotateCw />
-        </button>
-        <div className="toolbar-divider" />
-        <button onClick={toggleBold} title="Bold (Ctrl+B)">
-          <FiBold />
-        </button>
-        <button onClick={toggleItalic} title="Italic (Ctrl+I)">
-          <FiItalic />
-        </button>
-        <button onClick={toggleBulletList} title="Bullet List">
-          <FiList />
-        </button>
-        <button onClick={toggleCodeBlock} title="Code Block">
-          <FiCode />
-        </button>
-        <div className="toolbar-divider" />
-        <button onClick={() => handleAddBlock('paragraph')} title="Add Block">
-          <FiPlus />
-        </button>
-      </div>
-    );
-  }, [isEditing, handleAddBlock, handleUndo, handleRedo, canUndo, canRedo]);
 
   // ==========================================================================
   // Render: Loading States
@@ -1226,12 +1149,41 @@ const NoteDetail: React.FC = () => {
         <aside className="note-detail-left-panel">
           {/* Book Info Section */}
           <div className="note-detail-left-top">
-            {/* Book Cover */}
-            {(note.bookCover?.medium || note.bookCover?.small) && (
-              <div className="note-detail-cover">
-                <img src={note.bookCover?.medium || note.bookCover?.small} alt={note.bookTitle} />
+            {/* Book Cover (3D) */}
+            <div className="note-detail-cover">
+              <div className="notes-book-container">
+                <div className="notes-book">
+                  <div className="notes-book-front">
+                    <div className="notes-book-cover">
+                      {(note.bookCover?.medium || note.bookCover?.small) ? (
+                        <img
+                          src={note.bookCover?.small || note.bookCover?.medium}
+                          alt={note.bookTitle}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : null}
+                      <p className="notes-book-author">{note.bookAuthor}</p>
+                    </div>
+                  </div>
+                  <div className="notes-book-left-side">
+                    <h2><span>{note.bookTitle}</span></h2>
+                  </div>
+                </div>
               </div>
-            )}
+              <button
+                className={`notes-btn-favorite ${note.liked ? 'active' : ''}`}
+                onClick={() => {
+                  if (noteId && accessToken) {
+                    toggleFavorite(noteId, accessToken);
+                    setNote(prev => prev ? { ...prev, liked: !prev.liked } : prev);
+                  }
+                }}
+              >
+                <FiStar />
+              </button>
+            </div>
 
             {/* Book Info */}
             <div className="note-detail-book-info">
@@ -1291,194 +1243,544 @@ const NoteDetail: React.FC = () => {
           <div className="note-detail-left-bottom">
             <div className="note-detail-speaking-logs">
               <div className="note-detail-section-header">
-                <FiMessageSquare />
-                <span>{t('note_detail_speaking_logs') || 'Speaking Logs'}</span>
+                <FiMic />
+                <span>{t('note_detail_speaking_logs')}</span>
+                {utterances.length > 0 && (
+                  <span className="note-detail-utterance-count">{utterances.length}</span>
+                )}
               </div>
               <div className="note-detail-speaking-logs-content">
-                <div className="note-detail-placeholder">
-                  <FiMic size={32} />
-                  <p>{t('note_detail_no_speaking_logs') || 'No speaking logs available'}</p>
-                  <span className="note-detail-coming-soon">{t('note_detail_coming_soon') || 'Coming Soon'}</span>
-                </div>
+                {utterancesLoading ? (
+                  <div className="note-detail-placeholder">
+                    <div className="note-detail-spinner" style={{ width: 24, height: 24 }} />
+                  </div>
+                ) : utterances.length === 0 ? (
+                  <div className="note-detail-placeholder">
+                    <FiMic size={28} />
+                    <p>{t('note_detail_no_speaking_logs')}</p>
+                  </div>
+                ) : (
+                  <div className="nd-speaking-log-list">
+                    {[...utterances].reverse().map((u) => (
+                      <div key={u.id} className="nd-speaking-log-item">
+                        <div className="nd-speaking-log-speaker">
+                          {u.speakerPhotoUrl ? (
+                            <img
+                              src={u.speakerPhotoUrl}
+                              alt=""
+                              className="nd-speaking-log-photo"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = generateAvatar(u.speakerName);
+                              }}
+                            />
+                          ) : (
+                            <img
+                              src={generateAvatar(u.speakerName)}
+                              alt=""
+                              className="nd-speaking-log-photo"
+                            />
+                          )}
+                          <span className="nd-speaking-log-name">{u.speakerName}</span>
+                          <span className="nd-speaking-log-index">#{u.utteranceIndex}</span>
+                        </div>
+                        <div className="nd-speaking-log-meta">
+                          <span className="nd-speaking-log-duration">
+                            <FiClock size={11} />
+                            {formatUtteranceDuration(u.durationMs)}
+                          </span>
+                          <span className="nd-speaking-log-time">
+                            {formatUtteranceTimestamp(u.startAt)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </aside>
 
-        {/* Center Panel: Block-based Notes */}
+        {/* Center Panel: Tabbed Block Notes */}
         <section className="note-detail-center-panel">
-          {/* Title */}
-          {isEditing ? (
-            <input
-              type="text"
-              className="note-detail-title-input"
-              value={editedTitle}
-              onChange={(e) => setEditedTitle(e.target.value)}
-              placeholder={t('note_detail_title_placeholder')}
-            />
-          ) : (
-            <h1 className="note-detail-title">{note.title}</h1>
+          {/* Title (personal tab only) */}
+          {activeTab === 'personal' && (
+            isEditing ? (
+              <input
+                type="text"
+                className="note-detail-title-input"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                placeholder={t('note_detail_title_placeholder')}
+              />
+            ) : (
+              <h1 className="note-detail-title">{note.title}</h1>
+            )
           )}
 
-          {/* Toolbar */}
-          {toolbarActions}
-
-          {/* Block List */}
-          <div
-            ref={blockListRef}
-            className="note-detail-blocks"
-            onMouseDown={handleMarqueeMouseDown}
-          >
-            <DndContext
-              sensors={sensors}
-              collisionDetection={multiDragCollisionDetection}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
+          {/* Tab Navigation */}
+          <div className="notes-tabs note-detail-tabs">
+            <button
+              className={`notes-tab ${activeTab === 'personal' ? 'active' : ''}`}
+              onClick={() => setActiveTab('personal')}
             >
-              <SortableContext
-                items={blockOrder}
-                strategy={verticalListSortingStrategy}
-              >
-                {blockOrder.map((blockId) => {
-                  const block = blocks[blockId];
-                  if (!block) return null;
-
-                  const isSelected = selectedBlockIds.has(blockId);
-                  const isPartOfMultiDrag = activeId !== null && selectedBlockIds.has(blockId) && blockId !== activeId && selectedBlockIds.size > 1;
-
-                  return (
-                    <SortableBlockRenderer
-                      key={blockId}
-                      block={block}
-                      isEditing={editingBlockId === blockId}
-                      isLocked={false}
-                      isLockedByMe={false}
-                      lockInfo={null}
-                      currentUserId={user?.id || ''}
-                      isSelected={isSelected}
-                      onSelect={(e) => handleBlockSelect(blockId, e)}
-                      isPartOfMultiDrag={isPartOfMultiDrag}
-                      skipKeyboardNavigation={isNavigationPending}
-                      onStartEdit={() => handleStartEditing(blockId)}
-                      onSaveEdit={(content) => handleSaveBlock(blockId, content)}
-                      onAutoSave={(content) => handleAutoSave(blockId, content)}
-                      onCancelEdit={cancelEditing}
-                      onDelete={() => handleDeleteBlock(blockId)}
-                      onMoveToPrevBlock={handleMoveToPrevBlock}
-                      onMoveToNextBlock={handleMoveToNextBlock}
-                      onCreateBlockAfter={(type) => handleAddBlock(type, blockId)}
-                      onSaveAndCreateNext={handleSaveAndCreateNext}
-                      editorRef={editingBlockId === blockId ? editorRef : undefined}
-                    />
-                  );
-                })}
-              </SortableContext>
-
-              {/* Drag Overlay */}
-              <DragOverlay>
-                {activeId && blocks[activeId] ? (
-                  <BlockRenderer
-                    block={blocks[activeId]}
-                    isEditing={false}
-                    isLocked={false}
-                    isLockedByMe={false}
-                    lockInfo={null}
-                    currentUserId={user?.id || ''}
-                    onStartEdit={() => {}}
-                    onSaveEdit={() => {}}
-                    onCancelEdit={() => {}}
-                    onDelete={() => {}}
-                    onCreateBlockAfter={() => {}}
-                    isDragging
-                  />
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-
-            {/* Marquee Selection Box */}
-            {isMarqueeSelecting && marqueeStart && marqueeEnd && (
-              <div
-                className="marquee-selection-box"
-                style={{
-                  left: Math.min(marqueeStart.x, marqueeEnd.x),
-                  top: Math.min(marqueeStart.y, marqueeEnd.y),
-                  width: Math.abs(marqueeEnd.x - marqueeStart.x),
-                  height: Math.abs(marqueeEnd.y - marqueeStart.y),
-                }}
-              />
-            )}
-
-            {/* Add Block Button */}
-            {isEditing && (
-              <button
-                className="note-detail-add-block-btn"
-                onClick={() => handleAddBlock('paragraph')}
-              >
-                <FiPlus />
-                {t('note_detail_add_block') || 'Add Block'}
-              </button>
-            )}
+              <FiFileText size={14} />
+              {t('note_detail_tab_personal')}
+            </button>
+            <button
+              className={`notes-tab ${activeTab === 'ai' ? 'active' : ''}`}
+              onClick={() => setActiveTab('ai')}
+            >
+              <FiCpu size={14} />
+              {t('note_detail_tab_ai')}
+              {aiVersions.length > 0 && (
+                <span className="tab-badge"><FiCheck size={11} /></span>
+              )}
+            </button>
           </div>
 
-          {/* Change indicator */}
-          {hasChanges && (
-            <div className="note-detail-unsaved-indicator">
-              {t('note_detail_unsaved_changes') || 'Unsaved changes'}
-            </div>
+          {/* Personal Notes Tab */}
+          {activeTab === 'personal' && (
+            <>
+              <BlockEditorCore
+                blockOrder={blockOrder}
+                blocks={blocks}
+                editingBlockId={editingBlockId}
+                currentUserId={user?.id || ''}
+                onStartEdit={handleStartEditing}
+                onSaveEdit={handleSaveBlock}
+                onAutoSave={handleAutoSave}
+                onCancelEdit={cancelEditing}
+                onFinishEditing={finishEditing}
+                onDeleteBlock={handleDeleteBlock}
+                onAddBlock={handleAddBlock}
+                onSaveAndCreateNext={handleSaveAndCreateNext}
+                onMoveToPrevBlock={handleMoveToPrevBlock}
+                onMoveToNextBlock={handleMoveToNextBlock}
+                onReorderBlocks={reorderBlocks}
+                onReorderMultiple={reorderMultiple}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                flushTextChange={flushTextChange}
+                onDeleteSelectedBlocks={handleDeleteSelectedBlocks}
+                onSaveBlock={saveBlock}
+                onHistoryPushReorder={historyPushReorderBlock}
+                editorRef={editorRef}
+                showToolbar={isEditing}
+                disabled={!isEditing}
+                t={t}
+              />
+
+              {/* Auto-save status indicator */}
+              {autoSaveStatus === 'saving' && (
+                <div className="note-detail-autosave-indicator saving">
+                  <FiLoader className="spinning" size={12} />
+                  {t('note_detail_auto_saving')}
+                </div>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <div className="note-detail-autosave-indicator saved">
+                  <FiCheck size={12} />
+                  {t('note_detail_auto_saved')}
+                </div>
+              )}
+              {hasChanges && autoSaveStatus === 'idle' && (
+                <div className="note-detail-unsaved-indicator">
+                  {t('note_detail_unsaved_changes')}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* AI Organization Tab */}
+          {activeTab === 'ai' && (
+            <>
+              {/* Read-only badge for shared versions */}
+              {isAiVersionReadOnly && aiVersionData && (
+                <div className="nd-readonly-banner">
+                  <FiFileText size={14} />
+                  <span>
+                    {t('note_detail_shared_version_label') || 'Shared Version'} v{aiVersionData.version}
+                  </span>
+                  <span className="nd-readonly-badge">
+                    {t('note_detail_readonly_badge') || 'Read-only'}
+                  </span>
+                </div>
+              )}
+
+              {/* Version Selector (personal only) */}
+              {aiVersions.length > 0 && !isAiVersionReadOnly && (
+                <div className="ai-version-selector">
+                  <span className="version-label">{t('meet_ai_versions') || 'Version:'}</span>
+                  <div className="version-chips">
+                    {aiVersions.map((ver) => (
+                      <button
+                        key={ver.version}
+                        className={`version-chip ${selectedAiVersion === ver.version ? 'active' : ''}`}
+                        onClick={() => handleSelectAiVersion(ver.version)}
+                        disabled={isLoadingVersion}
+                      >
+                        v{ver.version}
+                        {!ver.valid && <span className="version-warning">!</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {isLoadingVersion && <FiLoader className="spin" size={14} />}
+                </div>
+              )}
+
+              {/* AI Block Editor or Empty State */}
+              {aiVersionData && aiVersionData.blockOrder.length > 0 ? (
+                <>
+                  <BlockEditorCore
+                    blockOrder={aiVersionData.blockOrder}
+                    blocks={aiVersionData.blocks as unknown as Record<string, Block>}
+                    editingBlockId={isAiVersionReadOnly ? null : versionEditingBlockId}
+                    currentUserId={user?.id || ''}
+                    onStartEdit={isAiVersionReadOnly ? () => {} : handleAiStartEdit}
+                    onSaveEdit={handleAiSaveEdit}
+                    onAutoSave={handleAiAutoSave}
+                    onCancelEdit={handleAiCancelEdit}
+                    onFinishEditing={handleAiFinishEditing}
+                    onDeleteBlock={handleAiDeleteBlock}
+                    onAddBlock={handleAiAddBlock}
+                    onSaveAndCreateNext={handleAiSaveAndCreateNext}
+                    onMoveToPrevBlock={() => setVersionEditingBlockId(null)}
+                    onMoveToNextBlock={() => setVersionEditingBlockId(null)}
+                    onReorderBlocks={() => {}}
+                    onReorderMultiple={() => {}}
+                    onUndo={aiNoopUndo}
+                    onRedo={aiNoopRedo}
+                    canUndo={aiNoopCanUndo}
+                    canRedo={aiNoopCanRedo}
+                    flushTextChange={aiNoopFlush}
+                    onDeleteSelectedBlocks={handleAiDeleteSelectedBlocks}
+                    onSaveBlock={(id, content) => handleAiAutoSave(id, content)}
+                    editorRef={aiEditorRef}
+                    showToolbar={!isAiVersionReadOnly}
+                    disabled={isAiVersionReadOnly}
+                    t={t}
+                  />
+
+                  {/* Reorganize button (only for personal/editable versions) */}
+                  {!isAiVersionReadOnly && (
+                    <div className="block-add-section">
+                      <button
+                        className="ai-organize-btn"
+                        onClick={handleOrganizeNotes}
+                        disabled={isOrganizing}
+                      >
+                        <FiCpu size={14} />
+                        {isOrganizing
+                          ? t('note_detail_organizing')
+                          : t('note_detail_reorganize')}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="ai-empty-state">
+                  <FiCpu size={48} />
+                  <h3>{t('meet_ai_empty_title')}</h3>
+                  <p>{t('note_detail_ai_empty_desc')}</p>
+                  <button
+                    className="ai-generate-btn"
+                    onClick={handleOrganizeNotes}
+                    disabled={isOrganizing}
+                  >
+                    {isOrganizing ? (
+                      <FiLoader className="spinning" size={16} />
+                    ) : (
+                      <FiCpu size={16} />
+                    )}
+                    {isOrganizing
+                      ? t('note_detail_organizing')
+                      : t('note_detail_organize_notes')}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
 
-        {/* Right Panel: AI Summary + Transcription */}
+        {/* Right Panel: AI Tools + AI Summary + Transcription */}
         <aside className="note-detail-right-panel">
-          {/* AI Summary Section */}
-          <div className="note-detail-ai-summary-section">
+          {/* AI Tools Section (Tabbed) */}
+          <div className="note-detail-ai-tools-section">
             <div className="note-detail-section-header">
               <FiCpu />
-              <span>{t('note_detail_ai_summary') || 'AI Summary'}</span>
+              <span>{t('note_detail_ai_tools')}</span>
             </div>
 
-            {note.aiSummary ? (
-              <div className="note-detail-ai-summary-content">
-                <p className="note-detail-one-liner">{note.aiSummary.oneLiner}</p>
+            {/* Tab Navigation */}
+            <div className="nd-ai-tabs">
+              <button
+                className={`nd-ai-tab ${rightPanelTab === 'summary' ? 'active' : ''}`}
+                onClick={() => setRightPanelTab('summary')}
+              >
+                <FiCpu size={14} />
+                <span>{t('meet_ai_summary') || 'Summary'}</span>
+              </button>
+              <button
+                className={`nd-ai-tab ${rightPanelTab === 'organized' ? 'active' : ''}`}
+                onClick={() => setRightPanelTab('organized')}
+              >
+                <FiEdit3 size={14} />
+                <span>{t('meet_ai_organized') || 'AI Organized'}</span>
+              </button>
+            </div>
 
-                {note.aiSummary.keyPoints && note.aiSummary.keyPoints.length > 0 && (
-                  <div className="note-detail-keypoints">
-                    <span>{t('notes_key_points')}</span>
-                    <ul>
-                      {note.aiSummary.keyPoints.map((point, idx) => (
-                        <li key={idx}>{point}</li>
+            {/* Summary Tab */}
+            {rightPanelTab === 'summary' && (
+              <>
+                {(() => {
+                  const displaySummary = note.personalAiSummary || note.aiSummary;
+                  if (displaySummary) {
+                    return (
+                      <div className="nd-summary-content">
+                        {/* One-liner */}
+                        <div className="nd-summary-block">
+                          <div className="nd-summary-block-header">
+                            <span className="nd-summary-icon">📝</span>
+                            <span>{t('meet_summary_oneliner') || 'One-line Summary'}</span>
+                          </div>
+                          <p className="nd-summary-oneliner">{displaySummary.oneLiner}</p>
+                        </div>
+
+                        {/* Key Points */}
+                        {displaySummary.keyPoints?.length > 0 && (
+                          <div className="nd-summary-block">
+                            <div className="nd-summary-block-header">
+                              <span className="nd-summary-icon">🎯</span>
+                              <span>{t('meet_summary_key_points') || 'Key Discussion Points'}</span>
+                            </div>
+                            <ul className="nd-summary-list">
+                              {displaySummary.keyPoints.map((point, i) => (
+                                <li key={i}>{point}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Quotes */}
+                        {displaySummary.quotes?.length > 0 && (
+                          <div className="nd-summary-block">
+                            <div className="nd-summary-block-header">
+                              <span className="nd-summary-icon">💬</span>
+                              <span>{t('meet_summary_quotes') || 'Notable Quotes'}</span>
+                            </div>
+                            <div className="nd-summary-quotes">
+                              {displaySummary.quotes.map((quote, i) => (
+                                <blockquote key={i} className="nd-summary-quote">
+                                  "{quote}"
+                                </blockquote>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Agreements & Disagreements */}
+                        {displaySummary.agreements?.length > 0 && (
+                          <div className="nd-summary-block">
+                            <div className="nd-summary-block-header">
+                              <span className="nd-summary-icon">✓</span>
+                              <span>{t('meet_summary_agreements') || 'Agreements & Disagreements'}</span>
+                            </div>
+                            <ul className="nd-summary-agreements">
+                              {displaySummary.agreements.map((item, i) => (
+                                <li key={i} className={item.isAgreement ? 'agreement' : 'disagreement'}>
+                                  {item.isAgreement ? <FiCheck size={14} /> : <FiAlertCircle size={14} />}
+                                  <span>{item.point}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Open Questions */}
+                        {displaySummary.openQuestions?.length > 0 && (
+                          <div className="nd-summary-block">
+                            <div className="nd-summary-block-header">
+                              <span className="nd-summary-icon">❓</span>
+                              <span>{t('meet_summary_questions') || 'Follow-up Questions'}</span>
+                            </div>
+                            <ol className="nd-summary-questions">
+                              {displaySummary.openQuestions.map((q, i) => (
+                                <li key={i}>{q}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="nd-summary-actions">
+                          <button
+                            className="nd-generate-btn"
+                            onClick={handleGenerateSummary}
+                            disabled={isGeneratingSummary}
+                          >
+                            {isGeneratingSummary ? (
+                              <FiLoader className="spinning" size={16} />
+                            ) : (
+                              <FiCpu size={16} />
+                            )}
+                            {isGeneratingSummary
+                              ? t('note_detail_generating')
+                              : t('note_detail_regenerate_summary')}
+                          </button>
+                          <button
+                            className="nd-insert-btn"
+                            onClick={handleInsertSummaryToNotes}
+                          >
+                            <FiDownload size={16} />
+                            {t('meet_insert_to_notes')}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="nd-summary-empty">
+                      <div className="nd-summary-empty-icon">
+                        <FiCpu size={40} />
+                      </div>
+                      <p>{t('note_detail_no_ai_summary')}</p>
+                      <button
+                        className="nd-generate-btn"
+                        onClick={handleGenerateSummary}
+                        disabled={isGeneratingSummary}
+                      >
+                        {isGeneratingSummary ? (
+                          <FiLoader className="spinning" size={16} />
+                        ) : (
+                          <FiCpu size={16} />
+                        )}
+                        {isGeneratingSummary
+                          ? t('note_detail_generating')
+                          : t('note_detail_generate_summary')}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+            {/* AI Organized Tab */}
+            {rightPanelTab === 'organized' && (
+              <div className="nd-organized-tab-content">
+                {/* Shared AI Organized Versions */}
+                <div className="nd-organized-subsection">
+                  <div className="nd-organized-subsection-header">
+                    <FiFileText size={14} />
+                    <span>{t('note_detail_shared_organized') || 'Shared Organized'}</span>
+                    {sharedAiVersions.length > 0 && (
+                      <span className="nd-version-count">{sharedAiVersions.length}</span>
+                    )}
+                  </div>
+                  {sharedAiVersions.length > 0 ? (
+                    <div className="nd-version-list">
+                      {sharedAiVersions.map((ver) => (
+                        <div
+                          key={ver.version}
+                          className={`nd-version-item clickable ${isAiVersionReadOnly && aiVersionData?.version === ver.version && !selectedAiVersion ? 'active' : ''}`}
+                          onClick={() => handleSelectSharedVersion(ver.version)}
+                        >
+                          <div className="nd-version-label">
+                            <span className="nd-version-badge">v{ver.version}</span>
+                            <span className="nd-version-date">
+                              {new Date(ver.generatedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <button
+                            className="nd-import-btn"
+                            onClick={() => handleImportSharedVersion(ver.version)}
+                            disabled={importingVersion !== null || aiVersions.length >= 5}
+                            title={aiVersions.length >= 5 ? 'Maximum 5 personal versions' : ''}
+                          >
+                            {importingVersion === ver.version ? (
+                              <FiLoader className="spinning" size={12} />
+                            ) : (
+                              <FiDownload size={12} />
+                            )}
+                            {importingVersion === ver.version
+                              ? t('note_detail_importing') || 'Importing...'
+                              : t('note_detail_import') || 'Import'}
+                          </button>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
+                  ) : (
+                    <p className="nd-version-empty">
+                      {t('note_detail_no_shared_organized') || 'No shared organized versions'}
+                    </p>
+                  )}
+                </div>
+
+                <div className="nd-organized-divider" />
+
+                {/* Personal AI Organized Versions */}
+                <div className="nd-organized-subsection">
+                  <div className="nd-organized-subsection-header">
+                    <FiEdit3 size={14} />
+                    <span>{t('note_detail_my_organized') || 'My Organized'}</span>
+                    <span className="nd-version-count">{aiVersions.length}/5</span>
+                  </div>
+                  {aiVersions.length > 0 ? (
+                    <div className="nd-version-list">
+                      {aiVersions.map((ver) => (
+                        <div
+                          key={ver.version}
+                          className={`nd-version-item clickable ${selectedAiVersion === ver.version && !isAiVersionReadOnly ? 'active' : ''}`}
+                          onClick={() => {
+                            handleSelectAiVersion(ver.version);
+                            setActiveTab('ai');
+                          }}
+                        >
+                          <div className="nd-version-label">
+                            <span className="nd-version-badge personal">v{ver.version}</span>
+                            <span className="nd-version-date">
+                              {new Date(ver.generatedAt).toLocaleDateString()}
+                            </span>
+                            {!ver.valid && (
+                              <span className="nd-version-warning">
+                                <FiAlertCircle size={12} />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="nd-version-empty">
+                      {t('note_detail_no_personal_organized') || 'No personal organized versions yet'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Organize Action */}
+                {aiVersions.length < 5 && (
+                  <div className="nd-organized-action">
+                    <button
+                      className="nd-generate-btn organize"
+                      onClick={handleOrganizeNotes}
+                      disabled={isOrganizing}
+                    >
+                      {isOrganizing ? (
+                        <FiLoader className="spinning" size={16} />
+                      ) : (
+                        <FiEdit3 size={16} />
+                      )}
+                      {isOrganizing
+                        ? t('note_detail_organizing')
+                        : aiVersions.length > 0
+                          ? t('note_detail_reorganize')
+                          : t('note_detail_organize_notes')}
+                    </button>
                   </div>
                 )}
-
-                {note.aiSummary.quotes && note.aiSummary.quotes.length > 0 && (
-                  <div className="note-detail-quotes">
-                    <span>{t('note_detail_quotes') || 'Notable Quotes'}</span>
-                    <ul>
-                      {note.aiSummary.quotes.map((quote, idx) => (
-                        <li key={idx}>"{quote}"</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {note.aiSummary.openQuestions && note.aiSummary.openQuestions.length > 0 && (
-                  <div className="note-detail-questions">
-                    <span>{t('note_detail_open_questions') || 'Open Questions'}</span>
-                    <ul>
-                      {note.aiSummary.openQuestions.map((q, idx) => (
-                        <li key={idx}>{q}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="note-detail-placeholder">
-                <FiCpu size={32} />
-                <p>{t('note_detail_no_ai_summary') || 'No AI summary available'}</p>
               </div>
             )}
           </div>
@@ -1487,14 +1789,152 @@ const NoteDetail: React.FC = () => {
           <div className="note-detail-ai-transcription-section">
             <div className="note-detail-section-header">
               <FiMic />
-              <span>{t('note_detail_ai_transcription') || 'AI Transcription'}</span>
+              <span>{t('note_detail_ai_transcription')}</span>
+              {utterances.length > 0 && (
+                <span className="note-detail-utterance-count">{utterances.length}</span>
+              )}
             </div>
             <div className="note-detail-transcription-content">
-              <div className="note-detail-placeholder">
-                <FiMic size={32} />
-                <p>{t('note_detail_no_transcription') || 'No transcription available'}</p>
-                <span className="note-detail-coming-soon">{t('note_detail_coming_soon') || 'Coming Soon'}</span>
-              </div>
+              {utterancesLoading ? (
+                <div className="note-detail-placeholder">
+                  <div className="note-detail-spinner" />
+                </div>
+              ) : utterances.length === 0 ? (
+                <div className="note-detail-placeholder">
+                  <FiMic size={32} />
+                  <p>{t('note_detail_no_transcription')}</p>
+                </div>
+              ) : (
+                <div className="note-detail-utterance-list">
+                  {[...utterances].reverse().map((utterance) => (
+                    <div
+                      key={utterance.id}
+                      className={`note-detail-utterance-item ${expandedUtteranceId === utterance.id ? 'expanded' : ''}`}
+                    >
+                      {/* Header */}
+                      <div
+                        className="note-detail-utterance-header"
+                        onClick={() => setExpandedUtteranceId(
+                          (prev) => prev === utterance.id ? null : utterance.id
+                        )}
+                      >
+                        <div className="note-detail-utterance-speaker">
+                          {utterance.speakerPhotoUrl ? (
+                            <img
+                              src={utterance.speakerPhotoUrl}
+                              alt=""
+                              className="note-detail-utterance-photo"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = generateAvatar(utterance.speakerName);
+                              }}
+                            />
+                          ) : (
+                            <div className="note-detail-utterance-avatar">
+                              <FiUser size={14} />
+                            </div>
+                          )}
+                          <span className="note-detail-utterance-name">{utterance.speakerName}</span>
+                          <span className="note-detail-utterance-index">#{utterance.utteranceIndex}</span>
+                        </div>
+                        <div className="note-detail-utterance-meta">
+                          <span className="note-detail-utterance-duration">
+                            <FiClock size={12} />
+                            {formatUtteranceDuration(utterance.durationMs)}
+                          </span>
+                          {expandedUtteranceId === utterance.id ? (
+                            <FiChevronUp size={16} />
+                          ) : (
+                            <FiChevronDown size={16} />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded Body */}
+                      {expandedUtteranceId === utterance.id && (
+                        <div className="note-detail-utterance-body">
+                          {/* View mode toggle */}
+                          <div className="note-detail-utterance-view-toggle">
+                            <button
+                              className={utteranceViewMode === 'refined' ? 'active' : ''}
+                              onClick={() => setUtteranceViewMode('refined')}
+                            >
+                              {t('utterance_refined')}
+                            </button>
+                            <button
+                              className={utteranceViewMode === 'raw' ? 'active' : ''}
+                              onClick={() => setUtteranceViewMode('raw')}
+                            >
+                              {t('utterance_raw')}
+                            </button>
+                          </div>
+
+                          {/* Text */}
+                          <div className="note-detail-utterance-text">
+                            {utteranceViewMode === 'refined'
+                              ? utterance.refinedText
+                              : utterance.rawText}
+                          </div>
+
+                          {/* Summary */}
+                          {utterance.summary && (
+                            <div className="note-detail-utterance-summary">
+                              {utterance.summary.keyPoints?.length > 0 && (
+                                <div className="note-detail-utterance-summary-section">
+                                  <div className="note-detail-utterance-summary-header">
+                                    <FiMessageSquare size={12} />
+                                    <span>{t('utterance_key_points')}</span>
+                                  </div>
+                                  <ul>
+                                    {utterance.summary.keyPoints.map((point, i) => (
+                                      <li key={i}>{point}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {utterance.summary.issues?.length > 0 && (
+                                <div className="note-detail-utterance-summary-section">
+                                  <div className="note-detail-utterance-summary-header">
+                                    <FiAlertCircle size={12} />
+                                    <span>{t('utterance_issues')}</span>
+                                  </div>
+                                  <ul>
+                                    {utterance.summary.issues.map((issue, i) => (
+                                      <li key={i}>{issue}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {utterance.summary.topics?.length > 0 && (
+                                <div className="note-detail-utterance-topics">
+                                  <FiTag size={12} />
+                                  <div className="note-detail-topic-tags">
+                                    {utterance.summary.topics.map((topic, i) => (
+                                      <span key={i} className="note-detail-topic-tag">
+                                        {topic}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Insert utterance to notes */}
+                          <button
+                            className="note-detail-insert-btn"
+                            onClick={() => handleInsertUtteranceToNotes(utterance)}
+                          >
+                            <FiDownload size={13} />
+                            {t('meet_insert_to_notes')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1503,10 +1943,10 @@ const NoteDetail: React.FC = () => {
             <div className={`note-detail-endorsement ${isEndorsementCollapsing ? 'collapsing' : ''}`}>
               <div className="note-detail-endorsement-header">
                 <FiAward />
-                <span>{t('note_detail_endorsement_title') || 'Rate Participants'}</span>
+                <span>{t('note_detail_endorsement_title')}</span>
               </div>
               <p className="note-detail-endorsement-desc">
-                {t('note_detail_endorsement_desc') || "You haven't rated all participants yet."}
+                {t('note_detail_endorsement_desc')}
               </p>
               <div className="note-detail-endorsement-pending">
                 {pendingParticipants
@@ -1534,7 +1974,7 @@ const NoteDetail: React.FC = () => {
                 onClick={handleOpenEndorsementModal}
               >
                 <FiAward size={16} />
-                {t('note_detail_endorsement_button') || 'Rate Now'}
+                {t('note_detail_endorsement_button')}
               </button>
             </div>
           )}

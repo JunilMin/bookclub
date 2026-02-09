@@ -49,9 +49,12 @@ public class UserNoteResponse {
     // AI Summary (if available)
     private SessionRecording.AISummary aiSummary;
 
+    // Personal AI Summary (user-specific, stored in UserSessionNote)
+    private SessionRecording.AISummary personalAiSummary;
+
     // User's relation
     private boolean isHost;
-    private boolean isFavorite;
+    private boolean liked;
 
     /**
      * 참가자 정보

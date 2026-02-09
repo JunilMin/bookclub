@@ -44,6 +44,14 @@ public class PostController {
     private AttendanceService attendanceService;
 
     /**
+     * 총 게시물 수 조회 (공개 API)
+     */
+    @GetMapping("/count")
+    public ResponseEntity<Long> getPostCount() {
+        return ResponseEntity.ok(postService.getPostCount());
+    }
+
+    /**
      * 모든 게시물 조회 (강퇴된 사용자에게는 해당 게시물 미표시)
      * @param userId 현재 사용자 ID (선택적)
      */

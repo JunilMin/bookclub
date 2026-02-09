@@ -45,6 +45,7 @@ interface UseLocalBlockDocumentReturn {
   addBlock: (type: BlockType, afterBlockId?: string | null, initialContent?: string) => string | null;
   deleteBlock: (blockId: string) => void;
   reorderBlocks: (fromIndex: number, toIndex: number) => void;
+  reorderMultiple: (blockIds: string[], targetIndex: number) => void;
 
   // Utilities
   getBlock: (blockId: string) => Block | null;
@@ -399,6 +400,25 @@ export function useLocalBlockDocument({
     setHasChanges(true);
   }, []);
 
+  const reorderMultiple = useCallback((blockIds: string[], targetIndex: number) => {
+    if (blockIds.length === 0) return;
+
+    setBlockOrder((prev) => {
+      // Remove all selected blocks from current positions
+      const remaining = prev.filter(id => !blockIds.includes(id));
+      // Maintain original relative order of selected blocks
+      const selectedInOrder = prev.filter(id => blockIds.includes(id));
+      // Clamp target index
+      const clampedTarget = Math.min(targetIndex, remaining.length);
+      // Insert at target
+      const newOrder = [...remaining];
+      newOrder.splice(clampedTarget, 0, ...selectedInOrder);
+      return newOrder;
+    });
+
+    setHasChanges(true);
+  }, []);
+
   // ============================================
   // Utilities
   // ============================================
@@ -431,6 +451,7 @@ export function useLocalBlockDocument({
     addBlock,
     deleteBlock,
     reorderBlocks,
+    reorderMultiple,
 
     // Utilities
     getBlock,
